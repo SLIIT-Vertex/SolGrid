@@ -63,6 +63,7 @@ Tokens do not include password hashes or unnecessary personal data.
 | `MongoDb:ConnectionString` | Yes | Use environment-specific configuration outside source control for deployed environments. |
 | `MongoDb:DatabaseName` | Yes | MongoDB database name. |
 | `MongoDb:UsersCollectionName` | Yes | Defaults to `Users` in local config. |
+| `MongoDb:InitializeOnStartup` | Yes | When true, the API creates required indexes and optional seed users at startup. |
 | `MongoDb:SeedDevelopmentUsers` | No | Enables optional development seed users only when explicitly true. |
 | `MongoDb:BackofficeSeedUser:*` | Development only | Configure through local secrets/environment variables if needed. |
 | `MongoDb:GridOperatorSeedUser:*` | Development only | Configure through local secrets/environment variables if needed. |
@@ -73,6 +74,29 @@ Tokens do not include password hashes or unnecessary personal data.
 | `Cors:AllowedOrigins` | Browser clients | Include React development and deployed web origins. |
 
 `appsettings.json` intentionally does not contain a production JWT signing key.
+
+For local development, create `.env` with generated local-only secrets:
+
+```bash
+make env-init
+```
+
+For `dotnet run`, store those `.env` values in .NET user-secrets:
+
+```bash
+make secrets-set
+make run
+```
+
+The API project has a `UserSecretsId`, so `ASPNETCORE_ENVIRONMENT=Development` loads these local secrets without committing them.
+
+For Docker Compose, use the same `.env` file:
+
+```bash
+make docker-up
+```
+
+The backend container reads configuration through environment variables such as `Jwt__SigningKey` and `MongoDb__ConnectionString`. Docker Compose requires `JWT_SIGNING_KEY` and `MONGO_ROOT_PASSWORD` to be present in `.env`; real secrets must never be committed.
 
 ## Seeded Development Accounts
 
@@ -98,3 +122,12 @@ Android:
 ## Persistence Notes
 
 The `Users` collection stores normalized email, BCrypt password hash, role, account status, and UTC timestamps. MongoDB indexes enforce unique email and support role/status filters.
+
+MongoDB repository integration tests are designed to run against a real MongoDB instance when `SOLGRID_MONGO_TEST_CONNECTION_STRING` is set. A compose file is included for that workflow:
+
+```bash
+docker compose -f docker-compose.test.yml up -d
+SOLGRID_MONGO_TEST_CONNECTION_STRING=mongodb://localhost:27018 \
+  dotnet test web-service/tests/SolGrid.Infrastructure.Tests/SolGrid.Infrastructure.Tests.csproj
+docker compose -f docker-compose.test.yml down
+```
