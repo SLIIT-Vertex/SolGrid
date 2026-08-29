@@ -1,0 +1,88 @@
+name: solgrid
+
+services:
+  mongo:
+    image: mongo:7.0
+    container_name: solgrid-mongo
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USERNAME:?Set MONGO_ROOT_USERNAME in .env}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD:?Set MONGO_ROOT_PASSWORD in .env}
+      MONGO_INITDB_DATABASE: ${MONGO_DATABASE:-SolGrid}
+    ports:
+      - "${MONGO_PORT:-27017}:27017"
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "mongosh --quiet --username $$MONGO_INITDB_ROOT_USERNAME --password $$MONGO_INITDB_ROOT_PASSWORD --authenticationDatabase admin --eval 'db.adminCommand({ ping: 1 }).ok' | grep 1"
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    networks:
+      - solgrid-net
+
+  backend:
+    build:
+      context: ./web-service
+      dockerfile: Dockerfile
+    container_name: solgrid-backend
+    restart: unless-stopped
+    depends_on:
+      mongo:
+        condition: service_healthy
+    environment:
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Production}
+      MongoDb__ConnectionString: mongodb://${MONGO_ROOT_USERNAME:?Set MONGO_ROOT_USERNAME in .env}:${MONGO_ROOT_PASSWORD:?Set MONGO_ROOT_PASSWORD in .env}@mongo:27017/${MONGO_DATABASE:-SolGrid}?authSource=admin
+      MongoDb__DatabaseName: ${MONGO_DATABASE:-SolGrid}
+      MongoDb__UsersCollectionName: ${MONGO_USERS_COLLECTION:-Users}
+      MongoDb__InitializeOnStartup: ${MONGO_INITIALIZE_ON_STARTUP:-true}
+      MongoDb__SeedDevelopmentUsers: ${SEED_DEVELOPMENT_USERS:-false}
+      MongoDb__BackofficeSeedUser__FirstName: ${BACKOFFICE_SEED_FIRST_NAME:-Backoffice}
+      MongoDb__BackofficeSeedUser__LastName: ${BACKOFFICE_SEED_LAST_NAME:-Admin}
+      MongoDb__BackofficeSeedUser__Email: ${BACKOFFICE_SEED_EMAIL:-}
+      MongoDb__BackofficeSeedUser__Password: ${BACKOFFICE_SEED_PASSWORD:-}
+      MongoDb__GridOperatorSeedUser__FirstName: ${GRID_OPERATOR_SEED_FIRST_NAME:-Grid}
+      MongoDb__GridOperatorSeedUser__LastName: ${GRID_OPERATOR_SEED_LAST_NAME:-Operator}
+      MongoDb__GridOperatorSeedUser__Email: ${GRID_OPERATOR_SEED_EMAIL:-}
+      MongoDb__GridOperatorSeedUser__Password: ${GRID_OPERATOR_SEED_PASSWORD:-}
+      Jwt__Issuer: ${JWT_ISSUER:-SolGrid}
+      Jwt__Audience: ${JWT_AUDIENCE:-SolGrid.Web}
+      Jwt__SigningKey: ${JWT_SIGNING_KEY:?Set JWT_SIGNING_KEY in .env}
+      Jwt__ExpiresMinutes: ${JWT_EXPIRES_MINUTES:-60}
+      Cors__AllowedOrigins__0: ${WEB_APP_ORIGIN:-http://localhost:5173}
+      Cors__AllowedOrigins__1: ${WEB_APP_DOCKER_ORIGIN:-http://localhost:8080}
+    ports:
+      - "${BACKEND_PORT:-5000}:8080"
+    networks:
+      - solgrid-net
+
+  web-app:
+    image: node:24-alpine
+    container_name: solgrid-web-app
+    restart: unless-stopped
+    working_dir: /app
+    command: sh -c "npm ci && npm run dev -- --host 0.0.0.0"
+    environment:
+      VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:5000}
+    ports:
+      - "${WEB_APP_PORT:-5173}:5173"
+    volumes:
+      - ./web-app:/app
+      - web-app-node-modules:/app/node_modules
+    depends_on:
+      - backend
+    networks:
+      - solgrid-net
+
+volumes:
+  mongo-data:
+  web-app-node-modules:
+
+networks:
+  solgrid-net:
+    driver: bridge

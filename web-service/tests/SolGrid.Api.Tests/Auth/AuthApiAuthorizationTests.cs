@@ -185,7 +185,8 @@ public sealed class AuthApiAuthorizationTests
                         ["Cors:AllowedOrigins:0"] = "http://localhost:5173",
                         ["MongoDb:ConnectionString"] = "mongodb://127.0.0.1:1",
                         ["MongoDb:DatabaseName"] = "SolGridTests",
-                        ["MongoDb:UsersCollectionName"] = "Users"
+                        ["MongoDb:UsersCollectionName"] = "Users",
+                        ["MongoDb:InitializeOnStartup"] = "false"
                     });
                 });
                 builder.ConfigureServices(services =>

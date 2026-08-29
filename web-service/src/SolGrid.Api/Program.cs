@@ -7,6 +7,7 @@
  */
 
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.Extensions.Options;
 using SolGrid.Api.Middleware;
 using SolGrid.Api.Security;
 using SolGrid.Application.Auth.Interfaces;
@@ -17,6 +18,7 @@ using SolGrid.Application.Users.Services;
 using SolGrid.Domain.Enums;
 using SolGrid.Infrastructure.DependencyInjection;
 using SolGrid.Infrastructure.Persistence.MongoDb;
+using SolGrid.Infrastructure.Persistence.MongoDb.Seeding;
 using SolGrid.Infrastructure.Security;
 
 const string CorsPolicyName = "SolGridClientCors";
@@ -25,6 +27,7 @@ var builder = WebApplication.CreateBuilder(args);
 
 // Configure API, application, infrastructure, authentication, and authorization services.
 builder.Services.AddControllers();
+builder.Services.AddHealthChecks();
 builder.Services.AddCors(options =>
 {
     // Allow configured browser clients to call the API without allowing credentials from wildcard origins.
@@ -70,10 +73,25 @@ var app = builder.Build();
 // Configure middleware order for errors, authentication, authorization, and controllers.
 app.UseMiddleware<GlobalExceptionHandlingMiddleware>();
 app.MapOpenApi();
+app.MapHealthChecks("/health");
 app.UseCors(CorsPolicyName);
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
+
+// Initialize MongoDB indexes and optional development seed users before serving traffic.
+using (var startupScope = app.Services.CreateScope())
+{
+    var mongoDbOptions = startupScope.ServiceProvider.GetRequiredService<IOptions<MongoDbOptions>>().Value;
+    if (mongoDbOptions.InitializeOnStartup)
+    {
+        var userCollectionInitializer = startupScope.ServiceProvider.GetRequiredService<IUserCollectionInitializer>();
+        await userCollectionInitializer.EnsureCreatedAsync().ConfigureAwait(false);
+
+        var userSeedDataInitializer = startupScope.ServiceProvider.GetRequiredService<IUserSeedDataInitializer>();
+        await userSeedDataInitializer.SeedAsync().ConfigureAwait(false);
+    }
+}
 
 app.Run();
 
