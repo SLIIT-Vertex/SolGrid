@@ -8,6 +8,7 @@ endif
 API_DIR := web-service
 WEB_DIR := web-app
 API_PROJECT := $(API_DIR)/src/SolGrid.Api/SolGrid.Api.csproj
+DOMAIN_TESTS := $(API_DIR)/tests/SolGrid.Domain.Tests/SolGrid.Domain.Tests.csproj
 APPLICATION_TESTS := $(API_DIR)/tests/SolGrid.Application.Tests/SolGrid.Application.Tests.csproj
 API_TESTS := $(API_DIR)/tests/SolGrid.Api.Tests/SolGrid.Api.Tests.csproj
 INFRA_TESTS := $(API_DIR)/tests/SolGrid.Infrastructure.Tests/SolGrid.Infrastructure.Tests.csproj
@@ -150,6 +151,7 @@ docker-test-mongo-down:
 
 restore:
 	@dotnet restore $(API_PROJECT)
+	@dotnet restore $(DOMAIN_TESTS)
 	@dotnet restore $(APPLICATION_TESTS)
 	@dotnet restore $(API_TESTS)
 	@dotnet restore $(INFRA_TESTS)
@@ -158,6 +160,7 @@ build:
 	@dotnet build $(API_PROJECT) --no-restore -v minimal -m:1 -nr:false -p:UseSharedCompilation=false
 
 test:
+	@dotnet test $(DOMAIN_TESTS) --no-restore -v minimal -m:1 -nr:false -p:UseSharedCompilation=false
 	@dotnet test $(APPLICATION_TESTS) --no-restore -v minimal -m:1 -nr:false -p:UseSharedCompilation=false
 	@dotnet test $(API_TESTS) --no-restore -v minimal -m:1 -nr:false -p:UseSharedCompilation=false
 	@dotnet test $(INFRA_TESTS) --no-restore -v minimal -m:1 -nr:false -p:UseSharedCompilation=false
@@ -166,12 +169,14 @@ verify: build test
 
 clean:
 	@dotnet clean $(API_PROJECT) -v minimal
+	@dotnet clean $(DOMAIN_TESTS) -v minimal
 	@dotnet clean $(APPLICATION_TESTS) -v minimal
 	@dotnet clean $(API_TESTS) -v minimal
 	@dotnet clean $(INFRA_TESTS) -v minimal
 
 format:
 	@dotnet format $(API_PROJECT) --no-restore
+	@dotnet format $(DOMAIN_TESTS) --no-restore
 	@dotnet format $(APPLICATION_TESTS) --no-restore
 	@dotnet format $(API_TESTS) --no-restore
 	@dotnet format $(INFRA_TESTS) --no-restore
