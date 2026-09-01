@@ -18,6 +18,21 @@ public static class ProsumerRequestValidationRules
         return UserRequestValidationRules.HasValue(nic);
     }
 
+    public static bool HasSupportedSriLankanNicFormat(string nic)
+    {
+        // Accept the commonly used legacy and current Sri Lankan NIC shapes.
+        if (!HasNicValue(nic))
+        {
+            return false;
+        }
+
+        var normalizedNic = nic.Trim();
+        return (normalizedNic.Length == 10
+                && normalizedNic[..9].All(char.IsDigit)
+                && normalizedNic[9] is 'V' or 'v' or 'X' or 'x')
+            || (normalizedNic.Length == 12 && normalizedNic.All(char.IsDigit));
+    }
+
     public static bool HasEmailShape(string email)
     {
         // Reuse the established minimal email validation convention.

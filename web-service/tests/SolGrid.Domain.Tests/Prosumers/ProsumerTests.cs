@@ -26,6 +26,7 @@ public sealed class ProsumerTests
             "Perera",
             "Nimal@example.com",
             "071 234 5678",
+            "hashed-password",
             createdAt);
 
         Assert.Equal("199012345678", prosumer.Nic);
@@ -113,6 +114,7 @@ public sealed class ProsumerTests
             "Perera",
             "nimal@example.com",
             "+94712345678",
+            "hashed-password",
             createdAt);
     }
 

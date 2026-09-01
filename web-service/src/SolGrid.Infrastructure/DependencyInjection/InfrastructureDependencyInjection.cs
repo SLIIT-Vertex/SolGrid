@@ -10,6 +10,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using MongoDB.Driver;
 using SolGrid.Application.Auth.Interfaces;
+using SolGrid.Application.Prosumers.Interfaces;
 using SolGrid.Application.Reservations.Interfaces;
 using SolGrid.Application.Users.Interfaces;
 using SolGrid.Infrastructure.Persistence.MongoDb;
@@ -48,8 +49,10 @@ public static class InfrastructureDependencyInjection
         services.AddScoped<ITokenService, JwtTokenService>();
         services.AddScoped<IReservationQrTokenService, Sha256ReservationQrTokenService>();
         services.AddScoped<IUserRepository, MongoUserRepository>();
+        services.AddScoped<IProsumerRepository, MongoProsumerRepository>();
         services.AddScoped<IReservationRepository, MongoReservationRepository>();
         services.AddScoped<IUserCollectionInitializer, MongoUserCollectionInitializer>();
+        services.AddScoped<IProsumerCollectionInitializer, MongoProsumerCollectionInitializer>();
         services.AddScoped<IReservationCollectionInitializer, MongoReservationCollectionInitializer>();
         services.AddScoped<IUserSeedDataInitializer, MongoUserSeedDataInitializer>();
 
