@@ -21,6 +21,7 @@ MONGO_ROOT_USERNAME ?= solgrid_admin
 MONGO_ROOT_PASSWORD ?=
 MONGO_DATABASE ?= SolGrid
 MONGO_USERS_COLLECTION ?= Users
+MONGO_ENERGY_RESERVATIONS_COLLECTION ?= EnergyReservations
 MONGO_INITIALIZE_ON_STARTUP ?= true
 MONGO_PORT ?= 27017
 MONGO_TEST_PORT ?= 27018
@@ -104,6 +105,7 @@ secrets-set: check-runtime-secrets
 	@dotnet user-secrets set "MongoDb:ConnectionString" "$(MONGO_CONNECTION_STRING)" --project $(API_PROJECT)
 	@dotnet user-secrets set "MongoDb:DatabaseName" "$(MONGO_DATABASE)" --project $(API_PROJECT)
 	@dotnet user-secrets set "MongoDb:UsersCollectionName" "$(MONGO_USERS_COLLECTION)" --project $(API_PROJECT)
+	@dotnet user-secrets set "MongoDb:EnergyReservationsCollectionName" "$(MONGO_ENERGY_RESERVATIONS_COLLECTION)" --project $(API_PROJECT)
 	@dotnet user-secrets set "MongoDb:InitializeOnStartup" "$(MONGO_INITIALIZE_ON_STARTUP)" --project $(API_PROJECT)
 	@dotnet user-secrets set "MongoDb:SeedDevelopmentUsers" "$(SEED_DEVELOPMENT_USERS)" --project $(API_PROJECT)
 	@dotnet user-secrets set "MongoDb:BackofficeSeedUser:FirstName" "$(BACKOFFICE_SEED_FIRST_NAME)" --project $(API_PROJECT)

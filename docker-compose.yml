@@ -40,6 +40,7 @@ services:
       MongoDb__ConnectionString: mongodb://${MONGO_ROOT_USERNAME:?Set MONGO_ROOT_USERNAME in .env}:${MONGO_ROOT_PASSWORD:?Set MONGO_ROOT_PASSWORD in .env}@mongo:27017/${MONGO_DATABASE:-SolGrid}?authSource=admin
       MongoDb__DatabaseName: ${MONGO_DATABASE:-SolGrid}
       MongoDb__UsersCollectionName: ${MONGO_USERS_COLLECTION:-Users}
+      MongoDb__EnergyReservationsCollectionName: ${MONGO_ENERGY_RESERVATIONS_COLLECTION:-EnergyReservations}
       MongoDb__InitializeOnStartup: ${MONGO_INITIALIZE_ON_STARTUP:-true}
       MongoDb__SeedDevelopmentUsers: ${SEED_DEVELOPMENT_USERS:-false}
       MongoDb__BackofficeSeedUser__FirstName: ${BACKOFFICE_SEED_FIRST_NAME:-Backoffice}
