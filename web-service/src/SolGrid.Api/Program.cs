@@ -13,6 +13,8 @@ using SolGrid.Api.Security;
 using SolGrid.Application.Auth.Interfaces;
 using SolGrid.Application.Auth.Services;
 using SolGrid.Application.Common.Identity;
+using SolGrid.Application.Reservations.Interfaces;
+using SolGrid.Application.Reservations.Services;
 using SolGrid.Application.Users.Interfaces;
 using SolGrid.Application.Users.Services;
 using SolGrid.Domain.Enums;
@@ -46,7 +48,9 @@ builder.Services.AddCors(options =>
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IUserService, UserService>();
+builder.Services.AddScoped<IReservationService, ReservationService>();
 builder.Services.AddScoped<ICurrentUserContext, HttpCurrentUserContext>();
+builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSolGridInfrastructure(
     mongoDbOptions => builder.Configuration.GetSection("MongoDb").Bind(mongoDbOptions),
     jwtOptions => builder.Configuration.GetSection("Jwt").Bind(jwtOptions));
@@ -87,6 +91,9 @@ using (var startupScope = app.Services.CreateScope())
     {
         var userCollectionInitializer = startupScope.ServiceProvider.GetRequiredService<IUserCollectionInitializer>();
         await userCollectionInitializer.EnsureCreatedAsync().ConfigureAwait(false);
+
+        var reservationCollectionInitializer = startupScope.ServiceProvider.GetRequiredService<IReservationCollectionInitializer>();
+        await reservationCollectionInitializer.EnsureCreatedAsync().ConfigureAwait(false);
 
         var userSeedDataInitializer = startupScope.ServiceProvider.GetRequiredService<IUserSeedDataInitializer>();
         await userSeedDataInitializer.SeedAsync().ConfigureAwait(false);
