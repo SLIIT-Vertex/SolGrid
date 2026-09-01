@@ -18,6 +18,7 @@ public sealed class Prosumer
         string lastName,
         string email,
         string? phoneNumber,
+        string passwordHash,
         ProsumerAccountStatus status,
         DateTimeOffset createdAt,
         DateTimeOffset updatedAt)
@@ -28,6 +29,7 @@ public sealed class Prosumer
         LastName = RequireValue(lastName, nameof(lastName));
         Email = NormalizeEmail(email);
         PhoneNumber = NormalizeOptionalPhoneNumber(phoneNumber);
+        PasswordHash = RequireValue(passwordHash, nameof(passwordHash));
         Status = RequireDefinedEnum(status, nameof(status));
         CreatedAt = createdAt;
         UpdatedAt = updatedAt;
@@ -43,6 +45,8 @@ public sealed class Prosumer
 
     public string? PhoneNumber { get; private set; }
 
+    public string PasswordHash { get; private set; }
+
     public ProsumerAccountStatus Status { get; private set; }
 
     public DateTimeOffset CreatedAt { get; }
@@ -57,6 +61,7 @@ public sealed class Prosumer
         string lastName,
         string email,
         string? phoneNumber,
+        string passwordHash,
         DateTimeOffset createdAt)
     {
         // Create a pending prosumer profile that awaits Backoffice activation.
@@ -66,6 +71,7 @@ public sealed class Prosumer
             lastName,
             email,
             phoneNumber,
+            passwordHash,
             ProsumerAccountStatus.Pending,
             createdAt,
             createdAt);
@@ -77,12 +83,13 @@ public sealed class Prosumer
         string lastName,
         string email,
         string? phoneNumber,
+        string passwordHash,
         ProsumerAccountStatus status,
         DateTimeOffset createdAt,
         DateTimeOffset updatedAt)
     {
         // Rehydrate a prosumer without exposing persistence-specific types to Domain.
-        return new Prosumer(nic, firstName, lastName, email, phoneNumber, status, createdAt, updatedAt);
+        return new Prosumer(nic, firstName, lastName, email, phoneNumber, passwordHash, status, createdAt, updatedAt);
     }
 
     public void UpdateProfile(

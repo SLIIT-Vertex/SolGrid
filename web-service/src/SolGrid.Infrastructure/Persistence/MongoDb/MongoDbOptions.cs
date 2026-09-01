@@ -16,6 +16,8 @@ public sealed class MongoDbOptions
 
     public string UsersCollectionName { get; init; } = "Users";
 
+    public string ProsumersCollectionName { get; init; } = "Prosumers";
+
     public string EnergyReservationsCollectionName { get; init; } = "EnergyReservations";
 
     public bool InitializeOnStartup { get; init; } = true;
