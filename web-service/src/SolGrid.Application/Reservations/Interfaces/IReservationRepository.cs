@@ -39,6 +39,8 @@ public sealed class ReservationQuery
 
     public ReservationStatus? Status { get; init; }
 
+    public string? SearchText { get; init; }
+
     public DateTimeOffset? ScheduledFrom { get; init; }
 
     public DateTimeOffset? ScheduledTo { get; init; }

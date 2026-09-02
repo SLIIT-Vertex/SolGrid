@@ -82,14 +82,25 @@ public sealed class AuthApiAuthorizationTests
     [Fact]
     public async Task OpenApiDocument_IncludesReservationCreateEndpoint()
     {
-        // Verify OpenAPI metadata advertises the reservation create endpoint.
+        // Verify OpenAPI metadata advertises reservation endpoints.
         await using var factory = CreateFactory();
         var client = factory.CreateClient();
 
         var openApiJson = await client.GetStringAsync("/openapi/v1.json");
 
         Assert.Contains("\"/api/v1/reservations\"", openApiJson, StringComparison.Ordinal);
+        Assert.Contains("\"/api/v1/reservations/{id}\"", openApiJson, StringComparison.Ordinal);
+        Assert.Contains("\"/api/v1/reservations/{id}/cancel\"", openApiJson, StringComparison.Ordinal);
+        Assert.Contains("\"/api/v1/reservations/{id}/approve\"", openApiJson, StringComparison.Ordinal);
+        Assert.Contains("\"/api/v1/reservations/{id}/reject\"", openApiJson, StringComparison.Ordinal);
+        Assert.Contains("\"/api/v1/reservations/{id}/qr\"", openApiJson, StringComparison.Ordinal);
+        Assert.Contains("\"/api/v1/reservations/{id}/complete\"", openApiJson, StringComparison.Ordinal);
+        Assert.Contains("\"/api/v1/reservations/me\"", openApiJson, StringComparison.Ordinal);
+        Assert.Contains("\"/api/v1/reservations/verify-qr\"", openApiJson, StringComparison.Ordinal);
+        Assert.Contains("\"get\"", openApiJson, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("\"post\"", openApiJson, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("\"put\"", openApiJson, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("\"patch\"", openApiJson, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
