@@ -12,6 +12,10 @@ public static class ReservationTimeRules
 {
     public const int MaximumAdvanceReservationDays = 7;
 
+    public const int MinimumChangeNoticeHours = 12;
+
+    public const int QrVerificationTokenLifetimeMinutes = 30;
+
     public static DateTimeOffset NormalizeToUtc(DateTimeOffset timestamp)
     {
         // Convert client-provided timestamps to UTC before applying reservation rules.
@@ -28,5 +32,17 @@ public static class ReservationTimeRules
     {
         // Check whether the requested schedule exceeds the assignment reservation window.
         return scheduledAtUtc > nowUtc.AddDays(MaximumAdvanceReservationDays);
+    }
+
+    public static bool HasRequiredChangeNotice(DateTimeOffset currentScheduledAtUtc, DateTimeOffset nowUtc)
+    {
+        // Check whether update or cancellation is at least the assignment notice period away.
+        return currentScheduledAtUtc - nowUtc >= TimeSpan.FromHours(MinimumChangeNoticeHours);
+    }
+
+    public static DateTimeOffset GetQrVerificationTokenExpiry(DateTimeOffset issuedAtUtc)
+    {
+        // Calculate the short-lived QR token expiry timestamp.
+        return issuedAtUtc.AddMinutes(QrVerificationTokenLifetimeMinutes);
     }
 }

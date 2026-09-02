@@ -62,9 +62,9 @@ public sealed class EnergyReservation
 
     public string ProsumerId { get; }
 
-    public string StationId { get; }
+    public string StationId { get; private set; }
 
-    public string BookingSlotId { get; }
+    public string BookingSlotId { get; private set; }
 
     public DateTimeOffset ScheduledAt { get; private set; }
 
@@ -182,6 +182,20 @@ public sealed class EnergyReservation
     {
         // Change the reservation schedule while it is still active.
         EnsureStatus([ReservationStatus.Pending, ReservationStatus.Approved], "Only pending or approved reservations can be rescheduled.");
+        ScheduledAt = scheduledAt;
+        MarkUpdated(updatedAt);
+    }
+
+    public void Reschedule(
+        string stationId,
+        string bookingSlotId,
+        DateTimeOffset scheduledAt,
+        DateTimeOffset updatedAt)
+    {
+        // Change the reservation station, slot, and schedule while it is still active.
+        EnsureStatus([ReservationStatus.Pending, ReservationStatus.Approved], "Only pending or approved reservations can be rescheduled.");
+        StationId = RequireValue(stationId, nameof(stationId));
+        BookingSlotId = RequireValue(bookingSlotId, nameof(bookingSlotId));
         ScheduledAt = scheduledAt;
         MarkUpdated(updatedAt);
     }

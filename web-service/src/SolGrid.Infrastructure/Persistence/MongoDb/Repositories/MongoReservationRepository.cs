@@ -13,6 +13,7 @@ using SolGrid.Application.Users.Interfaces;
 using SolGrid.Domain.Entities;
 using SolGrid.Domain.Enums;
 using SolGrid.Infrastructure.Persistence.MongoDb.Documents;
+using System.Text.RegularExpressions;
 
 namespace SolGrid.Infrastructure.Persistence.MongoDb.Repositories;
 
@@ -175,6 +176,16 @@ public sealed class MongoReservationRepository : IReservationRepository
         if (query.Status.HasValue)
         {
             filters.Add(builder.Eq(reservation => reservation.Status, query.Status.Value));
+        }
+
+        if (!string.IsNullOrWhiteSpace(query.SearchText))
+        {
+            var searchText = Regex.Escape(query.SearchText.Trim());
+            filters.Add(builder.Or(
+                builder.Regex(reservation => reservation.Id, new MongoDB.Bson.BsonRegularExpression(searchText, "i")),
+                builder.Regex(reservation => reservation.ProsumerId, new MongoDB.Bson.BsonRegularExpression(searchText, "i")),
+                builder.Regex(reservation => reservation.StationId, new MongoDB.Bson.BsonRegularExpression(searchText, "i")),
+                builder.Regex(reservation => reservation.BookingSlotId, new MongoDB.Bson.BsonRegularExpression(searchText, "i"))));
         }
 
         if (query.ScheduledFrom.HasValue)

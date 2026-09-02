@@ -11,6 +11,8 @@ using Microsoft.AspNetCore.Mvc;
 using SolGrid.Application.Reservations.Interfaces;
 using SolGrid.Application.Reservations.Requests;
 using SolGrid.Application.Reservations.Responses;
+using SolGrid.Application.Users.Interfaces;
+using SolGrid.Domain.Enums;
 
 namespace SolGrid.Api.Controllers;
 
@@ -27,6 +29,90 @@ public sealed class ReservationsController : ControllerBase
         this.reservationService = reservationService;
     }
 
+    [HttpGet]
+    [Authorize(Roles = "Backoffice,GridOperator")]
+    [ProducesResponseType(typeof(PagedResult<ReservationResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+    public async Task<ActionResult<PagedResult<ReservationResponse>>> GetReservations(
+        [FromQuery] string? prosumerId,
+        [FromQuery] string? stationId,
+        [FromQuery] string? bookingSlotId,
+        [FromQuery] ReservationStatus? status,
+        [FromQuery] string? searchText,
+        [FromQuery] DateTimeOffset? scheduledFrom,
+        [FromQuery] DateTimeOffset? scheduledTo,
+        [FromQuery] int pageNumber = 1,
+        [FromQuery] int pageSize = 20,
+        CancellationToken cancellationToken = default)
+    {
+        // Return filtered and paged reservations for operational web roles.
+        var response = await reservationService.GetReservationsAsync(
+            new ReservationQuery
+            {
+                ProsumerId = prosumerId,
+                StationId = stationId,
+                BookingSlotId = bookingSlotId,
+                Status = status,
+                SearchText = searchText,
+                ScheduledFrom = scheduledFrom,
+                ScheduledTo = scheduledTo,
+                PageNumber = pageNumber,
+                PageSize = pageSize
+            },
+            cancellationToken).ConfigureAwait(false);
+
+        return Ok(response);
+    }
+
+    [HttpGet("me")]
+    [ProducesResponseType(typeof(PagedResult<ReservationResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+    public async Task<ActionResult<PagedResult<ReservationResponse>>> GetMyReservations(
+        [FromQuery] string? stationId,
+        [FromQuery] string? bookingSlotId,
+        [FromQuery] ReservationStatus? status,
+        [FromQuery] string? searchText,
+        [FromQuery] DateTimeOffset? scheduledFrom,
+        [FromQuery] DateTimeOffset? scheduledTo,
+        [FromQuery] int pageNumber = 1,
+        [FromQuery] int pageSize = 20,
+        CancellationToken cancellationToken = default)
+    {
+        // Return filtered and paged reservations owned by the current caller.
+        var response = await reservationService.GetMyReservationsAsync(
+            new ReservationQuery
+            {
+                StationId = stationId,
+                BookingSlotId = bookingSlotId,
+                Status = status,
+                SearchText = searchText,
+                ScheduledFrom = scheduledFrom,
+                ScheduledTo = scheduledTo,
+                PageNumber = pageNumber,
+                PageSize = pageSize
+            },
+            cancellationToken).ConfigureAwait(false);
+
+        return Ok(response);
+    }
+
+    [HttpGet("{id}")]
+    [ProducesResponseType(typeof(ReservationResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<ReservationResponse>> GetById(string id, CancellationToken cancellationToken)
+    {
+        // Return one reservation when the caller is allowed to access it.
+        var response = await reservationService.GetReservationByIdAsync(id, cancellationToken).ConfigureAwait(false);
+        return Ok(response);
+    }
+
     [HttpPost]
     [ProducesResponseType(typeof(ReservationResponse), StatusCodes.Status201Created)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
@@ -41,5 +127,122 @@ public sealed class ReservationsController : ControllerBase
         // Create a pending energy reservation after authentication has succeeded.
         var response = await reservationService.CreateReservationAsync(request, cancellationToken).ConfigureAwait(false);
         return Created($"/api/v1/reservations/{response.Id}", response);
+    }
+
+    [HttpPut("{id}")]
+    [ProducesResponseType(typeof(ReservationResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<ReservationResponse>> Update(
+        string id,
+        [FromBody] UpdateReservationRequest request,
+        CancellationToken cancellationToken)
+    {
+        // Update an active reservation after ownership and notice checks succeed.
+        var response = await reservationService.UpdateReservationAsync(id, request, cancellationToken).ConfigureAwait(false);
+        return Ok(response);
+    }
+
+    [HttpPatch("{id}/cancel")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> Cancel(string id, CancellationToken cancellationToken)
+    {
+        // Cancel an active reservation without deleting its historical record.
+        await reservationService.CancelReservationAsync(id, cancellationToken).ConfigureAwait(false);
+        return NoContent();
+    }
+
+    [HttpPatch("{id}/approve")]
+    [Authorize(Roles = "Backoffice,GridOperator")]
+    [ProducesResponseType(typeof(ReservationResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<ReservationResponse>> Approve(
+        string id,
+        [FromBody] ApproveReservationRequest request,
+        CancellationToken cancellationToken)
+    {
+        // Approve a pending reservation using the authenticated reviewer identity.
+        var response = await reservationService.ApproveReservationAsync(id, request, cancellationToken).ConfigureAwait(false);
+        return Ok(response);
+    }
+
+    [HttpPatch("{id}/reject")]
+    [Authorize(Roles = "Backoffice,GridOperator")]
+    [ProducesResponseType(typeof(ReservationResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<ReservationResponse>> Reject(
+        string id,
+        [FromBody] RejectReservationRequest request,
+        CancellationToken cancellationToken)
+    {
+        // Reject a pending reservation using the authenticated reviewer identity.
+        var response = await reservationService.RejectReservationAsync(id, request, cancellationToken).ConfigureAwait(false);
+        return Ok(response);
+    }
+
+    [HttpPost("{id}/qr")]
+    [ProducesResponseType(typeof(ReservationQrResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<ReservationQrResponse>> IssueQr(
+        string id,
+        CancellationToken cancellationToken)
+    {
+        // Issue a short-lived QR transaction token for an approved reservation.
+        var response = await reservationService.IssueReservationQrAsync(id, cancellationToken).ConfigureAwait(false);
+        return Ok(response);
+    }
+
+    [HttpPost("verify-qr")]
+    [Authorize(Roles = "Backoffice,GridOperator")]
+    [ProducesResponseType(typeof(VerifyReservationQrResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<VerifyReservationQrResponse>> VerifyQr(
+        [FromBody] VerifyReservationQrRequest request,
+        CancellationToken cancellationToken)
+    {
+        // Verify a QR token against server-side reservation transaction state.
+        var response = await reservationService.VerifyReservationQrAsync(request, cancellationToken).ConfigureAwait(false);
+        return Ok(response);
+    }
+
+    [HttpPost("{id}/complete")]
+    [Authorize(Roles = "Backoffice,GridOperator")]
+    [ProducesResponseType(typeof(ReservationResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<ReservationResponse>> Complete(
+        string id,
+        [FromBody] CompleteReservationRequest request,
+        CancellationToken cancellationToken)
+    {
+        // Complete an approved reservation after server-side QR token revalidation.
+        var response = await reservationService.CompleteReservationAsync(id, request, cancellationToken).ConfigureAwait(false);
+        return Ok(response);
     }
 }
