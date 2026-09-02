@@ -46,6 +46,7 @@ public static class InfrastructureDependencyInjection
         });
         services.AddScoped<IPasswordHasher, BCryptPasswordHasher>();
         services.AddScoped<ITokenService, JwtTokenService>();
+        services.AddScoped<IReservationQrTokenService, Sha256ReservationQrTokenService>();
         services.AddScoped<IUserRepository, MongoUserRepository>();
         services.AddScoped<IReservationRepository, MongoReservationRepository>();
         services.AddScoped<IUserCollectionInitializer, MongoUserCollectionInitializer>();
