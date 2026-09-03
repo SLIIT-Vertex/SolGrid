@@ -19,6 +19,4 @@ public sealed class UpdateUserRequest
     public string Email { get; init; } = string.Empty;
 
     public UserRole Role { get; init; }
-
-    public AccountStatus Status { get; init; }
 }

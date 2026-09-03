@@ -1,9 +1,19 @@
+/*
+ * Project: SolGrid
+ * Module: SE4040 Enterprise Application Development
+ * File: Program.cs
+ * Description: Configures the SolGrid Web API host, authentication, authorization, and dependency injection.
+ * Contributor: Dilshan Yapa
+ */
+
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using SolGrid.Api.Middleware;
 using SolGrid.Api.Security;
 using SolGrid.Application.Auth.Interfaces;
 using SolGrid.Application.Auth.Services;
 using SolGrid.Application.Common.Identity;
+using SolGrid.Application.Users.Interfaces;
+using SolGrid.Application.Users.Services;
 using SolGrid.Domain.Enums;
 using SolGrid.Infrastructure.DependencyInjection;
 using SolGrid.Infrastructure.Persistence.MongoDb;
@@ -15,6 +25,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllers();
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<ICurrentUserContext, HttpCurrentUserContext>();
 builder.Services.AddSolGridInfrastructure(
     mongoDbOptions => builder.Configuration.GetSection("MongoDb").Bind(mongoDbOptions),
