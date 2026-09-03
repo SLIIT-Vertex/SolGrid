@@ -21,7 +21,11 @@ public interface IUserService
 
     Task<IReadOnlyList<UserResponse>> GetUsersAsync(CancellationToken cancellationToken = default);
 
+    Task<PagedResult<UserResponse>> GetUsersAsync(UserQuery query, CancellationToken cancellationToken = default);
+
     Task ActivateUserAsync(string id, CancellationToken cancellationToken = default);
+
+    Task ReactivateUserAsync(string id, CancellationToken cancellationToken = default);
 
     Task DeactivateUserAsync(string id, CancellationToken cancellationToken = default);
 }

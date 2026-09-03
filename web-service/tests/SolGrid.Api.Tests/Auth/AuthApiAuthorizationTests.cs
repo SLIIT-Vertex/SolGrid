@@ -13,10 +13,14 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using SolGrid.Api.Security;
+using SolGrid.Application.Auth.Interfaces;
+using SolGrid.Application.Auth.Services;
 using SolGrid.Application.Users.Interfaces;
+using SolGrid.Application.Users.Services;
 using SolGrid.Domain.Entities;
 using SolGrid.Domain.Enums;
 using System.Net;
+using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Security.Claims;
 using Xunit;
@@ -74,6 +78,27 @@ public sealed class AuthApiAuthorizationTests
         Assert.Contains("\"bearer\"", openApiJson, StringComparison.OrdinalIgnoreCase);
     }
 
+    [Fact]
+    public async Task UserAdministration_WithGridOperatorJwt_ReturnsForbidden()
+    {
+        // Verify GridOperator users cannot perform Backoffice-only user administration.
+        await using var factory = CreateFactory();
+        var client = factory.CreateClient();
+        var token = await LoginAsync(client, "operator@example.com", "operator-password");
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        var response = await client.PostAsJsonAsync("/api/v1/users", new
+        {
+            FirstName = "New",
+            LastName = "Operator",
+            Email = "new.operator@example.com",
+            Password = "password123",
+            Role = UserRole.GridOperator
+        });
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
     private static WebApplicationFactory<Program> CreateFactory()
     {
         // Create an API test host with deterministic auth configuration and users.
@@ -97,6 +122,10 @@ public sealed class AuthApiAuthorizationTests
                 {
                     services.RemoveAll<IUserRepository>();
                     services.AddSingleton<IUserRepository>(new TestUserRepository());
+                    services.RemoveAll<IAuthService>();
+                    services.AddScoped<IAuthService, AuthService>();
+                    services.RemoveAll<IUserService>();
+                    services.AddScoped<IUserService, UserService>();
                 });
             });
     }
