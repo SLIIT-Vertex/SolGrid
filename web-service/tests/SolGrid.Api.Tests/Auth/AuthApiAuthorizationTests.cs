@@ -99,6 +99,75 @@ public sealed class AuthApiAuthorizationTests
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
     }
 
+    [Fact]
+    public async Task UserAdministration_WithoutJwt_ReturnsUnauthorized()
+    {
+        // Verify user administration endpoints require authentication.
+        await using var factory = CreateFactory();
+        var client = factory.CreateClient();
+
+        var response = await client.GetAsync("/api/v1/users");
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task UserAdministration_WithBackofficeJwt_CreatesUserWithoutPasswordHashResponse()
+    {
+        // Verify Backoffice users can create accounts and responses hide password hashes.
+        await using var factory = CreateFactory();
+        var client = factory.CreateClient();
+        var token = await LoginAsync(client, "backoffice@example.com", "backoffice-password");
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        var response = await client.PostAsJsonAsync("/api/v1/users", new
+        {
+            FirstName = "New",
+            LastName = "Operator",
+            Email = "new.operator@example.com",
+            Password = "password123",
+            Role = UserRole.GridOperator
+        });
+
+        var body = await response.Content.ReadAsStringAsync();
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        Assert.DoesNotContain("passwordHash", body, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("password123", body, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task UserAdministration_WithBackofficeJwtAndMissingUser_ReturnsNotFoundProblem()
+    {
+        // Verify missing users return a consistent 404 ProblemDetails response.
+        await using var factory = CreateFactory();
+        var client = factory.CreateClient();
+        var token = await LoginAsync(client, "backoffice@example.com", "backoffice-password");
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        var response = await client.GetAsync("/api/v1/users/missing-id");
+        var contentType = response.Content.Headers.ContentType?.MediaType;
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        Assert.Equal("application/problem+json", contentType);
+    }
+
+    [Fact]
+    public async Task CorsPreflight_FromConfiguredReactOrigin_ReturnsCorsHeaders()
+    {
+        // Verify configured browser clients can pass CORS preflight checks.
+        await using var factory = CreateFactory();
+        var client = factory.CreateClient();
+        using var request = new HttpRequestMessage(HttpMethod.Options, "/api/v1/auth/login");
+        request.Headers.Add("Origin", "http://localhost:5173");
+        request.Headers.Add("Access-Control-Request-Method", "POST");
+
+        var response = await client.SendAsync(request);
+
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+        Assert.True(response.Headers.TryGetValues("Access-Control-Allow-Origin", out var origins));
+        Assert.Contains("http://localhost:5173", origins);
+    }
+
     private static WebApplicationFactory<Program> CreateFactory()
     {
         // Create an API test host with deterministic auth configuration and users.
@@ -113,6 +182,7 @@ public sealed class AuthApiAuthorizationTests
                         ["Jwt:Audience"] = "SolGrid.Tests",
                         ["Jwt:SigningKey"] = JwtSigningKey,
                         ["Jwt:ExpiresMinutes"] = "30",
+                        ["Cors:AllowedOrigins:0"] = "http://localhost:5173",
                         ["MongoDb:ConnectionString"] = "mongodb://127.0.0.1:1",
                         ["MongoDb:DatabaseName"] = "SolGridTests",
                         ["MongoDb:UsersCollectionName"] = "Users"

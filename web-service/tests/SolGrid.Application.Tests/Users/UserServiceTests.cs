@@ -16,6 +16,7 @@ using SolGrid.Application.Users.Requests;
 using SolGrid.Application.Users.Services;
 using SolGrid.Domain.Entities;
 using SolGrid.Domain.Enums;
+using System.Text.Json;
 using Xunit;
 
 namespace SolGrid.Application.Tests.Users;
@@ -42,6 +43,7 @@ public sealed class UserServiceTests
         Assert.Equal(UserRole.Backoffice, response.Role);
         Assert.Equal("backoffice@example.com", response.Email);
         Assert.Equal("hash:password123", storedUser!.PasswordHash);
+        Assert.DoesNotContain("PasswordHash", JsonSerializer.Serialize(response), StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -116,6 +118,48 @@ public sealed class UserServiceTests
         Assert.Equal("updated@example.com", response.Email);
         Assert.Equal(UserRole.Backoffice, response.Role);
         Assert.Equal(AccountStatus.Active, response.Status);
+    }
+
+    [Fact]
+    public async Task UpdateUserAsync_WithDuplicateEmail_ThrowsConflict()
+    {
+        // Verify email changes cannot reuse another user's normalized email.
+        var firstUser = CreateUser("first-id", "first@example.com", "password", UserRole.Backoffice);
+        var secondUser = CreateUser("second-id", "second@example.com", "password", UserRole.GridOperator);
+        var repository = new InMemoryUserRepository(firstUser, secondUser);
+        var service = CreateUserService(repository);
+
+        await Assert.ThrowsAsync<ConflictException>(() => service.UpdateUserAsync("second-id", new UpdateUserRequest
+        {
+            FirstName = "Second",
+            LastName = "User",
+            Email = "FIRST@example.com",
+            Role = UserRole.GridOperator
+        }));
+    }
+
+    [Fact]
+    public async Task GetUsersAsync_WithRoleStatusAndSearchFilters_ReturnsMatchingUsers()
+    {
+        // Verify user lists support useful filters for administrative screens.
+        var activeBackoffice = CreateUser("first-id", "admin@example.com", "password", UserRole.Backoffice);
+        var inactiveOperator = CreateUser("second-id", "solar.operator@example.com", "password", UserRole.GridOperator);
+        inactiveOperator.Deactivate(DateTimeOffset.UtcNow);
+        var repository = new InMemoryUserRepository(activeBackoffice, inactiveOperator);
+        var service = CreateUserService(repository);
+
+        var response = await service.GetUsersAsync(new UserQuery
+        {
+            SearchText = "solar",
+            Role = UserRole.GridOperator,
+            Status = AccountStatus.Inactive,
+            PageNumber = 1,
+            PageSize = 10
+        });
+
+        var user = Assert.Single(response.Items);
+        Assert.Equal("solar.operator@example.com", user.Email);
+        Assert.Equal(1, response.TotalCount);
     }
 
     [Fact]
