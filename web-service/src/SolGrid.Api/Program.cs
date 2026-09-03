@@ -19,10 +19,27 @@ using SolGrid.Infrastructure.DependencyInjection;
 using SolGrid.Infrastructure.Persistence.MongoDb;
 using SolGrid.Infrastructure.Security;
 
+const string CorsPolicyName = "SolGridClientCors";
+
 var builder = WebApplication.CreateBuilder(args);
 
 // Configure API, application, infrastructure, authentication, and authorization services.
 builder.Services.AddControllers();
+builder.Services.AddCors(options =>
+{
+    // Allow configured browser clients to call the API without allowing credentials from wildcard origins.
+    options.AddPolicy(CorsPolicyName, policy =>
+    {
+        var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [];
+        if (allowedOrigins.Length > 0)
+        {
+            policy
+                .WithOrigins(allowedOrigins)
+                .AllowAnyHeader()
+                .AllowAnyMethod();
+        }
+    });
+});
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IUserService, UserService>();
@@ -53,6 +70,7 @@ var app = builder.Build();
 // Configure middleware order for errors, authentication, authorization, and controllers.
 app.UseMiddleware<GlobalExceptionHandlingMiddleware>();
 app.MapOpenApi();
+app.UseCors(CorsPolicyName);
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();

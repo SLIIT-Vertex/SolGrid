@@ -14,11 +14,13 @@ namespace SolGrid.Api.Middleware;
 public sealed class GlobalExceptionHandlingMiddleware
 {
     private readonly RequestDelegate next;
+    private readonly ILogger<GlobalExceptionHandlingMiddleware> logger;
 
-    public GlobalExceptionHandlingMiddleware(RequestDelegate next)
+    public GlobalExceptionHandlingMiddleware(RequestDelegate next, ILogger<GlobalExceptionHandlingMiddleware> logger)
     {
-        // Capture the next middleware in the request pipeline.
+        // Capture middleware dependencies for request execution and error logging.
         this.next = next;
+        this.logger = logger;
     }
 
     public async Task InvokeAsync(HttpContext context)
@@ -63,6 +65,15 @@ public sealed class GlobalExceptionHandlingMiddleware
                 context,
                 StatusCodes.Status409Conflict,
                 exception.Message).ConfigureAwait(false);
+        }
+        catch (Exception exception)
+        {
+            // Hide unexpected error details from API clients while preserving server logs.
+            logger.LogError(exception, "An unhandled API exception occurred.");
+            await WriteProblemAsync(
+                context,
+                StatusCodes.Status500InternalServerError,
+                "An unexpected error occurred.").ConfigureAwait(false);
         }
     }
 

@@ -41,6 +41,7 @@ public sealed class JwtBearerOptionsSetup : IConfigureNamedOptions<JwtBearerOpti
     {
         // Validate JWT access tokens using typed configuration values.
         var values = jwtOptions.Value;
+        ValidateOptions(values);
         options.TokenValidationParameters = new TokenValidationParameters
         {
             ValidateIssuer = true,
@@ -59,6 +60,25 @@ public sealed class JwtBearerOptionsSetup : IConfigureNamedOptions<JwtBearerOpti
             OnChallenge = HandleChallengeAsync,
             OnForbidden = HandleForbiddenAsync
         };
+    }
+
+    private static void ValidateOptions(JwtOptions options)
+    {
+        // Ensure bearer authentication cannot run with missing or weak JWT configuration.
+        if (string.IsNullOrWhiteSpace(options.Issuer))
+        {
+            throw new InvalidOperationException("JWT issuer is not configured.");
+        }
+
+        if (string.IsNullOrWhiteSpace(options.Audience))
+        {
+            throw new InvalidOperationException("JWT audience is not configured.");
+        }
+
+        if (string.IsNullOrWhiteSpace(options.SigningKey) || Encoding.UTF8.GetByteCount(options.SigningKey) < 32)
+        {
+            throw new InvalidOperationException("JWT signing key must be at least 32 bytes.");
+        }
     }
 
     private static async Task HandleChallengeAsync(JwtBearerChallengeContext context)
