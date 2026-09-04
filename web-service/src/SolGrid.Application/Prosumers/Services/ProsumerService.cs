@@ -87,6 +87,7 @@ public sealed class ProsumerService : IProsumerService
     {
         // Return the profile identified solely by the authenticated prosumer token subject.
         var prosumer = await GetCurrentProsumerAsync(cancellationToken).ConfigureAwait(false);
+        EnsureSelfServiceEligible(prosumer);
         return ProsumerResponseMapper.ToResponse(prosumer);
     }
 
@@ -95,6 +96,7 @@ public sealed class ProsumerService : IProsumerService
         // Update only the authenticated prosumer's editable profile fields.
         ValidateUpdateRequest(request);
         var prosumer = await GetCurrentProsumerAsync(cancellationToken).ConfigureAwait(false);
+        EnsureSelfServiceEligible(prosumer);
         var email = NormalizeEmail(request.Email);
 
         if (!string.Equals(prosumer.Email, email, StringComparison.OrdinalIgnoreCase)
@@ -253,6 +255,15 @@ public sealed class ProsumerService : IProsumerService
         if (currentUserContext?.Role != UserRole.Backoffice)
         {
             throw new ForbiddenException("Backoffice authorization is required for prosumer administration.");
+        }
+    }
+
+    private static void EnsureSelfServiceEligible(Prosumer prosumer)
+    {
+        // Block stale-token self-service access after a prosumer leaves the active lifecycle state.
+        if (!prosumer.IsActive)
+        {
+            throw new AccountInactiveException();
         }
     }
 
