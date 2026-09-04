@@ -10,6 +10,8 @@ using SolGrid.Application.Auth.Interfaces;
 using SolGrid.Application.Auth.Requests;
 using SolGrid.Application.Auth.Responses;
 using SolGrid.Application.Common.Exceptions;
+using SolGrid.Application.Prosumers.Interfaces;
+using SolGrid.Application.Prosumers.Responses;
 using SolGrid.Application.Users.Interfaces;
 using SolGrid.Application.Users.Responses;
 
@@ -20,6 +22,7 @@ public sealed class AuthService : IAuthService
     private readonly IUserRepository userRepository;
     private readonly IPasswordHasher passwordHasher;
     private readonly ITokenService tokenService;
+    private readonly IProsumerRepository? prosumerRepository;
 
     public AuthService(
         IUserRepository userRepository,
@@ -30,6 +33,17 @@ public sealed class AuthService : IAuthService
         this.userRepository = userRepository;
         this.passwordHasher = passwordHasher;
         this.tokenService = tokenService;
+    }
+
+    public AuthService(
+        IUserRepository userRepository,
+        IProsumerRepository prosumerRepository,
+        IPasswordHasher passwordHasher,
+        ITokenService tokenService)
+        : this(userRepository, passwordHasher, tokenService)
+    {
+        // Capture prosumer persistence for the shared authentication workflow.
+        this.prosumerRepository = prosumerRepository;
     }
 
     public async Task<LoginResponse> LoginAsync(LoginRequest request, CancellationToken cancellationToken = default)
@@ -58,6 +72,32 @@ public sealed class AuthService : IAuthService
             AccessToken = token.AccessToken,
             ExpiresAt = token.ExpiresAt,
             User = UserResponseMapper.ToResponse(user)
+        };
+    }
+
+    public async Task<ProsumerLoginResponse> LoginProsumerAsync(LoginRequest request, CancellationToken cancellationToken = default)
+    {
+        // Authenticate an active prosumer through the shared password and token abstractions.
+        ValidateRequest(request);
+        var repository = prosumerRepository ?? throw new InvalidOperationException("Prosumer authentication is not configured.");
+        var prosumer = await repository.GetByEmailAsync(request.Email, cancellationToken).ConfigureAwait(false);
+
+        if (prosumer is null || !passwordHasher.VerifyPassword(request.Password, prosumer.PasswordHash))
+        {
+            throw new AuthenticationFailedException();
+        }
+
+        if (!prosumer.IsActive)
+        {
+            throw new AccountInactiveException();
+        }
+
+        var token = tokenService.CreateProsumerToken(prosumer.Nic);
+        return new ProsumerLoginResponse
+        {
+            AccessToken = token.AccessToken,
+            ExpiresAt = token.ExpiresAt,
+            Prosumer = ProsumerResponseMapper.ToResponse(prosumer)
         };
     }
 

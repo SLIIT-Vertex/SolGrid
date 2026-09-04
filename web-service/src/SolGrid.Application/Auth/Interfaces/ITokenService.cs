@@ -14,4 +14,10 @@ namespace SolGrid.Application.Auth.Interfaces;
 public interface ITokenService
 {
     IssuedToken CreateToken(User user);
+
+    IssuedToken CreateProsumerToken(string nic)
+    {
+        // Preserve existing token-service implementations until they support prosumer tokens.
+        throw new NotSupportedException("Prosumer token issuance is not implemented.");
+    }
 }
