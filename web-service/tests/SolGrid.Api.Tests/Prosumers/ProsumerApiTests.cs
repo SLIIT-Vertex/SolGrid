@@ -11,12 +11,17 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.IdentityModel.Tokens;
 using SolGrid.Application.Prosumers.Interfaces;
 using SolGrid.Application.Reservations.Interfaces;
 using SolGrid.Application.Users.Interfaces;
 using SolGrid.Domain.Entities;
+using SolGrid.Domain.Enums;
 using System.Net;
 using System.Net.Http.Json;
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
+using System.Text;
 using System.Text.Json;
 using Xunit;
 
@@ -24,6 +29,8 @@ namespace SolGrid.Api.Tests.Prosumers;
 
 public sealed class ProsumerApiTests
 {
+    private const string TestJwtSigningKey = "test-signing-key-for-solgrid-auth-tests-32";
+
     [Fact]
     public async Task Register_WithValidRequest_ReturnsCreatedPendingProsumerWithoutPasswordHash()
     {
@@ -90,6 +97,31 @@ public sealed class ProsumerApiTests
         Assert.Contains("\"post\"", openApiJson, StringComparison.OrdinalIgnoreCase);
     }
 
+    [Fact]
+    public async Task GetProsumers_WithoutJwt_ReturnsUnauthorized()
+    {
+        // Verify Backoffice management data cannot be obtained anonymously.
+        await using var factory = CreateFactory();
+        var client = factory.CreateClient();
+
+        var response = await client.GetAsync("/api/v1/prosumers");
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task GetProsumers_WithGridOperatorJwt_ReturnsForbidden()
+    {
+        // Verify GridOperator claims cannot satisfy the Backoffice prosumer-administration policy.
+        await using var factory = CreateFactory();
+        var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new("Bearer", CreateWebUserJwt(UserRole.GridOperator));
+
+        var response = await client.GetAsync("/api/v1/prosumers");
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
     private static WebApplicationFactory<Program> CreateFactory()
     {
         // Create an API test host with Mongo startup initialization disabled.
@@ -102,7 +134,7 @@ public sealed class ProsumerApiTests
                     {
                         ["Jwt:Issuer"] = "SolGrid.Tests",
                         ["Jwt:Audience"] = "SolGrid.Tests",
-                        ["Jwt:SigningKey"] = "test-signing-key-for-solgrid-auth-tests-32",
+                        ["Jwt:SigningKey"] = TestJwtSigningKey,
                         ["Jwt:ExpiresMinutes"] = "30",
                         ["MongoDb:ConnectionString"] = "mongodb://127.0.0.1:1",
                         ["MongoDb:DatabaseName"] = "SolGridTests",
@@ -116,6 +148,24 @@ public sealed class ProsumerApiTests
                     services.AddSingleton<IProsumerRepository>(new TestProsumerRepository());
                 });
             });
+    }
+
+    private static string CreateWebUserJwt(UserRole role)
+    {
+        // Create a locally signed test JWT that exercises the configured API authorization middleware.
+        var signingKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(TestJwtSigningKey));
+        var token = new JwtSecurityToken(
+            issuer: "SolGrid.Tests",
+            audience: "SolGrid.Tests",
+            claims:
+            [
+                new Claim(ClaimTypes.NameIdentifier, "test-web-user"),
+                new Claim(ClaimTypes.Role, role.ToString())
+            ],
+            expires: DateTime.UtcNow.AddMinutes(5),
+            signingCredentials: new SigningCredentials(signingKey, SecurityAlgorithms.HmacSha256));
+
+        return new JwtSecurityTokenHandler().WriteToken(token);
     }
 
     private sealed class TestProsumerRepository : IProsumerRepository

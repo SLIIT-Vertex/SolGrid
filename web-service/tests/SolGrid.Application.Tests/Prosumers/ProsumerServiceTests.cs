@@ -89,6 +89,7 @@ public sealed class ProsumerServiceTests
     {
         // Verify own-profile lookup uses the trusted token subject rather than client input.
         var prosumer = CreateProsumer("199012345678", "nimal@example.com");
+        prosumer.Activate(CurrentTime);
         var service = CreateService(new InMemoryProsumerRepository(prosumer), new FakeCurrentUserContext(prosumer.Nic));
 
         var response = await service.GetMyProsumerAsync();
@@ -101,6 +102,7 @@ public sealed class ProsumerServiceTests
     {
         // Verify own-profile updates cannot alter immutable or administrative fields.
         var prosumer = CreateProsumer("199012345678", "nimal@example.com");
+        prosumer.Activate(CurrentTime);
         var service = CreateService(new InMemoryProsumerRepository(prosumer), new FakeCurrentUserContext(prosumer.Nic));
 
         var response = await service.UpdateMyProsumerAsync(new UpdateProsumerRequest
@@ -112,7 +114,7 @@ public sealed class ProsumerServiceTests
         });
 
         Assert.Equal("199012345678", response.Nic);
-        Assert.Equal(ProsumerAccountStatus.Pending, response.Status);
+        Assert.Equal(ProsumerAccountStatus.Active, response.Status);
         Assert.Equal("updated@example.com", response.Email);
     }
 
@@ -122,6 +124,7 @@ public sealed class ProsumerServiceTests
         // Verify own-profile email changes cannot claim another prosumer's email.
         var first = CreateProsumer("199012345678", "first@example.com");
         var second = CreateProsumer("199012345679", "second@example.com");
+        second.Activate(CurrentTime);
         var service = CreateService(new InMemoryProsumerRepository(first, second), new FakeCurrentUserContext(second.Nic));
 
         await Assert.ThrowsAsync<ConflictException>(() => service.UpdateMyProsumerAsync(new UpdateProsumerRequest
@@ -144,6 +147,38 @@ public sealed class ProsumerServiceTests
 
         Assert.Equal(ProsumerAccountStatus.DeactivationRequested, prosumer.Status);
         await Assert.ThrowsAsync<ConflictException>(() => service.RequestMyDeactivationAsync());
+    }
+
+    [Fact]
+    public async Task UpdateMyProsumerAsync_WithStaleTokenForInactiveProsumer_ThrowsAccountInactive()
+    {
+        // Verify inactive profiles cannot be mutated by a JWT issued before their lifecycle changed.
+        var prosumer = CreateProsumer("199012345678", "nimal@example.com");
+        prosumer.Activate(CurrentTime);
+        prosumer.Deactivate(CurrentTime);
+        var service = CreateService(new InMemoryProsumerRepository(prosumer), new FakeCurrentUserContext(prosumer.Nic));
+
+        await Assert.ThrowsAsync<AccountInactiveException>(() => service.UpdateMyProsumerAsync(new UpdateProsumerRequest
+        {
+            FirstName = "Updated",
+            LastName = "Prosumer",
+            Email = "updated@example.com"
+        }));
+    }
+
+    [Fact]
+    public async Task ReservationProsumerReadService_ReturnsStableIdentifierAndActiveState()
+    {
+        // Verify reservation integration receives no prosumer profile or persistence-specific data.
+        var prosumer = CreateProsumer("199012345678", "nimal@example.com");
+        prosumer.Activate(CurrentTime);
+        var service = new ReservationProsumerReadService(new InMemoryProsumerRepository(prosumer));
+
+        var result = await service.GetByIdAsync("199012345678");
+
+        Assert.NotNull(result);
+        Assert.Equal(prosumer.Nic, result.Id);
+        Assert.True(result.IsActive);
     }
 
     [Fact]
