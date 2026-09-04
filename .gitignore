@@ -486,8 +486,7 @@ $RECYCLE.BIN/
 # Vim temporary swap files
 *.swp
 
-# SolGrid backend build metadata
-web-service/src/**/[Bb]in/
-web-service/src/**/[Oo]bj/
-web-service/tests/**/[Bb]in/
-web-service/tests/**/[Oo]bj/
+# SolGrid generated project files
+/web-service/**/[Bb]in/
+/web-service/**/[Oo]bj/
+/web-service/**/[Aa]rtifacts/
