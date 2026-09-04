@@ -7,10 +7,14 @@
  */
 
 using SolGrid.Application.Auth.Interfaces;
+using SolGrid.Application.Auth.Requests;
+using SolGrid.Application.Auth.Responses;
+using SolGrid.Application.Auth.Services;
 using SolGrid.Application.Common.Exceptions;
 using SolGrid.Application.Prosumers.Interfaces;
 using SolGrid.Application.Prosumers.Requests;
 using SolGrid.Application.Prosumers.Services;
+using SolGrid.Application.Common.Identity;
 using SolGrid.Application.Users.Interfaces;
 using SolGrid.Domain.Entities;
 using SolGrid.Domain.Enums;
@@ -80,13 +84,143 @@ public sealed class ProsumerServiceTests
         await Assert.ThrowsAsync<ValidationException>(() => service.RegisterProsumerAsync(CreateRequest(email: "invalid-email")));
     }
 
-    private static ProsumerService CreateService(InMemoryProsumerRepository? repository = null)
+    [Fact]
+    public async Task GetMyProsumerAsync_ReturnsOnlyAuthenticatedProsumer()
+    {
+        // Verify own-profile lookup uses the trusted token subject rather than client input.
+        var prosumer = CreateProsumer("199012345678", "nimal@example.com");
+        var service = CreateService(new InMemoryProsumerRepository(prosumer), new FakeCurrentUserContext(prosumer.Nic));
+
+        var response = await service.GetMyProsumerAsync();
+
+        Assert.Equal(prosumer.Nic, response.Nic);
+    }
+
+    [Fact]
+    public async Task UpdateMyProsumerAsync_UpdatesEditableFieldsButPreservesNicAndStatus()
+    {
+        // Verify own-profile updates cannot alter immutable or administrative fields.
+        var prosumer = CreateProsumer("199012345678", "nimal@example.com");
+        var service = CreateService(new InMemoryProsumerRepository(prosumer), new FakeCurrentUserContext(prosumer.Nic));
+
+        var response = await service.UpdateMyProsumerAsync(new UpdateProsumerRequest
+        {
+            FirstName = "Updated",
+            LastName = "Prosumer",
+            Email = "updated@example.com",
+            PhoneNumber = "+94771234567"
+        });
+
+        Assert.Equal("199012345678", response.Nic);
+        Assert.Equal(ProsumerAccountStatus.Pending, response.Status);
+        Assert.Equal("updated@example.com", response.Email);
+    }
+
+    [Fact]
+    public async Task UpdateMyProsumerAsync_WithDuplicateEmail_ThrowsConflict()
+    {
+        // Verify own-profile email changes cannot claim another prosumer's email.
+        var first = CreateProsumer("199012345678", "first@example.com");
+        var second = CreateProsumer("199012345679", "second@example.com");
+        var service = CreateService(new InMemoryProsumerRepository(first, second), new FakeCurrentUserContext(second.Nic));
+
+        await Assert.ThrowsAsync<ConflictException>(() => service.UpdateMyProsumerAsync(new UpdateProsumerRequest
+        {
+            FirstName = "Second",
+            LastName = "Prosumer",
+            Email = "first@example.com"
+        }));
+    }
+
+    [Fact]
+    public async Task RequestMyDeactivationAsync_TransitionsActiveProsumerAndRejectsRepeat()
+    {
+        // Verify an active prosumer can request deactivation only once.
+        var prosumer = CreateProsumer("199012345678", "nimal@example.com");
+        prosumer.Activate(CurrentTime);
+        var service = CreateService(new InMemoryProsumerRepository(prosumer), new FakeCurrentUserContext(prosumer.Nic));
+
+        await service.RequestMyDeactivationAsync();
+
+        Assert.Equal(ProsumerAccountStatus.DeactivationRequested, prosumer.Status);
+        await Assert.ThrowsAsync<ConflictException>(() => service.RequestMyDeactivationAsync());
+    }
+
+    [Fact]
+    public async Task BackofficeLifecycle_ActivatesDeactivatesAndReactivatesProsumer()
+    {
+        // Verify Backoffice can perform the permitted administrative lifecycle transitions.
+        var prosumer = CreateProsumer("199012345678", "nimal@example.com");
+        var service = CreateService(new InMemoryProsumerRepository(prosumer), new FakeCurrentUserContext("backoffice-id", UserRole.Backoffice));
+
+        await service.ActivateProsumerAsync(prosumer.Nic);
+        await service.DeactivateProsumerAsync(prosumer.Nic);
+        await service.ReactivateProsumerAsync(prosumer.Nic);
+
+        Assert.Equal(ProsumerAccountStatus.Active, prosumer.Status);
+    }
+
+    [Fact]
+    public async Task ReactivateProsumerAsync_WithProsumerOrGridOperator_ThrowsForbidden()
+    {
+        // Verify neither a prosumer nor GridOperator receives Backoffice reactivation privileges.
+        var prosumer = CreateProsumer("199012345678", "nimal@example.com");
+        prosumer.Deactivate(CurrentTime);
+        var repository = new InMemoryProsumerRepository(prosumer);
+
+        await Assert.ThrowsAsync<ForbiddenException>(() =>
+            CreateService(repository, new FakeCurrentUserContext(prosumer.Nic)).ReactivateProsumerAsync(prosumer.Nic));
+        await Assert.ThrowsAsync<ForbiddenException>(() =>
+            CreateService(repository, new FakeCurrentUserContext("operator-id", UserRole.GridOperator)).ReactivateProsumerAsync(prosumer.Nic));
+    }
+
+    [Fact]
+    public async Task GetProsumersAsync_WithPendingFilter_ReturnsPendingActivations()
+    {
+        // Verify Backoffice can retrieve the pending-activation management queue.
+        var pending = CreateProsumer("199012345678", "pending@example.com");
+        var active = CreateProsumer("199012345679", "active@example.com");
+        active.Activate(CurrentTime);
+        var service = CreateService(new InMemoryProsumerRepository(pending, active), new FakeCurrentUserContext("backoffice-id", UserRole.Backoffice));
+
+        var response = await service.GetProsumersAsync(new ProsumerQuery { Status = ProsumerAccountStatus.Pending });
+
+        var result = Assert.Single(response.Items);
+        Assert.Equal(pending.Nic, result.Nic);
+    }
+
+    [Fact]
+    public async Task ProsumerAuthentication_RejectsDeactivatedAndAllowsReactivatedProsumer()
+    {
+        // Verify shared authentication blocks inactive lifecycle states and resumes after reactivation.
+        var prosumer = CreateProsumer("199012345678", "nimal@example.com");
+        prosumer.Activate(CurrentTime);
+        prosumer.Deactivate(CurrentTime);
+        var repository = new InMemoryProsumerRepository(prosumer);
+        var authService = new AuthService(new EmptyUserRepository(), repository, new FakePasswordHasher(), new FakeTokenService());
+
+        await Assert.ThrowsAsync<AccountInactiveException>(() => authService.LoginProsumerAsync(new LoginRequest
+        {
+            Email = prosumer.Email,
+            Password = "password"
+        }));
+
+        prosumer.Reactivate(CurrentTime);
+        var response = await authService.LoginProsumerAsync(new LoginRequest { Email = prosumer.Email, Password = "password" });
+
+        Assert.Equal("prosumer-token-199012345678", response.AccessToken);
+    }
+
+    private static ProsumerService CreateService(InMemoryProsumerRepository? repository = null, FakeCurrentUserContext? currentUserContext = null)
     {
         // Create a prosumer service with deterministic dependencies for registration tests.
-        return new ProsumerService(
-            repository ?? new InMemoryProsumerRepository(),
-            new FakePasswordHasher(),
-            new FixedTimeProvider(CurrentTime));
+        var activeRepository = repository ?? new InMemoryProsumerRepository();
+        if (currentUserContext is null)
+        {
+            return new ProsumerService(activeRepository, new FakePasswordHasher(), new FixedTimeProvider(CurrentTime));
+        }
+
+        return new ProsumerService(activeRepository, new FakePasswordHasher(), currentUserContext, new FixedTimeProvider(CurrentTime));
     }
 
     private static RegisterProsumerRequest CreateRequest(
@@ -133,6 +267,21 @@ public sealed class ProsumerServiceTests
         }
     }
 
+    private sealed class FakeTokenService : ITokenService
+    {
+        public IssuedToken CreateToken(User user)
+        {
+            // Return a deterministic web-user token for interface completeness in prosumer tests.
+            return new IssuedToken { AccessToken = "web-user-token", ExpiresAt = CurrentTime.AddHours(1) };
+        }
+
+        public IssuedToken CreateProsumerToken(string nic)
+        {
+            // Return a deterministic prosumer token for shared-authentication tests.
+            return new IssuedToken { AccessToken = $"prosumer-token-{nic}", ExpiresAt = CurrentTime.AddHours(1) };
+        }
+    }
+
     private sealed class FixedTimeProvider : TimeProvider
     {
         private readonly DateTimeOffset currentTime;
@@ -175,10 +324,13 @@ public sealed class ProsumerServiceTests
         public Task<PagedResult<Prosumer>> GetPagedAsync(ProsumerQuery query, CancellationToken cancellationToken = default)
         {
             // Return a simple page for future-contract compatibility in registration tests.
+            var filteredProsumers = query.Status.HasValue
+                ? prosumers.Where(prosumer => prosumer.Status == query.Status.Value).ToArray()
+                : prosumers.ToArray();
             return Task.FromResult(new PagedResult<Prosumer>
             {
-                Items = prosumers,
-                TotalCount = prosumers.Count,
+                Items = filteredProsumers,
+                TotalCount = filteredProsumers.Length,
                 PageNumber = query.PageNumber,
                 PageSize = query.PageSize
             });
@@ -211,6 +363,73 @@ public sealed class ProsumerServiceTests
         public Task UpdateAsync(Prosumer prosumer, CancellationToken cancellationToken = default)
         {
             // Preserve future repository-contract compatibility without update test behavior.
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed class FakeCurrentUserContext : ICurrentUserContext
+    {
+        public FakeCurrentUserContext(string userId, UserRole? role = null)
+        {
+            // Store trusted current-user identity values for application ownership tests.
+            UserId = userId;
+            Role = role;
+        }
+
+        public bool IsAuthenticated => true;
+
+        public string? UserId { get; }
+
+        public UserRole? Role { get; }
+    }
+
+    private sealed class EmptyUserRepository : IUserRepository
+    {
+        public Task<User?> GetByIdAsync(string id, CancellationToken cancellationToken = default)
+        {
+            // Return no web user because prosumer authentication does not query this test double.
+            return Task.FromResult<User?>(null);
+        }
+
+        public Task<User?> GetByEmailAsync(string email, CancellationToken cancellationToken = default)
+        {
+            // Return no web user because prosumer authentication does not query this test double.
+            return Task.FromResult<User?>(null);
+        }
+
+        public Task<IReadOnlyList<User>> GetAllAsync(CancellationToken cancellationToken = default)
+        {
+            // Return no web users from the prosumer-authentication test double.
+            return Task.FromResult<IReadOnlyList<User>>(Array.Empty<User>());
+        }
+
+        public Task<PagedResult<User>> GetPagedAsync(UserQuery query, CancellationToken cancellationToken = default)
+        {
+            // Return an empty user page from the prosumer-authentication test double.
+            return Task.FromResult(new PagedResult<User>());
+        }
+
+        public Task<bool> ExistsByEmailAsync(string email, string? excludingUserId = null, CancellationToken cancellationToken = default)
+        {
+            // Report no web-user email conflicts from the prosumer-authentication test double.
+            return Task.FromResult(false);
+        }
+
+        public Task<bool> EmailExistsAsync(string email, string? excludingUserId = null, CancellationToken cancellationToken = default)
+        {
+            // Report no legacy web-user email conflicts from the prosumer-authentication test double.
+            return Task.FromResult(false);
+        }
+
+        public Task AddAsync(User user, CancellationToken cancellationToken = default)
+        {
+            // Complete without persistence because this test double is never written.
+            return Task.CompletedTask;
+        }
+
+        public Task UpdateAsync(User user, CancellationToken cancellationToken = default)
+        {
+            // Complete without persistence because this test double is never written.
             return Task.CompletedTask;
         }
     }

@@ -79,6 +79,14 @@ public sealed class ProsumerApiTests
         var openApiJson = await client.GetStringAsync("/openapi/v1.json");
 
         Assert.Contains("\"/api/v1/prosumers/register\"", openApiJson, StringComparison.Ordinal);
+        Assert.Contains("\"/api/v1/prosumers/login\"", openApiJson, StringComparison.Ordinal);
+        Assert.Contains("\"/api/v1/prosumers/me\"", openApiJson, StringComparison.Ordinal);
+        Assert.Contains("\"/api/v1/prosumers/me/request-deactivation\"", openApiJson, StringComparison.Ordinal);
+        Assert.Contains("\"/api/v1/prosumers/pending\"", openApiJson, StringComparison.Ordinal);
+        Assert.Contains("\"/api/v1/prosumers/{nic}\"", openApiJson, StringComparison.Ordinal);
+        Assert.Contains("\"/api/v1/prosumers/{nic}/activate\"", openApiJson, StringComparison.Ordinal);
+        Assert.Contains("\"/api/v1/prosumers/{nic}/deactivate\"", openApiJson, StringComparison.Ordinal);
+        Assert.Contains("\"/api/v1/prosumers/{nic}/reactivate\"", openApiJson, StringComparison.Ordinal);
         Assert.Contains("\"post\"", openApiJson, StringComparison.OrdinalIgnoreCase);
     }
 
