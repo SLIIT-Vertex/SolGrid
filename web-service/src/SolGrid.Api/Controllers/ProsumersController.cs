@@ -65,6 +65,9 @@ public sealed class ProsumersController : ControllerBase
     [HttpGet("me")]
     [Authorize]
     [ProducesResponseType(typeof(ProsumerResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     public async Task<ActionResult<ProsumerResponse>> GetMyProfile(CancellationToken cancellationToken)
     {
         // Return the profile identified by the trusted authenticated prosumer subject.
@@ -74,6 +77,11 @@ public sealed class ProsumersController : ControllerBase
     [HttpPut("me")]
     [Authorize]
     [ProducesResponseType(typeof(ProsumerResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
     public async Task<ActionResult<ProsumerResponse>> UpdateMyProfile(UpdateProsumerRequest request, CancellationToken cancellationToken)
     {
         // Update only the authenticated prosumer's explicitly editable profile fields.
@@ -83,6 +91,10 @@ public sealed class ProsumersController : ControllerBase
     [HttpPatch("me/request-deactivation")]
     [Authorize]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
     public async Task<IActionResult> RequestDeactivation(CancellationToken cancellationToken)
     {
         // Record an authenticated prosumer's deactivation request without deleting history.
@@ -92,6 +104,10 @@ public sealed class ProsumersController : ControllerBase
 
     [HttpGet]
     [Authorize(Policy = AuthorizationPolicies.Backoffice)]
+    [ProducesResponseType(typeof(PagedResult<ProsumerResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
     public async Task<ActionResult<PagedResult<ProsumerResponse>>> GetProsumers(
         [FromQuery] string? searchText, [FromQuery] SolGrid.Domain.Enums.ProsumerAccountStatus? status,
         [FromQuery] int pageNumber = 1, [FromQuery] int pageSize = 20, CancellationToken cancellationToken = default)
@@ -102,6 +118,9 @@ public sealed class ProsumersController : ControllerBase
 
     [HttpGet("pending")]
     [Authorize(Policy = AuthorizationPolicies.Backoffice)]
+    [ProducesResponseType(typeof(PagedResult<ProsumerResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
     public async Task<ActionResult<PagedResult<ProsumerResponse>>> GetPending(CancellationToken cancellationToken)
     {
         // Return pending activations for the Backoffice web management workflow.
@@ -110,6 +129,10 @@ public sealed class ProsumersController : ControllerBase
 
     [HttpGet("{nic}")]
     [Authorize(Policy = AuthorizationPolicies.Backoffice)]
+    [ProducesResponseType(typeof(ProsumerResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     public async Task<ActionResult<ProsumerResponse>> GetByNic(string nic, CancellationToken cancellationToken)
     {
         // Return one prosumer profile for Backoffice management.
@@ -118,6 +141,11 @@ public sealed class ProsumersController : ControllerBase
 
     [HttpPatch("{nic}/activate")]
     [Authorize(Policy = AuthorizationPolicies.Backoffice)]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
     public async Task<IActionResult> Activate(string nic, CancellationToken cancellationToken)
     {
         // Activate a pending prosumer through Backoffice management.
@@ -127,6 +155,11 @@ public sealed class ProsumersController : ControllerBase
 
     [HttpPatch("{nic}/deactivate")]
     [Authorize(Policy = AuthorizationPolicies.Backoffice)]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
     public async Task<IActionResult> Deactivate(string nic, CancellationToken cancellationToken)
     {
         // Deactivate a prosumer through Backoffice management.
@@ -136,6 +169,11 @@ public sealed class ProsumersController : ControllerBase
 
     [HttpPatch("{nic}/reactivate")]
     [Authorize(Policy = AuthorizationPolicies.Backoffice)]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
     public async Task<IActionResult> Reactivate(string nic, CancellationToken cancellationToken)
     {
         // Reactivate a deactivated prosumer through Backoffice management.
