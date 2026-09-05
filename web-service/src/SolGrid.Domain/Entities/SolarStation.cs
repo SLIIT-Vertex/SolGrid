@@ -61,9 +61,9 @@ public sealed class SolarStation
 
     public DateTimeOffset UpdatedAt { get; private set; }
 
-    public IReadOnlyList<EnergyBookingSlot> Slots => slots;
+    public IReadOnlyList<EnergyBookingSlot> Slots => slots.AsReadOnly();
 
-    public IReadOnlyList<OperatingWindow> Schedule => schedule;
+    public IReadOnlyList<OperatingWindow> Schedule => schedule.AsReadOnly();
 
     public bool IsActive => Status == StationStatus.Active;
 
@@ -136,11 +136,16 @@ public sealed class SolarStation
         DateTimeOffset updatedAt)
     {
         // Update editable station details while preserving invariant checks.
-        Code = NormalizeCode(code);
-        Name = RequireValue(name, nameof(name));
-        AddressLine = RequireValue(addressLine, nameof(addressLine));
-        Location = RequireReference(location, nameof(location));
-        CapacityKw = RequirePositive(capacityKw, nameof(capacityKw));
+        var normalizedCode = NormalizeCode(code);
+        var normalizedName = RequireValue(name, nameof(name));
+        var normalizedAddress = RequireValue(addressLine, nameof(addressLine));
+        var validatedLocation = RequireReference(location, nameof(location));
+        var validatedCapacity = RequirePositive(capacityKw, nameof(capacityKw));
+        Code = normalizedCode;
+        Name = normalizedName;
+        AddressLine = normalizedAddress;
+        Location = validatedLocation;
+        CapacityKw = validatedCapacity;
         MarkUpdated(updatedAt);
     }
 
@@ -157,6 +162,7 @@ public sealed class SolarStation
     {
         // Register additional battery storage hardware against this station.
         RequireReference(slot, nameof(slot));
+        RequireOwnedSlot(slot);
 
         if (slots.Any(existing => existing.Id == slot.Id))
         {
@@ -175,18 +181,13 @@ public sealed class SolarStation
 
     public void RemoveSlot(string slotId, DateTimeOffset updatedAt)
     {
-        // Retire decommissioned hardware only when it is safe and the station keeps a slot.
+        // Retire uncommitted hardware while keeping the derived slot count non-negative.
         var slot = RequireSlot(slotId);
 
         if (slot.IsCommitted)
         {
             throw new InvalidOperationException(
                 "A slot with a reserved or occupied booking cannot be removed.");
-        }
-
-        if (slots.Count == 1)
-        {
-            throw new InvalidOperationException("A station must keep at least one battery storage slot.");
         }
 
         slots.Remove(slot);
@@ -222,7 +223,7 @@ public sealed class SolarStation
     public bool CanAcceptBookingsAt(DateTimeOffset instant)
     {
         // Combine station status, schedule, and slot availability into one bookability check.
-        return IsActive && IsOpenAt(instant) && AvailableSlotCount > 0;
+        return IsActive && IsOpenAt(instant) && slots.Any(slot => slot.IsAvailableAt(instant));
     }
 
     public double DistanceInKilometersFrom(GeoCoordinates origin)
@@ -267,18 +268,19 @@ public sealed class SolarStation
         slots.Sort((left, right) => left.SlotNumber.CompareTo(right.SlotNumber));
     }
 
-    private static List<EnergyBookingSlot> BuildSlots(IEnumerable<EnergyBookingSlot> slots)
+    private List<EnergyBookingSlot> BuildSlots(IEnumerable<EnergyBookingSlot> slots)
     {
-        // Validate that the station owns at least one uniquely numbered slot.
+        // Validate every slot and its ownership before exposing the station aggregate.
         var slotList = RequireReference(slots, nameof(slots))
-            .Where(slot => slot is not null)
-            .OrderBy(slot => slot.SlotNumber)
             .ToList();
 
-        if (slotList.Count == 0)
+        foreach (var slot in slotList)
         {
-            throw new ArgumentException("A station requires at least one battery storage slot.", nameof(slots));
+            RequireReference(slot, nameof(slots));
+            RequireOwnedSlot(slot);
         }
+
+        slotList.Sort((left, right) => left.SlotNumber.CompareTo(right.SlotNumber));
 
         if (slotList.Select(slot => slot.SlotNumber).Distinct().Count() != slotList.Count)
         {
@@ -293,11 +295,20 @@ public sealed class SolarStation
         return slotList;
     }
 
+    private void RequireOwnedSlot(EnergyBookingSlot slot)
+    {
+        // Reject slot associations that contradict the slot's immutable station identifier.
+        if (slot.StationId != Id)
+        {
+            throw new ArgumentException("The booking slot must belong to this station.", nameof(slot));
+        }
+    }
+
     private static List<OperatingWindow> BuildSchedule(IEnumerable<OperatingWindow> schedule)
     {
         // Validate that the weekly schedule is present and free of overlapping windows.
         var windows = RequireReference(schedule, nameof(schedule))
-            .Where(window => window is not null)
+            .Select(window => RequireReference(window, nameof(schedule)))
             .OrderBy(window => window.Day)
             .ThenBy(window => window.OpensAt)
             .ToList();

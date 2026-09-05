@@ -1,7 +1,7 @@
 /*
  * Project: SolGrid
  * Module: SE4040 Enterprise Application Development
- * File: EnergyBookingSlotRequestValidator.cs
+ * File: CreateBookingSlotRequestValidator.cs
  * Description: Validates requests that add battery storage slots to a solar station.
  * Contributor: Kavishi Godage
  */
@@ -11,9 +11,9 @@ using SolGrid.Application.SolarStations.Requests;
 
 namespace SolGrid.Application.SolarStations.Validation;
 
-public sealed class EnergyBookingSlotRequestValidator : IRequestValidator<EnergyBookingSlotRequest>
+public sealed class CreateBookingSlotRequestValidator : IRequestValidator<CreateBookingSlotRequest>
 {
-    public ValidationResult Validate(EnergyBookingSlotRequest request)
+    public ValidationResult Validate(CreateBookingSlotRequest request)
     {
         // Validate one slot definition before it joins the station aggregate.
         var errors = SolarStationValidationRules.ValidateSlot(request).ToArray();

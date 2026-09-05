@@ -45,9 +45,14 @@ public static class SolarStationResponseMapper
         return new EnergyBookingSlotResponse
         {
             Id = slot.Id,
+            StationId = slot.StationId,
+            StartTime = slot.StartTime,
+            EndTime = slot.EndTime,
             SlotNumber = slot.SlotNumber,
             BatteryCapacityKwh = slot.BatteryCapacityKwh,
             Status = slot.Status,
+            IsActive = slot.IsActive,
+            IsAvailable = slot.IsAvailable,
             CreatedAt = slot.CreatedAt,
             UpdatedAt = slot.UpdatedAt
         };

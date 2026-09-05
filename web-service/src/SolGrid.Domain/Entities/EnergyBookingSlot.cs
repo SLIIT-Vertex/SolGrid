@@ -14,22 +14,35 @@ public sealed class EnergyBookingSlot
 {
     private EnergyBookingSlot(
         string id,
+        string stationId,
         int slotNumber,
         decimal batteryCapacityKwh,
+        DateTimeOffset startTime,
+        DateTimeOffset endTime,
         SlotStatus status,
         DateTimeOffset createdAt,
         DateTimeOffset updatedAt)
     {
         // Initialize a validated slot instance for creation or persistence rehydration.
         Id = RequireValue(id, nameof(id));
+        StationId = RequireValue(stationId, nameof(stationId));
         SlotNumber = RequirePositive(slotNumber, nameof(slotNumber));
         BatteryCapacityKwh = RequirePositive(batteryCapacityKwh, nameof(batteryCapacityKwh));
+        RequireTimeRange(startTime, endTime);
+        StartTime = startTime.ToUniversalTime();
+        EndTime = endTime.ToUniversalTime();
         Status = RequireDefinedEnum(status, nameof(status));
         CreatedAt = createdAt;
         UpdatedAt = updatedAt;
     }
 
     public string Id { get; }
+
+    public string StationId { get; }
+
+    public DateTimeOffset StartTime { get; private set; }
+
+    public DateTimeOffset EndTime { get; private set; }
 
     public int SlotNumber { get; }
 
@@ -43,19 +56,33 @@ public sealed class EnergyBookingSlot
 
     public bool IsAvailable => Status == SlotStatus.Available;
 
+    public bool IsActive => Status != SlotStatus.OutOfService;
+
     public bool IsCommitted => Status is SlotStatus.Reserved or SlotStatus.Occupied;
+
+    public bool IsAvailableAt(DateTimeOffset instant)
+    {
+        // Treat the end as exclusive so a slot is bookable only inside its own interval.
+        return IsAvailable && instant >= StartTime && instant < EndTime;
+    }
 
     public static EnergyBookingSlot Create(
         string id,
+        string stationId,
         int slotNumber,
         decimal batteryCapacityKwh,
+        DateTimeOffset startTime,
+        DateTimeOffset endTime,
         DateTimeOffset createdAt)
     {
-        // Create a new slot that is immediately open for energy bookings.
+        // Create a slot with available status and an explicit booking interval.
         return new EnergyBookingSlot(
             id,
+            stationId,
             slotNumber,
             batteryCapacityKwh,
+            startTime,
+            endTime,
             SlotStatus.Available,
             createdAt,
             createdAt);
@@ -63,21 +90,44 @@ public sealed class EnergyBookingSlot
 
     public static EnergyBookingSlot Restore(
         string id,
+        string stationId,
         int slotNumber,
         decimal batteryCapacityKwh,
+        DateTimeOffset startTime,
+        DateTimeOffset endTime,
         SlotStatus status,
         DateTimeOffset createdAt,
         DateTimeOffset updatedAt)
     {
         // Rehydrate a slot from persistence without exposing persistence-specific types.
-        return new EnergyBookingSlot(id, slotNumber, batteryCapacityKwh, status, createdAt, updatedAt);
+        return new EnergyBookingSlot(
+            id, stationId, slotNumber, batteryCapacityKwh, startTime, endTime, status, createdAt, updatedAt);
+    }
+
+    public void UpdateDetails(
+        decimal batteryCapacityKwh,
+        DateTimeOffset startTime,
+        DateTimeOffset endTime,
+        DateTimeOffset updatedAt)
+    {
+        // Validate the complete replacement before changing an uncommitted booking slot.
+        if (IsCommitted)
+        {
+            throw new InvalidOperationException("A reserved or occupied slot cannot be reconfigured.");
+        }
+
+        var capacity = RequirePositive(batteryCapacityKwh, nameof(batteryCapacityKwh));
+        RequireTimeRange(startTime, endTime);
+        BatteryCapacityKwh = capacity;
+        StartTime = startTime.ToUniversalTime();
+        EndTime = endTime.ToUniversalTime();
+        MarkUpdated(updatedAt);
     }
 
     public void ChangeBatteryCapacity(decimal batteryCapacityKwh, DateTimeOffset updatedAt)
     {
         // Adjust the installed battery capacity after hardware changes.
-        BatteryCapacityKwh = RequirePositive(batteryCapacityKwh, nameof(batteryCapacityKwh));
-        MarkUpdated(updatedAt);
+        UpdateDetails(batteryCapacityKwh, StartTime, EndTime, updatedAt);
     }
 
     public void Reserve(DateTimeOffset updatedAt)
@@ -169,6 +219,15 @@ public sealed class EnergyBookingSlot
         {
             throw new InvalidOperationException(
                 $"A slot in '{Status}' state cannot be {action}.");
+        }
+    }
+
+    private static void RequireTimeRange(DateTimeOffset startTime, DateTimeOffset endTime)
+    {
+        // Compare absolute instants so different UTC offsets cannot hide a reversed range.
+        if (endTime <= startTime)
+        {
+            throw new ArgumentException("A booking slot must end after it starts.", nameof(endTime));
         }
     }
 
