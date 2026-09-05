@@ -94,12 +94,12 @@ public static class SolarStationValidationRules
         }
     }
 
-    public static IEnumerable<string> ValidateSlots(IReadOnlyList<EnergyBookingSlotRequest>? slots)
+    public static IEnumerable<string> ValidateSlots(IReadOnlyList<CreateBookingSlotRequest>? slots)
     {
         // Validate the full set of battery storage slots configured for a station.
-        if (slots is null || slots.Count == 0)
+        if (slots is null)
         {
-            yield return "At least one battery storage slot is required.";
+            yield return "Battery storage slot collection is required.";
             yield break;
         }
 
@@ -124,7 +124,7 @@ public static class SolarStationValidationRules
         }
     }
 
-    public static IEnumerable<string> ValidateSlot(EnergyBookingSlotRequest? slot)
+    public static IEnumerable<string> ValidateSlot(CreateBookingSlotRequest? slot)
     {
         // Validate one battery storage slot definition.
         if (slot is null)
@@ -138,9 +138,24 @@ public static class SolarStationValidationRules
             yield return "Battery storage slot number must be greater than zero.";
         }
 
-        if (slot.BatteryCapacityKwh <= 0m)
+        foreach (var error in ValidateSlotDetails(slot.BatteryCapacityKwh, slot.StartTime, slot.EndTime))
+        {
+            yield return error;
+        }
+    }
+
+    public static IEnumerable<string> ValidateSlotDetails(
+        decimal batteryCapacityKwh, DateTimeOffset startTime, DateTimeOffset endTime)
+    {
+        // Validate capacity and absolute times shared by slot creation and updates.
+        if (batteryCapacityKwh <= 0m)
         {
             yield return "Battery storage slot capacity in kWh must be greater than zero.";
+        }
+
+        if (endTime <= startTime)
+        {
+            yield return "A booking slot must end after it starts.";
         }
     }
 
@@ -231,12 +246,51 @@ public static class SolarStationValidationRules
             yield return "Station status filter is not supported.";
         }
 
-        if (query.PageNumber < 1)
+        foreach (var error in ValidatePagination(query.PageNumber, query.PageSize))
+        {
+            yield return error;
+        }
+    }
+
+    public static IEnumerable<string> ValidateBookingSlotQuery(BookingSlotQuery? query)
+    {
+        // Validate optional ownership, lifecycle, time, and pagination filters.
+        if (query is null)
+        {
+            yield return "Booking slot query parameters are required.";
+            yield break;
+        }
+
+        if (query.StationId is not null && string.IsNullOrWhiteSpace(query.StationId))
+        {
+            yield return "Station identifier must not be blank when supplied.";
+        }
+
+        if (query.Status.HasValue && !Enum.IsDefined(query.Status.Value))
+        {
+            yield return "Slot status filter is not supported.";
+        }
+
+        if (query.From.HasValue && query.To.HasValue && query.To <= query.From)
+        {
+            yield return "Query end must be after its start.";
+        }
+
+        foreach (var error in ValidatePagination(query.PageNumber, query.PageSize))
+        {
+            yield return error;
+        }
+    }
+
+    private static IEnumerable<string> ValidatePagination(int pageNumber, int pageSize)
+    {
+        // Reuse positive pagination rules for station and booking slot queries.
+        if (pageNumber < 1)
         {
             yield return "Page number must be greater than zero.";
         }
 
-        if (query.PageSize < 1)
+        if (pageSize < 1)
         {
             yield return "Page size must be greater than zero.";
         }

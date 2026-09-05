@@ -14,11 +14,21 @@ public sealed class EnergyBookingSlotResponse
 {
     public string Id { get; init; } = string.Empty;
 
+    public string StationId { get; init; } = string.Empty;
+
+    public DateTimeOffset StartTime { get; init; }
+
+    public DateTimeOffset EndTime { get; init; }
+
     public int SlotNumber { get; init; }
 
     public decimal BatteryCapacityKwh { get; init; }
 
     public SlotStatus Status { get; init; }
+
+    public bool IsActive { get; init; }
+
+    public bool IsAvailable { get; init; }
 
     public DateTimeOffset CreatedAt { get; init; }
 

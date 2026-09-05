@@ -20,7 +20,7 @@ public sealed class CreateSolarStationRequest
 
     public decimal CapacityKw { get; init; }
 
-    public IReadOnlyList<EnergyBookingSlotRequest> Slots { get; init; } = Array.Empty<EnergyBookingSlotRequest>();
+    public IReadOnlyList<CreateBookingSlotRequest> Slots { get; init; } = Array.Empty<CreateBookingSlotRequest>();
 
     public IReadOnlyList<OperatingWindowRequest> Schedule { get; init; } = Array.Empty<OperatingWindowRequest>();
 }
