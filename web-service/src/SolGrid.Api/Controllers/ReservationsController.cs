@@ -8,6 +8,7 @@
 
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using SolGrid.Application.Common.Models;
 using SolGrid.Application.Reservations.Interfaces;
 using SolGrid.Application.Reservations.Requests;
 using SolGrid.Application.Reservations.Responses;

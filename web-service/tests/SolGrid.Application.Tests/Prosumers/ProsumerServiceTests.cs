@@ -11,6 +11,7 @@ using SolGrid.Application.Auth.Requests;
 using SolGrid.Application.Auth.Responses;
 using SolGrid.Application.Auth.Services;
 using SolGrid.Application.Common.Exceptions;
+using SolGrid.Application.Common.Models;
 using SolGrid.Application.Prosumers.Interfaces;
 using SolGrid.Application.Prosumers.Requests;
 using SolGrid.Application.Prosumers.Services;

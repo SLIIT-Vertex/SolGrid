@@ -15,6 +15,7 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using SolGrid.Api.Security;
 using SolGrid.Application.Auth.Interfaces;
 using SolGrid.Application.Auth.Services;
+using SolGrid.Application.Common.Models;
 using SolGrid.Application.Reservations.Interfaces;
 using SolGrid.Application.Users.Interfaces;
 using SolGrid.Application.Users.Services;
