@@ -7,6 +7,7 @@
  */
 
 using SolGrid.Application.Common.Exceptions;
+using SolGrid.Application.Common.Models;
 using SolGrid.Application.Common.Identity;
 using SolGrid.Application.Reservations.Interfaces;
 using SolGrid.Application.Reservations.Requests;

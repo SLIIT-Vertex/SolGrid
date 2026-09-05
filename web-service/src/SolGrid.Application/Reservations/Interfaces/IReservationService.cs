@@ -6,6 +6,7 @@
  * Contributor: Dilshan Yapa S Y C T
  */
 
+using SolGrid.Application.Common.Models;
 using SolGrid.Application.Reservations.Requests;
 using SolGrid.Application.Reservations.Responses;
 using SolGrid.Application.Users.Interfaces;

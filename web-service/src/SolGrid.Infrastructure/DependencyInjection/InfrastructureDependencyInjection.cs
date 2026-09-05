@@ -12,6 +12,7 @@ using MongoDB.Driver;
 using SolGrid.Application.Auth.Interfaces;
 using SolGrid.Application.Prosumers.Interfaces;
 using SolGrid.Application.Reservations.Interfaces;
+using SolGrid.Application.SolarStations.Interfaces;
 using SolGrid.Application.Users.Interfaces;
 using SolGrid.Infrastructure.Persistence.MongoDb;
 using SolGrid.Infrastructure.Persistence.MongoDb.Repositories;
@@ -51,9 +52,11 @@ public static class InfrastructureDependencyInjection
         services.AddScoped<IUserRepository, MongoUserRepository>();
         services.AddScoped<IProsumerRepository, MongoProsumerRepository>();
         services.AddScoped<IReservationRepository, MongoReservationRepository>();
+        services.AddScoped<ISolarStationRepository, MongoSolarStationRepository>();
         services.AddScoped<IUserCollectionInitializer, MongoUserCollectionInitializer>();
         services.AddScoped<IProsumerCollectionInitializer, MongoProsumerCollectionInitializer>();
         services.AddScoped<IReservationCollectionInitializer, MongoReservationCollectionInitializer>();
+        services.AddScoped<ISolarStationCollectionInitializer, MongoSolarStationCollectionInitializer>();
         services.AddScoped<IUserSeedDataInitializer, MongoUserSeedDataInitializer>();
 
         return services;

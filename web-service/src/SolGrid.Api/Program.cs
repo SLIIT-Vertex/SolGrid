@@ -17,6 +17,8 @@ using SolGrid.Application.Prosumers.Interfaces;
 using SolGrid.Application.Prosumers.Services;
 using SolGrid.Application.Reservations.Interfaces;
 using SolGrid.Application.Reservations.Services;
+using SolGrid.Application.SolarStations.Interfaces;
+using SolGrid.Application.SolarStations.Services;
 using SolGrid.Application.Users.Interfaces;
 using SolGrid.Application.Users.Services;
 using SolGrid.Domain.Enums;
@@ -53,6 +55,9 @@ builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<IProsumerService, ProsumerService>();
 builder.Services.AddScoped<IReservationProsumerReadService, ReservationProsumerReadService>();
 builder.Services.AddScoped<IReservationService, ReservationService>();
+builder.Services.AddScoped<ISolarStationService, SolarStationService>();
+builder.Services.AddScoped<IStationReservationLookup, ReservationStationLookup>();
+builder.Services.AddScoped<IReservationStationReadService, ReservationStationReadService>();
 builder.Services.AddScoped<ICurrentUserContext, HttpCurrentUserContext>();
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSolGridInfrastructure(
@@ -101,6 +106,9 @@ using (var startupScope = app.Services.CreateScope())
 
         var reservationCollectionInitializer = startupScope.ServiceProvider.GetRequiredService<IReservationCollectionInitializer>();
         await reservationCollectionInitializer.EnsureCreatedAsync().ConfigureAwait(false);
+
+        var solarStationCollectionInitializer = startupScope.ServiceProvider.GetRequiredService<ISolarStationCollectionInitializer>();
+        await solarStationCollectionInitializer.EnsureCreatedAsync().ConfigureAwait(false);
 
         var userSeedDataInitializer = startupScope.ServiceProvider.GetRequiredService<IUserSeedDataInitializer>();
         await userSeedDataInitializer.SeedAsync().ConfigureAwait(false);
