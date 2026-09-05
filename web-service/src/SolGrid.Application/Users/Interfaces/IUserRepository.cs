@@ -6,6 +6,7 @@
  * Contributor: Bawanthi K D R
  */
 
+using SolGrid.Application.Common.Models;
 using SolGrid.Domain.Entities;
 using SolGrid.Domain.Enums;
 
@@ -41,15 +42,4 @@ public sealed class UserQuery
     public int PageNumber { get; init; } = 1;
 
     public int PageSize { get; init; } = 20;
-}
-
-public sealed class PagedResult<T>
-{
-    public IReadOnlyList<T> Items { get; init; } = Array.Empty<T>();
-
-    public long TotalCount { get; init; }
-
-    public int PageNumber { get; init; }
-
-    public int PageSize { get; init; }
 }

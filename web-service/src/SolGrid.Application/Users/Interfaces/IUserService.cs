@@ -6,6 +6,7 @@
  * Contributor: Bawanthi K D R
  */
 
+using SolGrid.Application.Common.Models;
 using SolGrid.Application.Users.Requests;
 using SolGrid.Application.Users.Responses;
 
