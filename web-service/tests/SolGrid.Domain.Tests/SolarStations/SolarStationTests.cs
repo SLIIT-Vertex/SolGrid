@@ -195,6 +195,27 @@ public sealed class SolarStationTests
     }
 
     [Fact]
+    public void DistanceInKilometersFrom_RanksCloserStationsAheadOfFartherStations()
+    {
+        // Provide a persistence-independent distance so Maps results can be ranked consistently.
+        var origin = GeoCoordinates.Create(6.9, 79.8);
+        var nearby = Create();
+        var far = SolarStation.Create(
+            "far-station",
+            "ST-FAR",
+            "Kandy",
+            "Kandy",
+            GeoCoordinates.Create(7.2906, 80.6337),
+            50m,
+            [],
+            Schedule(),
+            Now);
+
+        Assert.True(nearby.DistanceInKilometersFrom(origin) < 1d);
+        Assert.True(far.DistanceInKilometersFrom(origin) > 50d);
+    }
+
+    [Fact]
     public void OperatingWindow_RejectsInvalidDayAndNonIncreasingTimes()
     {
         // Enforce same-day operating intervals with a supported weekday.

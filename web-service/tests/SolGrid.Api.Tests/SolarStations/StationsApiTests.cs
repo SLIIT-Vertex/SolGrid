@@ -18,6 +18,7 @@ using SolGrid.Application.SolarStations.Interfaces;
 using SolGrid.Application.SolarStations.Services;
 using SolGrid.Domain.Entities;
 using SolGrid.Domain.Enums;
+using SolGrid.Domain.ValueObjects;
 using System.IdentityModel.Tokens.Jwt;
 using System.Net;
 using System.Net.Http.Json;
@@ -41,9 +42,20 @@ public sealed class StationsApiTests
         var openApiJson = await client.GetStringAsync("/openapi/v1.json");
 
         Assert.Contains("\"/api/v1/stations\"", openApiJson, StringComparison.Ordinal);
+        Assert.Contains("\"/api/v1/stations/nearby\"", openApiJson, StringComparison.Ordinal);
         Assert.Contains("\"/api/v1/stations/{id}\"", openApiJson, StringComparison.Ordinal);
+        Assert.Contains("\"/api/v1/stations/{id}/schedule\"", openApiJson, StringComparison.Ordinal);
         Assert.Contains("\"/api/v1/stations/{id}/activate\"", openApiJson, StringComparison.Ordinal);
         Assert.Contains("\"/api/v1/stations/{id}/deactivate\"", openApiJson, StringComparison.Ordinal);
+        Assert.Contains("\"latitude\"", openApiJson, StringComparison.Ordinal);
+        Assert.Contains("\"longitude\"", openApiJson, StringComparison.Ordinal);
+        Assert.Contains("\"radiusKilometers\"", openApiJson, StringComparison.Ordinal);
+        Assert.Contains("\"maxResults\"", openApiJson, StringComparison.Ordinal);
+        Assert.Contains("\"activeOnly\"", openApiJson, StringComparison.Ordinal);
+        Assert.Contains("\"searchText\"", openApiJson, StringComparison.Ordinal);
+        Assert.Contains("\"hasAvailableSlots\"", openApiJson, StringComparison.Ordinal);
+        Assert.Contains("\"pageNumber\"", openApiJson, StringComparison.Ordinal);
+        Assert.Contains("\"pageSize\"", openApiJson, StringComparison.Ordinal);
         Assert.Contains("\"post\"", openApiJson, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("\"put\"", openApiJson, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("\"patch\"", openApiJson, StringComparison.OrdinalIgnoreCase);
@@ -116,6 +128,120 @@ public sealed class StationsApiTests
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
 
+    [Fact]
+    public async Task GetNearbyStations_WithoutJwt_ReturnsUnauthorized()
+    {
+        // Verify Android Maps discovery requires an authenticated caller.
+        await using var factory = CreateFactory();
+        var client = factory.CreateClient();
+
+        var response = await client.GetAsync("/api/v1/stations/nearby?latitude=6.9271&longitude=79.8612");
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task GetNearbyStations_WithProsumerJwt_ReturnsStationsWithCoordinates()
+    {
+        // Verify Android receives live station coordinates from the API rather than embedded node data.
+        await using var factory = CreateFactory();
+        var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new("Bearer", CreateWebUserJwt(UserRole.Backoffice));
+        await client.PostAsJsonAsync("/api/v1/stations", CreateBody());
+
+        client.DefaultRequestHeaders.Authorization = new("Bearer", CreateProsumerJwt());
+        var response = await client.GetAsync(
+            "/api/v1/stations/nearby?latitude=6.9271&longitude=79.8612&radiusKilometers=10&maxResults=20&activeOnly=true");
+        var body = await response.Content.ReadFromJsonAsync<SolarStationBody[]>();
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var station = Assert.Single(body!);
+        Assert.Equal("ST-1", station.Code);
+        Assert.Equal(6.9271, station.Location.Latitude);
+        Assert.Equal(79.8612, station.Location.Longitude);
+        Assert.Equal(StationStatus.Active, station.Status);
+        Assert.NotNull(station.DistanceKilometers);
+    }
+
+    [Fact]
+    public async Task GetNearbyStations_WithInvalidLatitude_ReturnsBadRequest()
+    {
+        // Verify Maps queries reject coordinates that cannot describe a GPS origin.
+        await using var factory = CreateFactory();
+        var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new("Bearer", CreateProsumerJwt());
+
+        var response = await client.GetAsync("/api/v1/stations/nearby?latitude=91&longitude=79.8612");
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task GetStationById_WithProsumerJwt_ReturnsStation()
+    {
+        // Verify Android can load one station's live details after selecting a map marker.
+        await using var factory = CreateFactory();
+        var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new("Bearer", CreateWebUserJwt(UserRole.Backoffice));
+        var created = await (await client.PostAsJsonAsync("/api/v1/stations", CreateBody()))
+            .Content.ReadFromJsonAsync<SolarStationBody>();
+
+        client.DefaultRequestHeaders.Authorization = new("Bearer", CreateProsumerJwt());
+        var response = await client.GetAsync($"/api/v1/stations/{created!.Id}");
+        var body = await response.Content.ReadFromJsonAsync<SolarStationBody>();
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(created.Id, body!.Id);
+        Assert.Equal(6.9271, body.Location.Latitude);
+    }
+
+    [Fact]
+    public async Task GetStations_WithProsumerJwt_ReturnsForbidden()
+    {
+        // Verify administrative station lists stay closed to Android prosumer tokens.
+        await using var factory = CreateFactory();
+        var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new("Bearer", CreateProsumerJwt());
+
+        var response = await client.GetAsync("/api/v1/stations");
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task ReplaceSchedule_WithGridOperatorJwt_ReturnsForbidden()
+    {
+        // Verify GridOperator claims cannot replace a station operating schedule.
+        await using var factory = CreateFactory();
+        var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new("Bearer", CreateWebUserJwt(UserRole.GridOperator));
+
+        var response = await client.PutAsJsonAsync("/api/v1/stations/station-1/schedule", new
+        {
+            Schedule = new[]
+            {
+                new { Day = DayOfWeek.Monday, OpensAt = "09:00:00", ClosesAt = "16:00:00" }
+            }
+        });
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task DeactivateStation_WithBackofficeJwt_ReturnsNoContent()
+    {
+        // Verify Backoffice can deactivate a station that has no live reservations.
+        await using var factory = CreateFactory();
+        var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new("Bearer", CreateWebUserJwt(UserRole.Backoffice));
+        var created = await (await client.PostAsJsonAsync("/api/v1/stations", CreateBody()))
+            .Content.ReadFromJsonAsync<SolarStationBody>();
+
+        var response = await client.PatchAsync($"/api/v1/stations/{created!.Id}/deactivate", content: null);
+
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+    }
+
     private static WebApplicationFactory<Program> CreateFactory()
     {
         // Create an API test host with in-memory station persistence and JWT test configuration.
@@ -170,6 +296,23 @@ public sealed class StationsApiTests
         return new JwtSecurityTokenHandler().WriteToken(token);
     }
 
+    private static string CreateProsumerJwt()
+    {
+        // Create a prosumer JWT that has a subject but no web-user role claim.
+        var signingKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(TestJwtSigningKey));
+        var token = new JwtSecurityToken(
+            issuer: "SolGrid.Tests",
+            audience: "SolGrid.Tests",
+            claims:
+            [
+                new Claim(ClaimTypes.NameIdentifier, "199012345678")
+            ],
+            expires: DateTime.UtcNow.AddMinutes(5),
+            signingCredentials: new SigningCredentials(signingKey, SecurityAlgorithms.HmacSha256));
+
+        return new JwtSecurityTokenHandler().WriteToken(token);
+    }
+
     private static object CreateBody()
     {
         // Build a valid station create payload for API tests.
@@ -195,9 +338,22 @@ public sealed class StationsApiTests
 
     private sealed class SolarStationBody
     {
+        public string Id { get; init; } = string.Empty;
+
         public string Code { get; init; } = string.Empty;
 
         public StationStatus Status { get; init; }
+
+        public LocationBody Location { get; init; } = new();
+
+        public double? DistanceKilometers { get; init; }
+    }
+
+    private sealed class LocationBody
+    {
+        public double Latitude { get; init; }
+
+        public double Longitude { get; init; }
     }
 
     private sealed class TestStationReservationLookup : IStationReservationLookup
@@ -257,8 +413,16 @@ public sealed class StationsApiTests
             NearbyStationQuery query,
             CancellationToken cancellationToken = default)
         {
-            // Nearby discovery is not exercised by these API authorization tests.
-            return Task.FromResult<IReadOnlyList<SolarStation>>(stations);
+            // Rank in-memory stations by great-circle distance for Maps API tests.
+            var origin = GeoCoordinates.Create(query.Latitude, query.Longitude);
+            var stationsInRange = stations
+                .Where(station => !query.ActiveOnly || station.IsActive)
+                .Where(station => station.DistanceInKilometersFrom(origin) <= query.RadiusKilometers)
+                .OrderBy(station => station.DistanceInKilometersFrom(origin))
+                .Take(query.MaxResults)
+                .ToArray();
+
+            return Task.FromResult<IReadOnlyList<SolarStation>>(stationsInRange);
         }
 
         public Task<bool> ExistsByCodeAsync(
@@ -281,7 +445,13 @@ public sealed class StationsApiTests
 
         public Task UpdateAsync(SolarStation station, CancellationToken cancellationToken = default)
         {
-            // Preserve repository-contract compatibility without extra update behavior.
+            // Replace the in-memory station so deactivation API tests observe the persisted change.
+            var index = stations.FindIndex(existing => existing.Id == station.Id);
+            if (index >= 0)
+            {
+                stations[index] = station;
+            }
+
             return Task.CompletedTask;
         }
     }

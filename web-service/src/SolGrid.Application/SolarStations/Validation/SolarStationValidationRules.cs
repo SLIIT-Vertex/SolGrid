@@ -21,6 +21,7 @@ public static class SolarStationValidationRules
     public const double MinimumRadiusKilometers = 0.1d;
     public const double MaximumRadiusKilometers = 200d;
     public const int MaximumNearbyResults = 100;
+    public const int MaximumPageSize = 100;
 
     public static bool HasValue(string value)
     {
@@ -220,6 +221,7 @@ public static class SolarStationValidationRules
         }
 
         if (double.IsNaN(query.RadiusKilometers)
+            || double.IsInfinity(query.RadiusKilometers)
             || query.RadiusKilometers < MinimumRadiusKilometers
             || query.RadiusKilometers > MaximumRadiusKilometers)
         {
@@ -382,6 +384,10 @@ public static class SolarStationValidationRules
         if (pageSize < 1)
         {
             yield return "Page size must be greater than zero.";
+        }
+        else if (pageSize > MaximumPageSize)
+        {
+            yield return $"Page size must not exceed {MaximumPageSize}.";
         }
     }
 

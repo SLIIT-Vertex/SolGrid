@@ -112,7 +112,7 @@ public sealed class BookingSlotService : IBookingSlotService
         CancellationToken cancellationToken = default)
     {
         // Return a slot response or report the shared not-found application error.
-        EnsureSlotReader();
+        EnsureAuthenticatedSlotReader();
         ValidateId(id, "Booking slot id is required.");
         var slot = await GetRequiredSlotAsync(id, cancellationToken).ConfigureAwait(false);
         return SolarStationResponseMapper.ToResponse(slot);
@@ -123,7 +123,7 @@ public sealed class BookingSlotService : IBookingSlotService
         CancellationToken cancellationToken = default)
     {
         // Validate filters, confirm the owning station exists, and return the requested page.
-        EnsureSlotReader();
+        EnsureAuthenticatedSlotReader();
         EnsureValid(QueryValidator.Validate(query));
         ValidateId(query.StationId, "Station id is required.");
 
@@ -233,12 +233,12 @@ public sealed class BookingSlotService : IBookingSlotService
         }
     }
 
-    private void EnsureSlotReader()
+    private void EnsureAuthenticatedSlotReader()
     {
-        // Restrict slot reads to operational web roles.
-        if (currentUserContext.Role is not (UserRole.Backoffice or UserRole.GridOperator))
+        // Allow Android booking screens and operational clients to read live slot availability.
+        if (!currentUserContext.IsAuthenticated)
         {
-            throw new ForbiddenException("Backoffice or GridOperator authorization is required to view booking slots.");
+            throw new ForbiddenException("Authentication is required to view booking slots.");
         }
     }
 

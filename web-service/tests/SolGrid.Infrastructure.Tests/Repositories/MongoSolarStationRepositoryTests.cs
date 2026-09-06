@@ -152,6 +152,38 @@ public sealed class MongoSolarStationRepositoryTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task GetNearbyAsync_ReturnsStationsWithinRadius()
+    {
+        // Verify the 2dsphere query returns nearby active stations and excludes far stations.
+        if (ShouldSkipWithoutMongo())
+        {
+            return;
+        }
+
+        var nearbyStation = CreateStation("ST-NEAR", "Colombo North Hub", 6.9271, 79.8612);
+        var farStation = CreateStation("ST-FAR", "Kandy Hub", 7.2906, 80.6337);
+        var inactiveStation = CreateStation("ST-OFF", "Colombo Inactive", 6.9271, 79.8612);
+        inactiveStation.Deactivate(DateTimeOffset.UtcNow);
+
+        await repository!.AddAsync(nearbyStation);
+        await repository.AddAsync(farStation);
+        await repository.AddAsync(inactiveStation);
+
+        var nearby = await repository.GetNearbyAsync(new NearbyStationQuery
+        {
+            Latitude = 6.9271,
+            Longitude = 79.8612,
+            RadiusKilometers = 5d,
+            MaxResults = 10,
+            ActiveOnly = true
+        });
+
+        var station = Assert.Single(nearby);
+        Assert.Equal("ST-NEAR", station.Code);
+        Assert.True(station.DistanceInKilometersFrom(GeoCoordinates.Create(6.9271, 79.8612)) < 1d);
+    }
+
+    [Fact]
     public async Task UpdateAsync_ReplacesExistingStation()
     {
         // Verify that updating a domain station replaces the persisted document.
@@ -188,7 +220,11 @@ public sealed class MongoSolarStationRepositoryTests : IAsyncLifetime
         Assert.False(await repository.ExistsByCodeAsync(station.Code, station.Id));
     }
 
-    private static SolarStation CreateStation(string code, string name = "Station")
+    private static SolarStation CreateStation(
+        string code,
+        string name = "Station",
+        double latitude = 6.9271,
+        double longitude = 79.8612)
     {
         // Create a valid domain station for repository integration tests.
         return SolarStation.Create(
@@ -196,7 +232,7 @@ public sealed class MongoSolarStationRepositoryTests : IAsyncLifetime
             code,
             name,
             "Colombo",
-            GeoCoordinates.Create(6.9271, 79.8612),
+            GeoCoordinates.Create(latitude, longitude),
             50m,
             [],
             [OperatingWindow.Create(DayOfWeek.Monday, new TimeOnly(8, 0), new TimeOnly(17, 0))],

@@ -51,7 +51,6 @@ public sealed class SlotsController : ControllerBase
     }
 
     [HttpGet("stations/{stationId}/slots")]
-    [Authorize(Roles = "Backoffice,GridOperator")]
     [ProducesResponseType(typeof(PagedResult<EnergyBookingSlotResponse>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
@@ -66,7 +65,7 @@ public sealed class SlotsController : ControllerBase
         [FromQuery] int pageSize = 20,
         CancellationToken cancellationToken = default)
     {
-        // Return filtered and paged slots for one station to operational web roles.
+        // Return filtered and paged slots for one station to authenticated booking clients.
         var response = await bookingSlotService.GetBookingSlotsAsync(
             new BookingSlotQuery
             {
@@ -83,7 +82,6 @@ public sealed class SlotsController : ControllerBase
     }
 
     [HttpGet("slots/{id}")]
-    [Authorize(Roles = "Backoffice,GridOperator")]
     [ProducesResponseType(typeof(EnergyBookingSlotResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
@@ -93,7 +91,7 @@ public sealed class SlotsController : ControllerBase
         string id,
         CancellationToken cancellationToken)
     {
-        // Return one booking slot by route id for operational web roles.
+        // Return one booking slot by route id for authenticated booking clients.
         var response = await bookingSlotService
             .GetBookingSlotByIdAsync(id, cancellationToken)
             .ConfigureAwait(false);

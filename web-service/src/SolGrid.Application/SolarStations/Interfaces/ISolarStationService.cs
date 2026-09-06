@@ -33,7 +33,7 @@ public interface ISolarStationService
         SolarStationQuery query,
         CancellationToken cancellationToken = default);
 
-    // Preserve the existing discovery contract for later implementation.
+    // Rank stations near a client GPS origin for Android Maps without shipping node data in the app.
     Task<IReadOnlyList<SolarStationResponse>> GetNearbyStationsAsync(
         NearbyStationQuery query,
         CancellationToken cancellationToken = default);
