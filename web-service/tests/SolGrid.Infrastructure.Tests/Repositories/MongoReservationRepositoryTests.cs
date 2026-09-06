@@ -8,6 +8,7 @@
 
 using Microsoft.Extensions.Options;
 using MongoDB.Driver;
+using SolGrid.Application.Common.Exceptions;
 using SolGrid.Application.Reservations.Interfaces;
 using SolGrid.Domain.Entities;
 using SolGrid.Domain.Enums;
@@ -159,6 +160,47 @@ public sealed class MongoReservationRepositoryTests : IAsyncLifetime
         Assert.Equal(ReservationStatus.Cancelled, persistedReservation.Status);
     }
 
+    [Fact]
+    public async Task AddAsync_WhenConcurrentActiveReservationsUseSameSlot_AllowsOnlyOne()
+    {
+        // Verify the database uniqueness constraint closes the check-then-insert race window.
+        if (ShouldSkipWithoutMongo())
+        {
+            return;
+        }
+
+        var first = CreateReservation("reservation-first", "prosumer-1", "station-1", "slot-race");
+        var second = CreateReservation("reservation-second", "prosumer-2", "station-1", "slot-race");
+
+        var outcomes = await Task.WhenAll(
+            CaptureAsync(() => repository!.AddAsync(first)),
+            CaptureAsync(() => repository!.AddAsync(second)));
+
+        Assert.Single(outcomes, outcome => outcome is null);
+        Assert.Single(outcomes, outcome => outcome is ConflictException);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_WhenVersionIsStale_ThrowsConflict()
+    {
+        // Verify optimistic concurrency prevents two requests from silently overwriting each other.
+        if (ShouldSkipWithoutMongo())
+        {
+            return;
+        }
+
+        var reservation = CreateReservation("reservation-concurrency", "prosumer-1", "station-1", "slot-1");
+        await repository!.AddAsync(reservation);
+        var firstCopy = await repository.GetByIdAsync(reservation.Id);
+        var staleCopy = await repository.GetByIdAsync(reservation.Id);
+
+        firstCopy!.Cancel(DateTimeOffset.UtcNow);
+        staleCopy!.Cancel(DateTimeOffset.UtcNow);
+        await repository.UpdateAsync(firstCopy);
+
+        await Assert.ThrowsAsync<ConflictException>(() => repository.UpdateAsync(staleCopy));
+    }
+
     private static EnergyReservation CreateReservation(
         string id,
         string prosumerId,
@@ -180,5 +222,19 @@ public sealed class MongoReservationRepositoryTests : IAsyncLifetime
     {
         // Bypass integration work when no MongoDB connection is configured for the test run.
         return string.IsNullOrWhiteSpace(connectionString);
+    }
+
+    private static async Task<Exception?> CaptureAsync(Func<Task> operation)
+    {
+        // Capture one concurrent repository outcome for race-condition assertions.
+        try
+        {
+            await operation();
+            return null;
+        }
+        catch (Exception exception)
+        {
+            return exception;
+        }
     }
 }

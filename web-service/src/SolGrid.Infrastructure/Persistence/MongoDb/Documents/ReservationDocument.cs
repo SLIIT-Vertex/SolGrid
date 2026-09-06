@@ -27,6 +27,10 @@ internal sealed class ReservationDocument
 
     public ReservationStatus Status { get; init; }
 
+    public bool IsActiveForBookingSlot { get; init; }
+
+    public int Version { get; init; }
+
     public DateTime CreatedAtUtc { get; init; }
 
     public DateTime UpdatedAtUtc { get; init; }
@@ -66,6 +70,8 @@ internal sealed class ReservationDocument
             BookingSlotId = reservation.BookingSlotId,
             ScheduledAtUtc = reservation.ScheduledAt.UtcDateTime,
             Status = reservation.Status,
+            IsActiveForBookingSlot = reservation.IsActive,
+            Version = reservation.Version,
             CreatedAtUtc = reservation.CreatedAt.UtcDateTime,
             UpdatedAtUtc = reservation.UpdatedAt.UtcDateTime,
             ApprovedAtUtc = ToNullableUtcDateTime(reservation.ApprovedAt),
@@ -106,7 +112,8 @@ internal sealed class ReservationDocument
             QrVerificationTokenHash,
             ToNullableUtcOffset(QrVerificationTokenIssuedAtUtc),
             ToNullableUtcOffset(QrVerificationTokenExpiresAtUtc),
-            ToNullableUtcOffset(QrVerifiedAtUtc));
+            ToNullableUtcOffset(QrVerifiedAtUtc),
+            Version);
     }
 
     private static DateTime? ToNullableUtcDateTime(DateTimeOffset? value)

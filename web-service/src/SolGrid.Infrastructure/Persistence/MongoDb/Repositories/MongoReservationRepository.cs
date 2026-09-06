@@ -8,6 +8,7 @@
 
 using Microsoft.Extensions.Options;
 using MongoDB.Driver;
+using SolGrid.Application.Common.Exceptions;
 using SolGrid.Application.Reservations.Interfaces;
 using SolGrid.Application.Users.Interfaces;
 using SolGrid.Domain.Entities;
@@ -68,27 +69,54 @@ public sealed class MongoReservationRepository : IReservationRepository
         CancellationToken cancellationToken = default)
     {
         // Return filtered reservations with bounded paging for future management screens.
-        var pageNumber = Math.Max(query.PageNumber, DefaultPageNumber);
-        var pageSize = Math.Clamp(query.PageSize, 1, MaximumPageSize);
-        var filter = BuildFilter(query);
-        var skip = (pageNumber - 1) * pageSize;
+        return await GetPagedForFilterAsync(BuildFilter(query), query, cancellationToken).ConfigureAwait(false);
+    }
 
-        var totalCountTask = reservationsCollection.CountDocumentsAsync(filter, cancellationToken: cancellationToken);
-        var documentsTask = reservationsCollection
-            .Find(filter)
-            .SortBy(reservation => reservation.ScheduledAtUtc)
-            .Skip(skip)
-            .Limit(pageSize)
-            .ToListAsync(cancellationToken);
+    public async Task<PagedResult<EnergyReservation>> GetDashboardReservationsAsync(
+        ReservationDashboardView view,
+        ReservationQuery query,
+        DateTimeOffset nowUtc,
+        CancellationToken cancellationToken = default)
+    {
+        // Return a server-filtered and paged reservation dashboard view.
+        var builder = Builders<ReservationDocument>.Filter;
+        var filter = builder.And(BuildFilter(query), BuildDashboardFilter(view, nowUtc));
+        return await GetPagedForFilterAsync(filter, query, cancellationToken).ConfigureAwait(false);
+    }
 
-        await Task.WhenAll(totalCountTask, documentsTask).ConfigureAwait(false);
+    public async Task<ReservationDashboardCounts> GetDashboardCountsAsync(
+        DateTimeOffset nowUtc,
+        CancellationToken cancellationToken = default)
+    {
+        // Calculate dashboard counts directly in MongoDB without materializing reservations.
+        var builder = Builders<ReservationDocument>.Filter;
+        var scheduledAfterNow = builder.Gte(reservation => reservation.ScheduledAtUtc, nowUtc.UtcDateTime);
+        var scheduledBeforeNow = builder.Lt(reservation => reservation.ScheduledAtUtc, nowUtc.UtcDateTime);
+        var activeStatuses = builder.In(reservation => reservation.Status, ActiveStatuses);
+        var terminalStatuses = builder.In(
+            reservation => reservation.Status,
+            [ReservationStatus.Rejected, ReservationStatus.Cancelled, ReservationStatus.Completed]);
 
-        return new PagedResult<EnergyReservation>
+        var pendingCountTask = reservationsCollection.CountDocumentsAsync(
+            builder.Eq(reservation => reservation.Status, ReservationStatus.Pending), cancellationToken: cancellationToken);
+        var approvedFutureCountTask = reservationsCollection.CountDocumentsAsync(
+            builder.And(
+                builder.Eq(reservation => reservation.Status, ReservationStatus.Approved),
+                scheduledAfterNow), cancellationToken: cancellationToken);
+        var currentCountTask = reservationsCollection.CountDocumentsAsync(
+            builder.And(activeStatuses, scheduledAfterNow), cancellationToken: cancellationToken);
+        var historyCountTask = reservationsCollection.CountDocumentsAsync(
+            builder.Or(terminalStatuses, scheduledBeforeNow), cancellationToken: cancellationToken);
+
+        await Task.WhenAll(pendingCountTask, approvedFutureCountTask, currentCountTask, historyCountTask)
+            .ConfigureAwait(false);
+
+        return new ReservationDashboardCounts
         {
-            Items = documentsTask.Result.Select(document => document.ToDomain()).ToArray(),
-            TotalCount = totalCountTask.Result,
-            PageNumber = pageNumber,
-            PageSize = pageSize
+            PendingReservationsCount = pendingCountTask.Result,
+            ApprovedFutureReservationsCount = approvedFutureCountTask.Result,
+            CurrentReservationsCount = currentCountTask.Result,
+            BookingHistoryCount = historyCountTask.Result
         };
     }
 
@@ -130,25 +158,42 @@ public sealed class MongoReservationRepository : IReservationRepository
 
     public async Task AddAsync(EnergyReservation reservation, CancellationToken cancellationToken = default)
     {
-        // Insert a new reservation document into MongoDB.
-        await reservationsCollection
-            .InsertOneAsync(ReservationDocument.FromDomain(reservation), cancellationToken: cancellationToken)
-            .ConfigureAwait(false);
+        // Insert a new reservation document and translate active-slot uniqueness conflicts.
+        try
+        {
+            await reservationsCollection
+                .InsertOneAsync(ReservationDocument.FromDomain(reservation), cancellationToken: cancellationToken)
+                .ConfigureAwait(false);
+        }
+        catch (MongoWriteException exception) when (exception.WriteError.Category == ServerErrorCategory.DuplicateKey)
+        {
+            throw new ConflictException("Booking slot already has an active reservation.");
+        }
     }
 
     public async Task UpdateAsync(EnergyReservation reservation, CancellationToken cancellationToken = default)
     {
         // Replace an existing reservation document while preserving the same identifier.
-        var result = await reservationsCollection
-            .ReplaceOneAsync(
-                existingReservation => existingReservation.Id == reservation.Id,
-                ReservationDocument.FromDomain(reservation),
-                cancellationToken: cancellationToken)
-            .ConfigureAwait(false);
+        ReplaceOneResult result;
+
+        try
+        {
+            result = await reservationsCollection
+                .ReplaceOneAsync(
+                    existingReservation => existingReservation.Id == reservation.Id
+                        && existingReservation.Version == reservation.Version - 1,
+                    ReservationDocument.FromDomain(reservation),
+                    cancellationToken: cancellationToken)
+                .ConfigureAwait(false);
+        }
+        catch (MongoWriteException exception) when (exception.WriteError.Category == ServerErrorCategory.DuplicateKey)
+        {
+            throw new ConflictException("Booking slot already has an active reservation.");
+        }
 
         if (result.MatchedCount == 0)
         {
-            throw new InvalidOperationException("Reservation could not be found for update.");
+            throw new ConflictException("Reservation was changed by another request. Refresh and retry.");
         }
     }
 
@@ -199,6 +244,58 @@ public sealed class MongoReservationRepository : IReservationRepository
         }
 
         return filters.Count == 0 ? builder.Empty : builder.And(filters);
+    }
+
+    private async Task<PagedResult<EnergyReservation>> GetPagedForFilterAsync(
+        FilterDefinition<ReservationDocument> filter,
+        ReservationQuery query,
+        CancellationToken cancellationToken)
+    {
+        // Execute a bounded page and total count against one MongoDB filter.
+        var pageNumber = Math.Max(query.PageNumber, DefaultPageNumber);
+        var pageSize = Math.Clamp(query.PageSize, 1, MaximumPageSize);
+        var skip = (pageNumber - 1) * pageSize;
+
+        var totalCountTask = reservationsCollection.CountDocumentsAsync(filter, cancellationToken: cancellationToken);
+        var documentsTask = reservationsCollection
+            .Find(filter)
+            .SortBy(reservation => reservation.ScheduledAtUtc)
+            .Skip(skip)
+            .Limit(pageSize)
+            .ToListAsync(cancellationToken);
+
+        await Task.WhenAll(totalCountTask, documentsTask).ConfigureAwait(false);
+
+        return new PagedResult<EnergyReservation>
+        {
+            Items = documentsTask.Result.Select(document => document.ToDomain()).ToArray(),
+            TotalCount = totalCountTask.Result,
+            PageNumber = pageNumber,
+            PageSize = pageSize
+        };
+    }
+
+    private static FilterDefinition<ReservationDocument> BuildDashboardFilter(
+        ReservationDashboardView view,
+        DateTimeOffset nowUtc)
+    {
+        // Build the status and schedule filter that defines one dashboard view.
+        var builder = Builders<ReservationDocument>.Filter;
+        var scheduledAfterNow = builder.Gte(reservation => reservation.ScheduledAtUtc, nowUtc.UtcDateTime);
+
+        return view switch
+        {
+            ReservationDashboardView.Current => builder.And(
+                builder.In(reservation => reservation.Status, ActiveStatuses),
+                scheduledAfterNow),
+            ReservationDashboardView.Pending => builder.Eq(reservation => reservation.Status, ReservationStatus.Pending),
+            ReservationDashboardView.History => builder.Or(
+                builder.In(
+                    reservation => reservation.Status,
+                    [ReservationStatus.Rejected, ReservationStatus.Cancelled, ReservationStatus.Completed]),
+                builder.Lt(reservation => reservation.ScheduledAtUtc, nowUtc.UtcDateTime)),
+            _ => throw new ArgumentOutOfRangeException(nameof(view), view, "Reservation dashboard view is not supported.")
+        };
     }
 
     private static string NormalizeIdentifier(string identifier)

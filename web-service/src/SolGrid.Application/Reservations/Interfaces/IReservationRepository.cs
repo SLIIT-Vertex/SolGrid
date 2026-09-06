@@ -20,6 +20,14 @@ public interface IReservationRepository
 
     Task<PagedResult<EnergyReservation>> GetPagedAsync(ReservationQuery query, CancellationToken cancellationToken = default);
 
+    Task<PagedResult<EnergyReservation>> GetDashboardReservationsAsync(
+        ReservationDashboardView view,
+        ReservationQuery query,
+        DateTimeOffset nowUtc,
+        CancellationToken cancellationToken = default);
+
+    Task<ReservationDashboardCounts> GetDashboardCountsAsync(DateTimeOffset nowUtc, CancellationToken cancellationToken = default);
+
     Task<bool> HasActiveReservationForBookingSlotAsync(string bookingSlotId, string? excludingReservationId = null, CancellationToken cancellationToken = default);
 
     Task<bool> HasActiveReservationsForStationAsync(string stationId, CancellationToken cancellationToken = default);
