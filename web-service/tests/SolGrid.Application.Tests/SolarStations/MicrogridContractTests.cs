@@ -168,6 +168,39 @@ public sealed class MicrogridContractTests
     }
 
     [Fact]
+    public void NearbyQuery_RejectsInvalidOriginAndSearchBounds()
+    {
+        // Guard Maps search parameters before they reach the MongoDB geo query.
+        var invalid = new NearbyStationQueryValidator().Validate(new NearbyStationQuery
+        {
+            Latitude = 91,
+            Longitude = double.NaN,
+            RadiusKilometers = 201d,
+            MaxResults = 0
+        });
+        Assert.Contains("Latitude must be between -90 and 90 degrees.", invalid.Errors);
+        Assert.Contains("Longitude must be between -180 and 180 degrees.", invalid.Errors);
+        Assert.Contains("Search radius must be between 0.1 and 200 kilometers.", invalid.Errors);
+        Assert.Contains("Maximum results must be between 1 and 100.", invalid.Errors);
+        Assert.False(new NearbyStationQueryValidator().Validate(null!).IsValid);
+        Assert.True(new NearbyStationQueryValidator().Validate(new NearbyStationQuery
+        {
+            Latitude = 6.9271,
+            Longitude = 79.8612
+        }).IsValid);
+    }
+
+    [Fact]
+    public void Queries_RejectExcessivePageSize()
+    {
+        // Return a validation error instead of silently accepting unbounded list pages.
+        var stations = new SolarStationQueryValidator().Validate(new() { PageSize = 101 });
+        var slots = new BookingSlotQueryValidator().Validate(new() { PageSize = 101 });
+        Assert.Contains("Page size must not exceed 100.", stations.Errors);
+        Assert.Contains("Page size must not exceed 100.", slots.Errors);
+    }
+
+    [Fact]
     public void SlotCollection_RejectsMissingEntriesAndDuplicateNumbers()
     {
         // Prevent malformed nested slot lists from bypassing individual validators.

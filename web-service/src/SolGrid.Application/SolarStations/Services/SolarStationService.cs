@@ -25,6 +25,7 @@ public sealed class SolarStationService : ISolarStationService
     private static readonly CreateSolarStationRequestValidator CreateValidator = new();
     private static readonly UpdateSolarStationRequestValidator UpdateValidator = new();
     private static readonly SolarStationQueryValidator QueryValidator = new();
+    private static readonly NearbyStationQueryValidator NearbyQueryValidator = new();
     private static readonly UpdateStationScheduleRequestValidator ScheduleValidator = new();
 
     private readonly ISolarStationRepository stationRepository;
@@ -119,7 +120,7 @@ public sealed class SolarStationService : ISolarStationService
         CancellationToken cancellationToken = default)
     {
         // Return a station response or report the shared not-found application error.
-        EnsureStationReader();
+        EnsureAuthenticatedStationReader();
         ValidateId(id);
         var station = await GetRequiredStationAsync(id, cancellationToken).ConfigureAwait(false);
         return SolarStationResponseMapper.ToResponse(station);
@@ -147,9 +148,9 @@ public sealed class SolarStationService : ISolarStationService
         NearbyStationQuery query,
         CancellationToken cancellationToken = default)
     {
-        // Preserve the existing discovery contract for later client implementation.
-        EnsureStationReader();
-        EnsureValid(SolarStationValidationRules.ValidateNearbyQuery(query));
+        // Rank stations near a client GPS origin for Android Maps without shipping node data in the app.
+        EnsureAuthenticatedStationReader();
+        EnsureValid(NearbyQueryValidator.Validate(query));
 
         var origin = GeoCoordinates.Create(query.Latitude, query.Longitude);
         var stations = await stationRepository.GetNearbyAsync(query, cancellationToken).ConfigureAwait(false);
@@ -221,10 +222,19 @@ public sealed class SolarStationService : ISolarStationService
 
     private void EnsureStationReader()
     {
-        // Restrict station reads to operational web roles.
+        // Restrict administrative station lists to operational web roles.
         if (currentUserContext.Role is not (UserRole.Backoffice or UserRole.GridOperator))
         {
             throw new ForbiddenException("Backoffice or GridOperator authorization is required to view stations.");
+        }
+    }
+
+    private void EnsureAuthenticatedStationReader()
+    {
+        // Allow Android Maps and operational clients to read live station coordinates from the API.
+        if (!currentUserContext.IsAuthenticated)
+        {
+            throw new ForbiddenException("Authentication is required to view stations.");
         }
     }
 
@@ -234,16 +244,6 @@ public sealed class SolarStationService : ISolarStationService
         if (!result.IsValid)
         {
             throw new ValidationException(result.Errors);
-        }
-    }
-
-    private static void EnsureValid(IEnumerable<string> errors)
-    {
-        // Throw one validation exception containing every collected nearby-query error.
-        var errorList = errors.ToArray();
-        if (errorList.Length > 0)
-        {
-            throw new ValidationException(errorList);
         }
     }
 

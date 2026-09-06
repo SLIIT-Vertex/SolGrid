@@ -52,16 +52,18 @@ public sealed record GeoCoordinates
 
     public static bool IsValidLatitude(double latitude)
     {
-        // Guard against NaN explicitly because range comparisons always fail for it.
+        // Guard against NaN and infinities because range comparisons are not a complete check.
         return !double.IsNaN(latitude)
+            && !double.IsInfinity(latitude)
             && latitude >= MinimumLatitude
             && latitude <= MaximumLatitude;
     }
 
     public static bool IsValidLongitude(double longitude)
     {
-        // Guard against NaN explicitly because range comparisons always fail for it.
+        // Guard against NaN and infinities because range comparisons are not a complete check.
         return !double.IsNaN(longitude)
+            && !double.IsInfinity(longitude)
             && longitude >= MinimumLongitude
             && longitude <= MaximumLongitude;
     }

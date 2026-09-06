@@ -1,106 +1,253 @@
-# Microgrid Node Management — Phase 1
+# Microgrid Node Management Backend
 
-## Scope and sources
+## Purpose
 
-The assignment specification (`../EAD_SE4040_Assignment_2026.pdf`) requires GPS coordinates, capacity, battery slots, operational schedules, and blocking node deactivation while active reservations exist. The Phase 1 request additionally requires explicit slot ownership and booking start/end times. No `AGENTS.md` or `members.txt` was present in the scanned repository/parent directory, so the existing backend conventions were followed.
+Microgrid Node Management owns solar-station and booking-slot master data for SolGrid. The backend is the only authoritative source for station identity, GPS coordinates, generation capacity, operating schedules, slot availability, and station lifecycle. The web dashboard administers nodes. Android Google Maps and reservation flows consume the same live API; neither client stores or decides node state.
 
-This phase contains Domain behaviour, Application DTOs, validators, repository/service contracts, and tests only. It adds no controllers, repository implementations, service implementations, dependency-injection registrations, client changes, Maps features, or reservation workflows. The existing discovery and reservation-related domain methods are retained.
+## Component Overview
 
-## Domain model
-
-`SolarStation` retains its string identity, normalized uppercase code, name, address, `GeoCoordinates`, positive generation `CapacityKw`, weekly `OperatingWindow` schedule, `StationStatus`, and `DateTimeOffset` creation/update audit fields. There is no existing `BaseEntity`; auditing follows the existing entity conventions.
-
-`TotalSlotCount` and `AvailableSlotCount` are derived from the owned slots. Counts cannot become negative or disagree with the slot list. Zero configured slots are allowed; such a station cannot accept bookings. There is no independently writable battery count. Collection views prevent adding/removing items outside validated domain operations. Failed detail/schedule changes leave the prior state intact.
-
-`EnergyBookingSlot` retains its identity, unique per-station slot number, positive `BatteryCapacityKwh`, status, and audit fields. It now requires an immutable `StationId` and an absolute `StartTime`/`EndTime` interval stored in UTC. Station construction and slot addition reject foreign ownership, null entries, duplicate IDs, and duplicate slot numbers. A committed slot cannot be reconfigured or removed.
-
-`IsAvailable` describes slot status; `IsAvailableAt(instant)` additionally checks the half-open interval `[StartTime, EndTime)`. `CanAcceptBookingsAt` combines station state, operating schedule, and interval-specific slot availability. These are local eligibility checks, not guarantees against concurrent reservations.
-
-Existing schedule semantics are retained: nonempty, nonoverlapping same-day windows, with an exclusive closing time. Weekly checks use the weekday/time of the supplied offset-aware instant. A station timezone policy is not specified by the assignment; callers must supply the intended schedule-local offset until that policy is established.
-
-## States
-
-Existing enum names and numeric values are preserved:
-
-- `StationStatus`: `Active = 1`, `Inactive = 2`.
-- `SlotStatus`: `Available = 1`, `Reserved = 2`, `Occupied = 3`, `OutOfService = 4`.
-
-Station activation/deactivation remain explicit domain operations. Deactivation rejects locally reserved/occupied slots; the future application service must also consult reservations. Slot availability is deactivated with `TakeOutOfService` and reactivated with `ReturnToService`. Existing reservation-related transitions remain `Available -> Reserved -> Occupied`, with reserved/occupied slots releasable to `Available`. Maintenance cannot interrupt a committed slot. Undefined enum values are rejected; requested transitions are checked against the loaded entity, not merely the request enum.
-
-## Application contracts
-
-Established station names are retained instead of creating duplicate aliases:
-
-| Requested concept | Existing/refined type |
+| Layer | Responsibility |
 | --- | --- |
-| Create/update station | `CreateSolarStationRequest`, `UpdateSolarStationRequest` |
-| Station response/query | `SolarStationResponse`, `SolarStationQuery` |
-| Station repository/service | `ISolarStationRepository`, `ISolarStationService` |
-| Create booking slot | `CreateBookingSlotRequest` (renamed from `EnergyBookingSlotRequest`) |
-| Update booking slot | `UpdateBookingSlotRequest` |
-| Slot response/query | `EnergyBookingSlotResponse`, `BookingSlotQuery` |
-| Slot repository/service | `IBookingSlotRepository`, `IBookingSlotService` |
+| Domain | `SolarStation`, `EnergyBookingSlot`, `GeoCoordinates`, `OperatingWindow`, and lifecycle enums. No ASP.NET Core or MongoDB types. |
+| Application | DTOs, validators, `ISolarStationService`, `IBookingSlotService`, repository abstractions, and focused Reservation adapters. |
+| Infrastructure | MongoDB documents, indexes, `MongoSolarStationRepository`, `MongoBookingSlotRepository`, and collection initializers. |
+| API | Thin JWT-protected controllers and centralized `ProblemDetails` mapping. |
 
-Slot creation receives station identity from the owning station request or service argument, avoiding conflicting body and route IDs. Updates cannot reassign identity or ownership. `UpdateSlotStatusRequest` remains the separate status-change contract. Slot responses expose ownership, times, capacity, typed status, active/available flags, and audit values.
+Reservation Management does not duplicate station or slot models. It reads snapshots through `IReservationStationReadService` and `IReservationBookingSlotReadService`. Station deactivation asks Reservation Management about live bookings through `IStationReservationLookup`.
 
-`ISolarStationService` inherits the focused slot service contract to retain its existing slot-management surface without duplicate method declarations. Queries and repositories use the existing `Common.Models.PagedResult<T>` and cancellation tokens; they expose no MongoDB types. Slot time filters select overlapping intervals, with either bound optional. Persistence implementation must maintain consistency between station slot membership and slot records; storage layout is not implemented in this phase.
+## Station Model
 
-## Cross-component boundary
+`SolarStation` stores:
 
-Reuse the existing Reservation Management contracts rather than introducing competing lookup APIs:
+| Field | Notes |
+| --- | --- |
+| `Id` | Stable string identity generated by the application. MongoDB `_id`. |
+| `Code` | Unique normalized uppercase business code. |
+| `Name`, `AddressLine` | Descriptive fields. |
+| `Location` | Validated `GeoCoordinates` (`latitude` in `[-90, 90]`, `longitude` in `[-180, 180]`, finite values only). |
+| `CapacityKw` | Positive generation capacity. |
+| `Status` | `Active` or `Inactive`. |
+| `Slots` | Owned booking slots. `TotalSlotCount` and `AvailableSlotCount` are derived. |
+| `Schedule` | Nonempty, nonoverlapping same-day `OperatingWindow` values with exclusive close times. |
+| `CreatedAt`, `UpdatedAt` | UTC audit timestamps. |
 
-- `IReservationStationReadService.GetByIdAsync`: null means missing; `Id` and `IsActive` convey station identity and eligibility.
-- `IReservationBookingSlotReadService.GetByIdAsync`: null means missing; `Id`, `StationId`, `IsActive`, and `IsAvailable` allow reservation code to check existence, ownership, state, and availability.
-- `IStationReservationLookup.CountActiveReservationsAsync`: enables the future station service to block deactivation when any active reservation exists, including reservations not reflected in a locally committed slot.
+Zero configured slots are allowed; such a station cannot accept bookings. There is no independently writable battery count. Failed edits leave the previous state intact.
 
-Adapters remain future work. These snapshots are advisory reads, not reservation locks. The Reservation component retains responsibility for duplicate booking prevention and its own 7-day/12-hour rules; this phase does not alter those rules or existing workflows.
+## BookingSlot Model
 
-## Validation and FAT service boundary
+`EnergyBookingSlot` stores:
 
-Validators reuse `IRequestValidator<T>`, `ValidationResult`, and the existing station validation helpers. Rules cover required code/name/address, existing length limits, finite latitude in `[-90, 90]`, finite longitude in `[-180, 180]`, positive capacities and slot numbers, valid ordered booking intervals, supported weekdays/statuses, schedule overlap, duplicate slot numbers, and positive paging. Existing maximum slot-list size is retained. Empty slot lists represent zero capacity slots; null lists/entries are invalid.
+| Field | Notes |
+| --- | --- |
+| `Id` | Globally unique string identity. |
+| `StationId` | Immutable owning station identity. |
+| `SlotNumber` | Unique positive number within the owning station. |
+| `BatteryCapacityKwh` | Positive storage capacity. |
+| `StartTime`, `EndTime` | Absolute UTC interval, stored as `[StartTime, EndTime)`. |
+| `Status` | `Available`, `Reserved`, `Occupied`, or `OutOfService`. |
+| `CreatedAt`, `UpdatedAt` | UTC audit timestamps. |
 
-Domain validation independently protects entity invariants and current-state transitions. Request validators check payload shape and supported statuses; they cannot establish a transition's legality without loading current state. Application services must later invoke these validators, enforce authorization and database-dependent checks, and use the existing shared `ValidationException`, `NotFoundException`, and `ConflictException` conventions. No client-side enforcement is authoritative.
+`IsActive` is true unless the slot is `OutOfService`. `IsAvailable` is true only while `Available`. `IsAvailableAt(instant)` also requires the instant to fall inside the booking interval. A committed (`Reserved`/`Occupied`) slot cannot be reconfigured or removed.
 
-## Tests and verification
+## Endpoint Table
 
-- `SolGrid.Domain.Tests/SolarStations/EnergyBookingSlotTests.cs`: identity/capacity/time invariants, UTC normalization, legal/illegal transitions, committed-slot protection, interval boundaries, and atomic edits.
-- `SolGrid.Domain.Tests/SolarStations/SolarStationTests.cs`: station edits, activation/deactivation, counts, ownership, collection protection, schedules, GPS ranges, and invalid enum values.
-- `SolGrid.Application.Tests/SolarStations/MicrogridContractTests.cs`: request/query validation and slot response mapping.
+All endpoints require a Bearer JWT. Management lists use `pageNumber` and `pageSize`, with a maximum page size of 100.
 
-Projects target .NET 10. Run the backend build and Domain/Application tests with a .NET 10 SDK. No database is required for these tests.
+| Method | Route | Purpose | Access | Success |
+| --- | --- | --- | --- | --- |
+| POST | `/api/v1/stations` | Create a station, optional initial slots, and weekly schedule. | Backoffice | `201 Created` |
+| GET | `/api/v1/stations` | Filtered operational station list. | Backoffice, GridOperator | `200 OK` |
+| GET | `/api/v1/stations/nearby` | Rank stations near a GPS origin for Android Maps. | Any authenticated caller | `200 OK` |
+| GET | `/api/v1/stations/{id}` | One station, including coordinates and slot summary. | Any authenticated caller | `200 OK` |
+| PUT | `/api/v1/stations/{id}` | Update code, name, address, GPS, and capacity. | Backoffice | `200 OK` |
+| PUT | `/api/v1/stations/{id}/schedule` | Replace the weekly operating schedule. | Backoffice | `200 OK` |
+| PATCH | `/api/v1/stations/{id}/activate` | Activate an inactive station. | Backoffice | `204 No Content` |
+| PATCH | `/api/v1/stations/{id}/deactivate` | Deactivate when no live reservations exist. | Backoffice | `204 No Content` |
+| POST | `/api/v1/stations/{stationId}/slots` | Create a booking slot on an active station. | Backoffice | `201 Created` |
+| GET | `/api/v1/stations/{stationId}/slots` | Filtered slot list for one station. | Any authenticated caller | `200 OK` |
+| GET | `/api/v1/slots/{id}` | One booking slot. | Any authenticated caller | `200 OK` |
+| PUT | `/api/v1/slots/{id}` | Update capacity and booking interval. | Backoffice | `200 OK` |
+| PATCH | `/api/v1/slots/{id}/activate` | Return an out-of-service slot to the bookable pool. | Backoffice | `204 No Content` |
+| PATCH | `/api/v1/slots/{id}/deactivate` | Withdraw a slot without deleting history. | Backoffice | `204 No Content` |
 
-## Files changed in this phase
+### Station list query parameters
 
-Paths below are relative to `web-service/`. The two old `EnergyBookingSlotRequest` files are renamed to `CreateBookingSlotRequest` and its validator.
+| Query | Type | Notes |
+| --- | --- | --- |
+| `searchText` | string | Matches code, name, or address. |
+| `status` | enum | `Active` or `Inactive`. |
+| `hasAvailableSlots` | boolean | Filters derived available-slot counts. |
+| `pageNumber` | integer | Must be greater than zero. Default `1`. |
+| `pageSize` | integer | Must be between 1 and 100. Default `20`. |
 
-- `src/SolGrid.Application/SolarStations/Interfaces/ISolarStationService.cs`
-- `src/SolGrid.Application/SolarStations/Requests/CreateSolarStationRequest.cs`
-- `src/SolGrid.Application/SolarStations/Responses/EnergyBookingSlotResponse.cs`
-- `src/SolGrid.Application/SolarStations/Responses/SolarStationResponseMapper.cs`
-- `src/SolGrid.Application/SolarStations/Validation/SolarStationValidationRules.cs`
-- `src/SolGrid.Domain/Entities/EnergyBookingSlot.cs`
-- `src/SolGrid.Domain/Entities/SolarStation.cs`
-- `src/SolGrid.Application/SolarStations/Interfaces/BookingSlotQuery.cs`
-- `src/SolGrid.Application/SolarStations/Interfaces/IBookingSlotRepository.cs`
-- `src/SolGrid.Application/SolarStations/Interfaces/IBookingSlotService.cs`
-- `src/SolGrid.Application/SolarStations/Requests/CreateBookingSlotRequest.cs`
-- `src/SolGrid.Application/SolarStations/Requests/UpdateBookingSlotRequest.cs`
-- `src/SolGrid.Application/SolarStations/Validation/BookingSlotQueryValidator.cs`
-- `src/SolGrid.Application/SolarStations/Validation/CreateBookingSlotRequestValidator.cs`
-- `src/SolGrid.Application/SolarStations/Validation/SolarStationQueryValidator.cs`
-- `src/SolGrid.Application/SolarStations/Validation/UpdateBookingSlotRequestValidator.cs`
-- `src/SolGrid.Application/SolarStations/Validation/UpdateSlotStatusRequestValidator.cs`
-- `tests/SolGrid.Application.Tests/SolarStations/MicrogridContractTests.cs`
-- `tests/SolGrid.Domain.Tests/SolarStations/EnergyBookingSlotTests.cs`
-- `tests/SolGrid.Domain.Tests/SolarStations/SolarStationTests.cs`
+### Nearby station query parameters
 
-This document is also new. The pre-existing `web-app/.gitignore` edit is untouched.
+| Query | Type | Notes |
+| --- | --- | --- |
+| `latitude` | number | Required. Origin latitude in decimal degrees. |
+| `longitude` | number | Required. Origin longitude in decimal degrees. |
+| `radiusKilometers` | number | Optional. Default `10`. Allowed range `0.1` to `200`. |
+| `maxResults` | integer | Optional. Default `20`. Allowed range `1` to `100`. |
+| `activeOnly` | boolean | Optional. Default `true`. Android Maps should leave this true. |
 
-## Verification results
+Nearby responses reuse `SolarStationResponse`: station id, code, name, GPS, capacity, status, derived slot counts, slots, schedule, and `distanceKilometers` from the origin.
 
-- Used temporary .NET SDK 10.0.401 at `/tmp/solgrid-dotnet`; project target frameworks were unchanged.
-- Domain suite: **69 passed**, zero failures or skips.
-- Isolated M2 Application contract suite: **21 passed**, zero failures or skips. The temporary `/tmp/solgrid-m2-verification/SolGrid.M2.Contract.Tests.csproj` compiles the actual M2 source/tests, the shared validation/pagination types, and the Domain project.
-- Isolated M2 build: **zero warnings, zero errors**.
-- Formatting and formatting verification passed for the changed C# files; `git diff --check` passed. Header contributor/file names and method-entry comments were checked.
-- Full API build and the normal Application suite are **blocked by 13 existing CS0246 errors**: Prosumer/Reservation interfaces and services reference `PagedResult<T>` without importing `SolGrid.Application.Common.Models`. A separate build of committed `HEAD` reproduced the same errors. Those unrelated files were not modified. No compiler warnings were reported before that build failure.
+### Slot list query parameters
+
+| Query | Type | Notes |
+| --- | --- | --- |
+| `status` | enum | Slot lifecycle filter. |
+| `from`, `to` | timestamp | Optional overlapping UTC interval filter. |
+| `pageNumber` | integer | Must be greater than zero. Default `1`. |
+| `pageSize` | integer | Must be between 1 and 100. Default `20`. |
+
+## Status Lifecycle
+
+```text
+Station:  Active <--> Inactive
+Slot:     Available -> Reserved -> Occupied -> Available
+          Available -> OutOfService -> Available
+```
+
+Station activation and deactivation are explicit domain operations. Slot availability is withdrawn with `TakeOutOfService` and restored with `ReturnToService`. Request bodies never include a client-trusted status field; clients call activate/deactivate endpoints. Undefined enum values are rejected. Requested transitions are checked against the loaded entity.
+
+## Station Deactivation Rule
+
+Deactivation is blocked when either of the following is true:
+
+1. The station still has locally committed slots (`Reserved` or `Occupied`).
+2. `IStationReservationLookup.CountActiveReservationsAsync` reports any live reservation, including bookings not reflected in a locally committed slot.
+
+The API returns `409 Conflict` with `A station with active reservations cannot be deactivated.` Slot edits and slot deactivation are similarly blocked while `HasActiveReservationForSlotAsync` is true. Slots are never physically deleted while historical reservation references may still exist.
+
+## MongoDB Collections And Indexes
+
+Collections are configurable. Defaults:
+
+| Collection | Option | Role |
+| --- | --- | --- |
+| `SolarStationInfo` | `MongoDb:SolarStationInfoCollectionName` | Authoritative station documents, including nested slot copies used for derived counts. |
+| `EnergyBookingSlots` | `MongoDb:EnergyBookingSlotsCollectionName` | Authoritative globally identified booking-slot documents. |
+
+All persisted timestamps are UTC. Station documents also store a GeoJSON point (`longitude`, `latitude`) for nearby queries.
+
+### `SolarStationInfo` indexes
+
+| Index | Fields | Purpose |
+| --- | --- | --- |
+| `ux_solar_station_info_code` | `Code`, unique | Unique station identifiers. |
+| `ix_solar_station_info_status` | `Status` | Operational status filters. |
+| `ix_solar_station_info_geo_location` | `GeoLocation` `2dsphere` | Nearby station ranking. |
+
+### `EnergyBookingSlots` indexes
+
+| Index | Fields | Purpose |
+| --- | --- | --- |
+| `ux_energy_booking_slots_station_slot_number` | `StationId`, `SlotNumber`, unique | Per-station slot-number uniqueness, including concurrent creates. |
+| `ix_energy_booking_slots_station_id` | `StationId` | Station-scoped slot lists. |
+| `ix_energy_booking_slots_start_time` | `StartTimeUtc` | Time-ordered slot queries. |
+| `ix_energy_booking_slots_status` | `Status` | Availability filters. |
+| `ix_energy_booking_slots_station_start_end` | `StationId`, `StartTimeUtc`, `EndTimeUtc` | Overlapping interval queries. |
+
+`StationId` on every slot document must match the owning station. Nested slot copies on `SolarStationInfo` are kept aligned by application services after slot writes.
+
+## Reservation Integration Contract
+
+Reuse the Reservation Management contracts. This component supplies the adapters; it does not copy reservation business rules (7-day window, 12-hour notice, duplicate-slot booking, QR completion).
+
+| Contract | Adapter | Reservation use |
+| --- | --- | --- |
+| `IReservationStationReadService.GetByIdAsync` | `ReservationStationReadService` | Null means missing. `Id` and `IsActive` confirm the station exists and can be reserved. |
+| `IReservationBookingSlotReadService.GetByIdAsync` | `ReservationBookingSlotReadService` | Null means missing. `Id`, `StationId`, `IsActive`, and `IsAvailable` confirm the slot exists, belongs to the station, and is active/available. |
+| `IStationReservationLookup.CountActiveReservationsAsync` | `ReservationStationLookup` | Blocks station deactivation while any active reservation exists. |
+| `IStationReservationLookup.HasActiveReservationForSlotAsync` | `ReservationStationLookup` | Blocks slot edits/deactivation while a live booking still references the slot. |
+
+Reservation create/update therefore can reliably validate:
+
+- station exists
+- station is active
+- slot exists
+- slot belongs to the station
+- slot is active/available
+- station deactivation is blocked when active reservations exist
+
+These snapshots are advisory reads, not reservation locks. Duplicate active booking prevention remains a Reservation MongoDB unique partial index.
+
+## Google Maps API Integration Notes
+
+Android must not ship a hard-coded station catalog. Maps should:
+
+1. Authenticate with a prosumer JWT.
+2. Read the device GPS origin.
+3. Call `GET /api/v1/stations/nearby?latitude={lat}&longitude={lng}`.
+4. Plot `location.latitude` / `location.longitude` and show `name`, `code`, `status`, `capacityKw`, `availableSlotCount`, and `distanceKilometers`.
+5. Load `GET /api/v1/stations/{id}` or `GET /api/v1/stations/{id}/slots` when a marker is selected.
+6. Create reservations through Reservation Management using the returned station and slot ids.
+
+Nearby search uses MongoDB `NearSphere` plus a 2dsphere index. Default radius is 10 km and default result cap is 20. Inactive stations are omitted unless `activeOnly=false`. Coordinate validation happens in Domain and Application; MongoDB never receives invalid GPS values from this API.
+
+The Google Maps SDK is an Android client concern. This backend only supplies live coordinates and station details.
+
+## Authorization Matrix
+
+| Operation | Prosumer (Android) | GridOperator | Backoffice |
+| --- | --- | --- | --- |
+| Nearby stations / get station by id | Yes | Yes | Yes |
+| List/filter all stations | No | Yes | Yes |
+| Create/update/activate/deactivate station | No | No | Yes |
+| Replace station schedule | No | No | Yes |
+| List/get booking slots | Yes | Yes | Yes |
+| Create/update/activate/deactivate slot | No | No | Yes |
+
+JWT validation occurs before role policy evaluation. Prosumer tokens have a stable subject and no web-user role. Request bodies never determine caller role, ownership, or station status.
+
+## Errors And Swagger
+
+The global exception handler emits `application/problem+json`:
+
+| Status | When |
+| --- | --- |
+| `400` | Validation failures, including GPS, capacity, paging, and nearby search bounds. |
+| `401` | Missing or invalid JWT. |
+| `403` | Authenticated caller lacks the required role. |
+| `404` | Unknown station or slot. |
+| `409` | Duplicate codes/slot numbers, illegal lifecycle transitions, or live-reservation conflicts. |
+| `500` | Unexpected failures; details are not returned to clients. |
+
+Controllers declare success and error responses. Nearby and list endpoints document query parameters in OpenAPI. Protected endpoints include Bearer security metadata at `/openapi/v1.json`.
+
+## Tests
+
+| Area | Coverage |
+| --- | --- |
+| Domain | Station CRUD invariants, GPS boundaries, distance ranking, activation/deactivation, owned-slot consistency, slot UTC times, availability, and illegal transitions. |
+| Application | Station create/update, coordinate and capacity validation, deactivation with and without active reservations, nearby ranking, nearby validation, schedule replacement, booking-slot management, slot availability, Reservation snapshot adapters, and role checks. |
+| API | OpenAPI paths and nearby query names, JWT required, Backoffice-only writes, GridOperator forbidden on administration, Prosumer nearby/get-by-id allowed, Prosumer administrative list forbidden. |
+| Infrastructure | Unique station codes, unique per-station slot numbers, required indexes, paged filters, and nearby radius queries when `SOLGRID_MONGO_TEST_CONNECTION_STRING` is set. |
+
+Projects target .NET 10. Mongo repository tests bypass live Mongo work when the connection string is unset.
+
+## Architecture And Security Audit
+
+- Domain has no framework or persistence dependencies.
+- Application depends on repository and Reservation lookup abstractions.
+- MongoDB mapping and indexes remain in Infrastructure.
+- Controllers stay thin: authorize, bind, call a service, return an HTTP result.
+- Reservation 7-day/12-hour/QR rules are not reimplemented here.
+- `SolarStationInfo` and `EnergyBookingSlots` are the only station/slot sources of truth. Reservations store `StationId` / `BookingSlotId` references only.
+- Station codes are unique. Slot numbers are unique per station. Slot `StationId` is immutable.
+- Status changes are server-side transitions, not client-supplied enums on update requests.
+- No hard-coded station catalog exists in API or Android-facing contracts.
+- MongoDB and JWT secrets stay in configuration/user-secrets, not source.
+
+## Known Limitations
+
+- Nearby ranking uses MongoDB spherical distance plus an application Haversine check. It is suitable for Sri Lankan city-scale Maps search, not a full routing engine.
+- Nested slot copies on station documents can briefly disagree with `EnergyBookingSlots` if a process stops between the two writes. Reservation lookup uses the slot collection.
+- Operating-schedule checks use the weekday/time of the supplied offset-aware instant. A dedicated station timezone policy is not specified by the assignment.
+- Identifier search is paged regex matching, not a full-text search engine.
+- Concrete Mongo nearby tests require `SOLGRID_MONGO_TEST_CONNECTION_STRING`.
+
+## Viva Explanation Notes
+
+Domain protects entity invariants and legal state transitions. Application validates cross-component rules: unique codes, GPS ranges, nearby search bounds, schedule coverage, and deactivation against live reservations. MongoDB enforces unique station codes, unique per-station slot numbers, and a 2dsphere index for Maps. Android never owns node data; it reads coordinates from `GET /api/v1/stations/nearby`. Reservation Management asks this component whether a station exists and is active and whether a slot exists, belongs to that station, and is active/available. JWT claims provide identity and role; request bodies cannot change station status.

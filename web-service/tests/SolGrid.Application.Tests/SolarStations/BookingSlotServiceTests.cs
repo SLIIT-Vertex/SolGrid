@@ -168,6 +168,7 @@ public sealed class BookingSlotServiceTests
         await service.DeactivateBookingSlotAsync(created.Id);
         var deactivated = await slots.GetByIdAsync(created.Id);
         var deactivatedStatus = deactivated!.Status;
+        var deactivatedIsActive = deactivated.IsActive;
         var deactivatedIsAvailable = deactivated.IsAvailable;
 
         await service.ActivateBookingSlotAsync(created.Id);
@@ -270,11 +271,54 @@ public sealed class BookingSlotServiceTests
         Assert.Null(missing);
     }
 
+    [Fact]
+    public async Task GetBookingSlotsAsync_WithProsumerCaller_ReturnsStationSlots()
+    {
+        // Verify Android can read live slot availability for a station it discovered from the API.
+        var station = CreateStation();
+        var stations = new InMemorySolarStationRepository(station);
+        var slots = new InMemoryBookingSlotRepository();
+        var created = await CreateService(stations, slots).CreateBookingSlotAsync(station.Id, CreateRequest());
+        var service = CreateService(stations, slots, role: null);
+
+        var page = await service.GetBookingSlotsAsync(new BookingSlotQuery
+        {
+            StationId = station.Id,
+            PageNumber = 1,
+            PageSize = 10
+        });
+
+        var slot = Assert.Single(page.Items);
+        Assert.Equal(created.Id, slot.Id);
+        Assert.True(slot.IsAvailable);
+    }
+
+    [Fact]
+    public async Task UpdateBookingSlotAsync_WithActiveReservation_ThrowsConflict()
+    {
+        // Verify live reservation references also block slot edits, not only deactivation.
+        var station = CreateStation();
+        var service = CreateService(
+            new InMemorySolarStationRepository(station),
+            activeReservationForSlot: true);
+        var created = await service.CreateBookingSlotAsync(station.Id, CreateRequest());
+
+        var exception = await Assert.ThrowsAsync<ConflictException>(() =>
+            service.UpdateBookingSlotAsync(created.Id, new UpdateBookingSlotRequest
+            {
+                BatteryCapacityKwh = 20m,
+                StartTime = MondayStart.AddHours(1),
+                EndTime = MondayStart.AddHours(3)
+            }));
+
+        Assert.Equal("A slot with active reservations cannot be changed.", exception.Message);
+    }
+
     private static BookingSlotService CreateService(
         InMemorySolarStationRepository? stations = null,
         InMemoryBookingSlotRepository? slots = null,
         bool activeReservationForSlot = false,
-        UserRole role = UserRole.Backoffice)
+        UserRole? role = UserRole.Backoffice)
     {
         // Create BookingSlotService with deterministic test dependencies.
         return new BookingSlotService(
@@ -318,7 +362,7 @@ public sealed class BookingSlotServiceTests
 
     private sealed class FakeCurrentUserContext : ICurrentUserContext
     {
-        public FakeCurrentUserContext(string userId, UserRole role)
+        public FakeCurrentUserContext(string userId, UserRole? role)
         {
             // Store trusted current-user identity values for authorization tests.
             UserId = userId;

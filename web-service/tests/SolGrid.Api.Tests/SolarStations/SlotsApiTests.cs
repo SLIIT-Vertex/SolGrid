@@ -119,6 +119,34 @@ public sealed class SlotsApiTests
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
 
+    [Fact]
+    public async Task GetStationSlots_WithProsumerJwt_ReturnsOk()
+    {
+        // Verify Android can refresh live slot availability after discovering a station.
+        await using var factory = CreateFactory();
+        var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new("Bearer", CreateWebUserJwt(UserRole.Backoffice));
+        await client.PostAsJsonAsync("/api/v1/stations/station-1/slots", CreateBody());
+
+        client.DefaultRequestHeaders.Authorization = new("Bearer", CreateProsumerJwt());
+        var response = await client.GetAsync("/api/v1/stations/station-1/slots?pageNumber=1&pageSize=20");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task CreateSlot_WithProsumerJwt_ReturnsForbidden()
+    {
+        // Verify Android tokens cannot create booking slots.
+        await using var factory = CreateFactory();
+        var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new("Bearer", CreateProsumerJwt());
+
+        var response = await client.PostAsJsonAsync("/api/v1/stations/station-1/slots", CreateBody());
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
     private static WebApplicationFactory<Program> CreateFactory()
     {
         // Create an API test host with in-memory station/slot persistence and JWT test configuration.
@@ -171,6 +199,23 @@ public sealed class SlotsApiTests
             [
                 new Claim(ClaimTypes.NameIdentifier, "test-web-user"),
                 new Claim(ClaimTypes.Role, role.ToString())
+            ],
+            expires: DateTime.UtcNow.AddMinutes(5),
+            signingCredentials: new SigningCredentials(signingKey, SecurityAlgorithms.HmacSha256));
+
+        return new JwtSecurityTokenHandler().WriteToken(token);
+    }
+
+    private static string CreateProsumerJwt()
+    {
+        // Create a prosumer JWT that has a subject but no web-user role claim.
+        var signingKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(TestJwtSigningKey));
+        var token = new JwtSecurityToken(
+            issuer: "SolGrid.Tests",
+            audience: "SolGrid.Tests",
+            claims:
+            [
+                new Claim(ClaimTypes.NameIdentifier, "199012345678")
             ],
             expires: DateTime.UtcNow.AddMinutes(5),
             signingCredentials: new SigningCredentials(signingKey, SecurityAlgorithms.HmacSha256));

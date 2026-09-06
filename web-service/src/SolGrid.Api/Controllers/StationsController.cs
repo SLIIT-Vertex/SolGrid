@@ -75,8 +75,35 @@ public sealed class StationsController : ControllerBase
         return Ok(response);
     }
 
+    [HttpGet("nearby")]
+    [ProducesResponseType(typeof(IReadOnlyList<SolarStationResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+    public async Task<ActionResult<IReadOnlyList<SolarStationResponse>>> GetNearby(
+        [FromQuery] double latitude,
+        [FromQuery] double longitude,
+        [FromQuery] double radiusKilometers = 10d,
+        [FromQuery] int maxResults = 20,
+        [FromQuery] bool activeOnly = true,
+        CancellationToken cancellationToken = default)
+    {
+        // Return stations near a client GPS origin so Android Maps never stores authoritative node data.
+        var response = await stationService.GetNearbyStationsAsync(
+            new NearbyStationQuery
+            {
+                Latitude = latitude,
+                Longitude = longitude,
+                RadiusKilometers = radiusKilometers,
+                MaxResults = maxResults,
+                ActiveOnly = activeOnly
+            },
+            cancellationToken).ConfigureAwait(false);
+
+        return Ok(response);
+    }
+
     [HttpGet("{id}")]
-    [Authorize(Roles = "Backoffice,GridOperator")]
     [ProducesResponseType(typeof(SolarStationResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
@@ -86,7 +113,7 @@ public sealed class StationsController : ControllerBase
         string id,
         CancellationToken cancellationToken)
     {
-        // Return one solar station by route id for operational web roles.
+        // Return one solar station by route id, including coordinates used by Android Maps.
         var response = await stationService.GetStationByIdAsync(id, cancellationToken).ConfigureAwait(false);
         return Ok(response);
     }
@@ -106,6 +133,23 @@ public sealed class StationsController : ControllerBase
     {
         // Update editable station details after Backoffice authorization has succeeded.
         var response = await stationService.UpdateStationAsync(id, request, cancellationToken).ConfigureAwait(false);
+        return Ok(response);
+    }
+
+    [HttpPut("{id}/schedule")]
+    [Authorize(Policy = AuthorizationPolicies.Backoffice)]
+    [ProducesResponseType(typeof(SolarStationResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<SolarStationResponse>> ReplaceSchedule(
+        string id,
+        [FromBody] UpdateStationScheduleRequest request,
+        CancellationToken cancellationToken)
+    {
+        // Replace the weekly operating schedule after Backoffice authorization has succeeded.
+        var response = await stationService.ReplaceScheduleAsync(id, request, cancellationToken).ConfigureAwait(false);
         return Ok(response);
     }
 

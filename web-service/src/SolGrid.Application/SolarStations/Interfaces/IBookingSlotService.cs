@@ -26,11 +26,11 @@ public interface IBookingSlotService
         UpdateBookingSlotRequest request,
         CancellationToken cancellationToken = default);
 
-    // Return one globally identified slot without exposing persistence types.
+    // Return one globally identified slot to authenticated booking clients without exposing persistence types.
     Task<EnergyBookingSlotResponse> GetBookingSlotByIdAsync(
         string id, CancellationToken cancellationToken = default);
 
-    // Validate filters and return one page of slots for an owning station.
+    // Validate filters, confirm the owning station exists, and return one page of slots to authenticated clients.
     Task<PagedResult<EnergyBookingSlotResponse>> GetBookingSlotsAsync(
         BookingSlotQuery query, CancellationToken cancellationToken = default);
 

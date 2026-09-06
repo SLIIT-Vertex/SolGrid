@@ -192,10 +192,132 @@ public sealed class SolarStationServiceTests
         Assert.Equal(10, response.PageSize);
     }
 
+    [Fact]
+    public async Task GetNearbyStationsAsync_ReturnsInRangeStationsWithDistance()
+    {
+        // Verify Maps discovery ranks in-range stations and omits far or inactive nodes by default.
+        var nearbyStation = CreateStation("near-id", "ST-NEAR", "Colombo North");
+        var farStation = CreateStation("far-id", "ST-FAR", "Kandy", 7.2906, 80.6337);
+        var inactiveStation = CreateStation("inactive-id", "ST-OFF", "Colombo Inactive");
+        inactiveStation.Deactivate(CurrentTime);
+        var repository = new InMemorySolarStationRepository(nearbyStation, farStation, inactiveStation);
+        var service = CreateService(repository, role: null);
+
+        var response = await service.GetNearbyStationsAsync(new NearbyStationQuery
+        {
+            Latitude = 6.9271,
+            Longitude = 79.8612,
+            RadiusKilometers = 5d,
+            MaxResults = 10,
+            ActiveOnly = true
+        });
+
+        var station = Assert.Single(response);
+        Assert.Equal("near-id", station.Id);
+        Assert.Equal("ST-NEAR", station.Code);
+        Assert.Equal("Colombo North", station.Name);
+        Assert.Equal(6.9271, station.Location.Latitude);
+        Assert.Equal(79.8612, station.Location.Longitude);
+        Assert.Equal(StationStatus.Active, station.Status);
+        Assert.Equal(0, station.TotalSlotCount);
+        Assert.Equal(0, station.AvailableSlotCount);
+        Assert.NotNull(station.DistanceKilometers);
+        Assert.True(station.DistanceKilometers < 1d);
+    }
+
+    [Fact]
+    public async Task GetNearbyStationsAsync_WithInvalidCoordinates_ThrowsValidation()
+    {
+        // Verify Maps queries cannot bypass GPS range checks with out-of-range origins.
+        var service = CreateService(role: null);
+
+        var exception = await Assert.ThrowsAsync<ValidationException>(() => service.GetNearbyStationsAsync(
+            new NearbyStationQuery
+            {
+                Latitude = 91,
+                Longitude = 181,
+                RadiusKilometers = 0d,
+                MaxResults = 0
+            }));
+
+        Assert.Contains("Latitude must be between -90 and 90 degrees.", exception.Errors);
+        Assert.Contains("Longitude must be between -180 and 180 degrees.", exception.Errors);
+        Assert.Contains("Search radius must be between 0.1 and 200 kilometers.", exception.Errors);
+        Assert.Contains("Maximum results must be between 1 and 100.", exception.Errors);
+    }
+
+    [Fact]
+    public async Task GetStationsAsync_WithProsumerCaller_ThrowsForbidden()
+    {
+        // Verify administrative station lists stay closed to Android prosumer tokens.
+        var service = CreateService(role: null);
+
+        await Assert.ThrowsAsync<ForbiddenException>(() => service.GetStationsAsync(new SolarStationQuery()));
+    }
+
+    [Fact]
+    public async Task GetStationByIdAsync_WithProsumerCaller_ReturnsStationCoordinates()
+    {
+        // Verify Android can load live station details instead of embedding node data.
+        var station = CreateStation("station-id", "ST-1");
+        var service = CreateService(new InMemorySolarStationRepository(station), role: null);
+
+        var response = await service.GetStationByIdAsync("station-id");
+
+        Assert.Equal("station-id", response.Id);
+        Assert.Equal(6.9271, response.Location.Latitude);
+        Assert.Equal(79.8612, response.Location.Longitude);
+    }
+
+    [Fact]
+    public async Task ReservationStationReadService_ExposesActiveStationContract()
+    {
+        // Verify reservations can check station existence and activity without Mongo types.
+        var station = CreateStation("station-id", "ST-1");
+        var repository = new InMemorySolarStationRepository(station);
+        var readService = new ReservationStationReadService(repository);
+
+        var active = await readService.GetByIdAsync("station-id");
+        station.Deactivate(CurrentTime);
+        var inactive = await readService.GetByIdAsync("station-id");
+        var missing = await readService.GetByIdAsync("missing-station");
+
+        Assert.Equal("station-id", active!.Id);
+        Assert.True(active.IsActive);
+        Assert.False(inactive!.IsActive);
+        Assert.Null(missing);
+    }
+
+    [Fact]
+    public async Task ReplaceScheduleAsync_ReplacesWeeklyWindows()
+    {
+        // Verify Backoffice can replace the weekly schedule through the existing use case.
+        var station = CreateStation("station-id", "ST-1");
+        var service = CreateService(new InMemorySolarStationRepository(station));
+
+        var response = await service.ReplaceScheduleAsync("station-id", new UpdateStationScheduleRequest
+        {
+            Schedule =
+            [
+                new OperatingWindowRequest
+                {
+                    Day = DayOfWeek.Tuesday,
+                    OpensAt = new TimeOnly(9, 0),
+                    ClosesAt = new TimeOnly(16, 0)
+                }
+            ]
+        });
+
+        var window = Assert.Single(response.Schedule);
+        Assert.Equal(DayOfWeek.Tuesday, window.Day);
+        Assert.Equal(new TimeOnly(9, 0), window.OpensAt);
+        Assert.Equal(new TimeOnly(16, 0), window.ClosesAt);
+    }
+
     private static SolarStationService CreateService(
         InMemorySolarStationRepository? repository = null,
         int activeReservationCount = 0,
-        UserRole role = UserRole.Backoffice)
+        UserRole? role = UserRole.Backoffice)
     {
         // Create SolarStationService with deterministic test dependencies.
         return new SolarStationService(
@@ -231,7 +353,12 @@ public sealed class SolarStationServiceTests
         };
     }
 
-    private static SolarStation CreateStation(string id, string code, string name = "Station")
+    private static SolarStation CreateStation(
+        string id,
+        string code,
+        string name = "Station",
+        double latitude = 6.9271,
+        double longitude = 79.8612)
     {
         // Create a valid domain station for service tests.
         return SolarStation.Create(
@@ -239,7 +366,7 @@ public sealed class SolarStationServiceTests
             code,
             name,
             "Colombo",
-            GeoCoordinates.Create(6.9271, 79.8612),
+            GeoCoordinates.Create(latitude, longitude),
             50m,
             [],
             [OperatingWindow.Create(DayOfWeek.Monday, new TimeOnly(8, 0), new TimeOnly(17, 0))],
@@ -248,7 +375,7 @@ public sealed class SolarStationServiceTests
 
     private sealed class FakeCurrentUserContext : ICurrentUserContext
     {
-        public FakeCurrentUserContext(string userId, UserRole role)
+        public FakeCurrentUserContext(string userId, UserRole? role)
         {
             // Store trusted current-user identity values for authorization tests.
             UserId = userId;
