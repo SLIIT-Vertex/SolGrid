@@ -26,6 +26,13 @@ public interface IReservationService
 
     Task<PagedResult<ReservationResponse>> GetMyReservationsAsync(ReservationQuery query, CancellationToken cancellationToken = default);
 
+    Task<PagedResult<ReservationResponse>> GetDashboardReservationsAsync(
+        ReservationDashboardView view,
+        ReservationQuery query,
+        CancellationToken cancellationToken = default);
+
+    Task<ReservationDashboardSummaryResponse> GetDashboardSummaryAsync(CancellationToken cancellationToken = default);
+
     Task<ReservationResponse> ApproveReservationAsync(string id, ApproveReservationRequest request, CancellationToken cancellationToken = default);
 
     Task<ReservationResponse> RejectReservationAsync(string id, RejectReservationRequest request, CancellationToken cancellationToken = default);

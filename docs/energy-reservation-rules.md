@@ -68,11 +68,12 @@ Indexes:
 
 | Index | Fields | Purpose |
 | --- | --- | --- |
-| `ix_energy_reservations_slot_status` | `BookingSlotId`, `Status` | Active duplicate slot checks. |
+| `ux_energy_reservations_active_slot` | `BookingSlotId`, partial where `IsActiveForBookingSlot = true`, unique | Atomic active duplicate slot prevention. |
 | `ix_energy_reservations_prosumer_scheduled_at` | `ProsumerId`, `ScheduledAtUtc` | Prosumer reservation history ordered by schedule. |
-| `ix_energy_reservations_station_status` | `StationId`, `Status` | Active reservation checks for station workflows. |
+| `ix_energy_reservations_station_status_scheduled_at` | `StationId`, `Status`, `ScheduledAtUtc` | Station and operational schedule queries. |
+| `ix_energy_reservations_status_scheduled_at` | `Status`, `ScheduledAtUtc` | Pending/current/history dashboard queries and counts. |
 
-No QR transaction-token unique index is created yet because token generation is outside the current phase.
+The active-slot unique partial index closes concurrent create/reschedule races. Reservation documents also carry an incrementing `Version`, so stale concurrent updates fail rather than silently overwriting state.
 
 ## Create Reservation Flow
 
