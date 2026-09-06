@@ -32,7 +32,8 @@ public sealed class EnergyReservation
         string? qrVerificationTokenHash,
         DateTimeOffset? qrVerificationTokenIssuedAt,
         DateTimeOffset? qrVerificationTokenExpiresAt,
-        DateTimeOffset? qrVerifiedAt)
+        DateTimeOffset? qrVerifiedAt,
+        int version)
     {
         // Initialize a reservation from validated creation or persistence values.
         Id = RequireValue(id, nameof(id));
@@ -55,6 +56,7 @@ public sealed class EnergyReservation
         QrVerificationTokenIssuedAt = qrVerificationTokenIssuedAt;
         QrVerificationTokenExpiresAt = qrVerificationTokenExpiresAt;
         QrVerifiedAt = qrVerifiedAt;
+        Version = RequireValidVersion(version);
         ValidateLifecycleState();
     }
 
@@ -98,6 +100,8 @@ public sealed class EnergyReservation
 
     public DateTimeOffset? QrVerifiedAt { get; private set; }
 
+    public int Version { get; private set; }
+
     public bool IsActive => Status is ReservationStatus.Pending or ReservationStatus.Approved;
 
     public static EnergyReservation Create(
@@ -129,7 +133,8 @@ public sealed class EnergyReservation
             qrVerificationTokenHash: null,
             qrVerificationTokenIssuedAt: null,
             qrVerificationTokenExpiresAt: null,
-            qrVerifiedAt: null);
+            qrVerifiedAt: null,
+            version: 0);
     }
 
     public static EnergyReservation Restore(
@@ -152,7 +157,8 @@ public sealed class EnergyReservation
         string? qrVerificationTokenHash,
         DateTimeOffset? qrVerificationTokenIssuedAt,
         DateTimeOffset? qrVerificationTokenExpiresAt,
-        DateTimeOffset? qrVerifiedAt)
+        DateTimeOffset? qrVerifiedAt,
+        int version = 0)
     {
         // Rehydrate a reservation without leaking persistence-specific types into Domain.
         return new EnergyReservation(
@@ -175,7 +181,8 @@ public sealed class EnergyReservation
             qrVerificationTokenHash,
             qrVerificationTokenIssuedAt,
             qrVerificationTokenExpiresAt,
-            qrVerifiedAt);
+            qrVerifiedAt,
+            version);
     }
 
     public void Reschedule(DateTimeOffset scheduledAt, DateTimeOffset updatedAt)
@@ -333,9 +340,21 @@ public sealed class EnergyReservation
         return value;
     }
 
+    private static int RequireValidVersion(int version)
+    {
+        // Reject invalid persistence concurrency versions before restoring domain state.
+        if (version < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(version), version, "Version cannot be negative.");
+        }
+
+        return version;
+    }
+
     private void MarkUpdated(DateTimeOffset updatedAt)
     {
-        // Capture the latest reservation state change timestamp.
+        // Capture the latest reservation state change timestamp and advance its concurrency version.
         UpdatedAt = updatedAt;
+        Version++;
     }
 }

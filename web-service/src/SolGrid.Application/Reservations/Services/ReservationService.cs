@@ -183,6 +183,41 @@ public sealed class ReservationService : IReservationService
         return MapPage(reservations);
     }
 
+    public async Task<PagedResult<ReservationResponse>> GetDashboardReservationsAsync(
+        ReservationDashboardView view,
+        ReservationQuery query,
+        CancellationToken cancellationToken = default)
+    {
+        // Return one server-filtered and paged operational dashboard reservation view.
+        EnsureCanListReservations();
+        ValidateDashboardView(view);
+        ValidateQuery(query);
+
+        var reservations = await reservationRepository
+            .GetDashboardReservationsAsync(view, query, timeProvider.GetUtcNow(), cancellationToken)
+            .ConfigureAwait(false);
+
+        return MapPage(reservations);
+    }
+
+    public async Task<ReservationDashboardSummaryResponse> GetDashboardSummaryAsync(
+        CancellationToken cancellationToken = default)
+    {
+        // Return authoritative operational dashboard counts without loading reservation documents.
+        EnsureCanListReservations();
+        var counts = await reservationRepository
+            .GetDashboardCountsAsync(timeProvider.GetUtcNow(), cancellationToken)
+            .ConfigureAwait(false);
+
+        return new ReservationDashboardSummaryResponse
+        {
+            PendingReservationsCount = counts.PendingReservationsCount,
+            ApprovedFutureReservationsCount = counts.ApprovedFutureReservationsCount,
+            CurrentReservationsCount = counts.CurrentReservationsCount,
+            BookingHistoryCount = counts.BookingHistoryCount
+        };
+    }
+
     public async Task<ReservationResponse> ApproveReservationAsync(
         string id,
         ApproveReservationRequest request,
@@ -606,6 +641,15 @@ public sealed class ReservationService : IReservationService
         }
 
         ThrowIfInvalid(errors);
+    }
+
+    private static void ValidateDashboardView(ReservationDashboardView view)
+    {
+        // Reject dashboard view values that have no server-side query definition.
+        if (!Enum.IsDefined(view))
+        {
+            throw new ValidationException(["Reservation dashboard view is not supported."]);
+        }
     }
 
     private static PagedResult<ReservationResponse> MapPage(PagedResult<EnergyReservation> reservations)
