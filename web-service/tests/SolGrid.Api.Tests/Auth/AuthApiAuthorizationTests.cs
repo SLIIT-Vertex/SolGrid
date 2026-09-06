@@ -97,6 +97,10 @@ public sealed class AuthApiAuthorizationTests
         Assert.Contains("\"/api/v1/reservations/{id}/complete\"", openApiJson, StringComparison.Ordinal);
         Assert.Contains("\"/api/v1/reservations/me\"", openApiJson, StringComparison.Ordinal);
         Assert.Contains("\"/api/v1/reservations/verify-qr\"", openApiJson, StringComparison.Ordinal);
+        Assert.Contains("\"/api/v1/reservations/dashboard/summary\"", openApiJson, StringComparison.Ordinal);
+        Assert.Contains("\"/api/v1/reservations/current\"", openApiJson, StringComparison.Ordinal);
+        Assert.Contains("\"/api/v1/reservations/pending\"", openApiJson, StringComparison.Ordinal);
+        Assert.Contains("\"/api/v1/reservations/history\"", openApiJson, StringComparison.Ordinal);
         Assert.Contains("\"get\"", openApiJson, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("\"post\"", openApiJson, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("\"put\"", openApiJson, StringComparison.OrdinalIgnoreCase);
@@ -150,6 +154,18 @@ public sealed class AuthApiAuthorizationTests
             BookingSlotId = "slot-1",
             ScheduledAt = DateTimeOffset.UtcNow.AddHours(1)
         });
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task ReservationDashboard_WithoutJwt_ReturnsUnauthorized()
+    {
+        // Verify operational dashboard data is not exposed without a valid JWT.
+        await using var factory = CreateFactory();
+        var client = factory.CreateClient();
+
+        var response = await client.GetAsync("/api/v1/reservations/dashboard/summary");
 
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }

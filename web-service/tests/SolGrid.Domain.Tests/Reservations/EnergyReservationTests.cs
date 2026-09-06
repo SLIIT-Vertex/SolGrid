@@ -25,6 +25,19 @@ public sealed class EnergyReservationTests
         Assert.True(reservation.IsActive);
         Assert.Equal(now, reservation.CreatedAt);
         Assert.Equal(now, reservation.UpdatedAt);
+        Assert.Equal(0, reservation.Version);
+    }
+
+    [Fact]
+    public void Approve_AdvancesConcurrencyVersion()
+    {
+        // Verify each domain state change advances the persistence concurrency version.
+        var now = DateTimeOffset.UtcNow;
+        var reservation = CreateReservation(now);
+
+        reservation.Approve("backoffice-1", now.AddMinutes(5));
+
+        Assert.Equal(1, reservation.Version);
     }
 
     [Fact]

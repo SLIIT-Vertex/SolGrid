@@ -100,6 +100,95 @@ public sealed class ReservationsController : ControllerBase
         return Ok(response);
     }
 
+    [HttpGet("dashboard/summary")]
+    [Authorize(Roles = "Backoffice,GridOperator")]
+    [ProducesResponseType(typeof(ReservationDashboardSummaryResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+    public async Task<ActionResult<ReservationDashboardSummaryResponse>> GetDashboardSummary(
+        CancellationToken cancellationToken = default)
+    {
+        // Return server-calculated counts for the operational reservation dashboard.
+        var response = await reservationService.GetDashboardSummaryAsync(cancellationToken).ConfigureAwait(false);
+        return Ok(response);
+    }
+
+    [HttpGet("current")]
+    [Authorize(Roles = "Backoffice,GridOperator")]
+    [ProducesResponseType(typeof(PagedResult<ReservationResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+    public async Task<ActionResult<PagedResult<ReservationResponse>>> GetCurrentReservations(
+        [FromQuery] string? prosumerId,
+        [FromQuery] string? stationId,
+        [FromQuery] string? bookingSlotId,
+        [FromQuery] string? searchText,
+        [FromQuery] DateTimeOffset? scheduledFrom,
+        [FromQuery] DateTimeOffset? scheduledTo,
+        [FromQuery] int pageNumber = 1,
+        [FromQuery] int pageSize = 20,
+        CancellationToken cancellationToken = default)
+    {
+        // Return current pending or approved reservations through a bounded server-side page.
+        var response = await reservationService.GetDashboardReservationsAsync(
+            ReservationDashboardView.Current,
+            BuildQuery(prosumerId, stationId, bookingSlotId, null, searchText, scheduledFrom, scheduledTo, pageNumber, pageSize),
+            cancellationToken).ConfigureAwait(false);
+        return Ok(response);
+    }
+
+    [HttpGet("pending")]
+    [Authorize(Roles = "Backoffice,GridOperator")]
+    [ProducesResponseType(typeof(PagedResult<ReservationResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+    public async Task<ActionResult<PagedResult<ReservationResponse>>> GetPendingReservations(
+        [FromQuery] string? prosumerId,
+        [FromQuery] string? stationId,
+        [FromQuery] string? bookingSlotId,
+        [FromQuery] string? searchText,
+        [FromQuery] DateTimeOffset? scheduledFrom,
+        [FromQuery] DateTimeOffset? scheduledTo,
+        [FromQuery] int pageNumber = 1,
+        [FromQuery] int pageSize = 20,
+        CancellationToken cancellationToken = default)
+    {
+        // Return pending reservations through a bounded server-side page.
+        var response = await reservationService.GetDashboardReservationsAsync(
+            ReservationDashboardView.Pending,
+            BuildQuery(prosumerId, stationId, bookingSlotId, null, searchText, scheduledFrom, scheduledTo, pageNumber, pageSize),
+            cancellationToken).ConfigureAwait(false);
+        return Ok(response);
+    }
+
+    [HttpGet("history")]
+    [Authorize(Roles = "Backoffice,GridOperator")]
+    [ProducesResponseType(typeof(PagedResult<ReservationResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+    public async Task<ActionResult<PagedResult<ReservationResponse>>> GetReservationHistory(
+        [FromQuery] string? prosumerId,
+        [FromQuery] string? stationId,
+        [FromQuery] string? bookingSlotId,
+        [FromQuery] ReservationStatus? status,
+        [FromQuery] string? searchText,
+        [FromQuery] DateTimeOffset? scheduledFrom,
+        [FromQuery] DateTimeOffset? scheduledTo,
+        [FromQuery] int pageNumber = 1,
+        [FromQuery] int pageSize = 20,
+        CancellationToken cancellationToken = default)
+    {
+        // Return historical reservations through a bounded server-side page.
+        var response = await reservationService.GetDashboardReservationsAsync(
+            ReservationDashboardView.History,
+            BuildQuery(prosumerId, stationId, bookingSlotId, status, searchText, scheduledFrom, scheduledTo, pageNumber, pageSize),
+            cancellationToken).ConfigureAwait(false);
+        return Ok(response);
+    }
+
     [HttpGet("{id}")]
     [ProducesResponseType(typeof(ReservationResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
@@ -111,6 +200,32 @@ public sealed class ReservationsController : ControllerBase
         // Return one reservation when the caller is allowed to access it.
         var response = await reservationService.GetReservationByIdAsync(id, cancellationToken).ConfigureAwait(false);
         return Ok(response);
+    }
+
+    private static ReservationQuery BuildQuery(
+        string? prosumerId,
+        string? stationId,
+        string? bookingSlotId,
+        ReservationStatus? status,
+        string? searchText,
+        DateTimeOffset? scheduledFrom,
+        DateTimeOffset? scheduledTo,
+        int pageNumber,
+        int pageSize)
+    {
+        // Build an application query from documented dashboard query-string parameters.
+        return new ReservationQuery
+        {
+            ProsumerId = prosumerId,
+            StationId = stationId,
+            BookingSlotId = bookingSlotId,
+            Status = status,
+            SearchText = searchText,
+            ScheduledFrom = scheduledFrom,
+            ScheduledTo = scheduledTo,
+            PageNumber = pageNumber,
+            PageSize = pageSize
+        };
     }
 
     [HttpPost]

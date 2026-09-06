@@ -347,6 +347,58 @@ public sealed class ReservationServiceTests
     }
 
     [Fact]
+    public async Task GetDashboardReservationsAsync_CurrentView_ReturnsOnlyFutureActiveReservations()
+    {
+        // Verify the current dashboard view is filtered and paged by the server-side definition.
+        var current = CreateReservation("reservation-current", "prosumer-1", "station-1", "slot-1", CurrentTime.AddHours(13));
+        var historical = CreateReservation("reservation-history", "prosumer-2", "station-1", "slot-2", CurrentTime.AddHours(-1));
+        var cancelled = CreateReservation("reservation-cancelled", "prosumer-3", "station-1", "slot-3", CurrentTime.AddHours(13));
+        cancelled.Cancel(CurrentTime);
+        var service = CreateService(
+            new InMemoryReservationRepository(current, historical, cancelled),
+            currentUserContext: new FakeCurrentUserContext("operator-1", UserRole.GridOperator));
+
+        var response = await service.GetDashboardReservationsAsync(
+            ReservationDashboardView.Current,
+            new ReservationQuery { PageNumber = 1, PageSize = 10 });
+
+        var reservation = Assert.Single(response.Items);
+        Assert.Equal("reservation-current", reservation.Id);
+        Assert.Equal(1, response.TotalCount);
+    }
+
+    [Fact]
+    public async Task GetDashboardSummaryAsync_ReturnsAuthoritativeCounts()
+    {
+        // Verify dashboard counts are computed from reservation state without returning all records.
+        var pending = CreateReservation("reservation-pending", "prosumer-1", "station-1", "slot-1", CurrentTime.AddHours(13));
+        var approved = CreateReservation("reservation-approved", "prosumer-2", "station-1", "slot-2", CurrentTime.AddHours(14));
+        approved.Approve("backoffice-1", CurrentTime);
+        var completed = CreateReservation("reservation-completed", "prosumer-3", "station-1", "slot-3", CurrentTime.AddHours(13));
+        completed.Approve("backoffice-1", CurrentTime);
+        completed.Complete("operator-1", CurrentTime);
+        var service = CreateService(
+            new InMemoryReservationRepository(pending, approved, completed),
+            currentUserContext: new FakeCurrentUserContext("backoffice-1", UserRole.Backoffice));
+
+        var response = await service.GetDashboardSummaryAsync();
+
+        Assert.Equal(1, response.PendingReservationsCount);
+        Assert.Equal(1, response.ApprovedFutureReservationsCount);
+        Assert.Equal(2, response.CurrentReservationsCount);
+        Assert.Equal(1, response.BookingHistoryCount);
+    }
+
+    [Fact]
+    public async Task GetDashboardSummaryAsync_WithoutOperationalRole_ThrowsForbidden()
+    {
+        // Verify dashboard counts are not exposed to non-operational callers.
+        var service = CreateService();
+
+        await Assert.ThrowsAsync<ForbiddenException>(() => service.GetDashboardSummaryAsync());
+    }
+
+    [Fact]
     public async Task ApproveReservationAsync_WithPendingReservation_ApprovesReservation()
     {
         // Verify operational users can approve pending reservations.
@@ -825,7 +877,53 @@ public sealed class ReservationServiceTests
             CancellationToken cancellationToken = default)
         {
             // Return filtered in-memory reservations in a page.
-            IEnumerable<EnergyReservation> queryableReservations = reservations;
+            return Task.FromResult(CreatePage(reservations, query));
+        }
+
+        public Task<PagedResult<EnergyReservation>> GetDashboardReservationsAsync(
+            ReservationDashboardView view,
+            ReservationQuery query,
+            DateTimeOffset nowUtc,
+            CancellationToken cancellationToken = default)
+        {
+            // Return an in-memory approximation of the requested server dashboard view.
+            var dashboardReservations = view switch
+            {
+                ReservationDashboardView.Current => reservations.Where(reservation =>
+                    reservation.IsActive && reservation.ScheduledAt >= nowUtc),
+                ReservationDashboardView.Pending => reservations.Where(reservation =>
+                    reservation.Status == ReservationStatus.Pending),
+                ReservationDashboardView.History => reservations.Where(reservation =>
+                    !reservation.IsActive || reservation.ScheduledAt < nowUtc),
+                _ => throw new ArgumentOutOfRangeException(nameof(view))
+            };
+
+            return Task.FromResult(CreatePage(dashboardReservations, query));
+        }
+
+        public Task<ReservationDashboardCounts> GetDashboardCountsAsync(
+            DateTimeOffset nowUtc,
+            CancellationToken cancellationToken = default)
+        {
+            // Calculate dashboard counts in memory for application service tests.
+            return Task.FromResult(new ReservationDashboardCounts
+            {
+                PendingReservationsCount = reservations.LongCount(reservation => reservation.Status == ReservationStatus.Pending),
+                ApprovedFutureReservationsCount = reservations.LongCount(reservation =>
+                    reservation.Status == ReservationStatus.Approved && reservation.ScheduledAt >= nowUtc),
+                CurrentReservationsCount = reservations.LongCount(reservation =>
+                    reservation.IsActive && reservation.ScheduledAt >= nowUtc),
+                BookingHistoryCount = reservations.LongCount(reservation =>
+                    !reservation.IsActive || reservation.ScheduledAt < nowUtc)
+            });
+        }
+
+        private static PagedResult<EnergyReservation> CreatePage(
+            IEnumerable<EnergyReservation> source,
+            ReservationQuery query)
+        {
+            // Apply common in-memory filters and paging for repository test doubles.
+            IEnumerable<EnergyReservation> queryableReservations = source;
 
             if (!string.IsNullOrWhiteSpace(query.ProsumerId))
             {
@@ -869,13 +967,13 @@ public sealed class ReservationServiceTests
             var pageNumber = Math.Max(query.PageNumber, 1);
             var pageSize = Math.Max(query.PageSize, 1);
             var filteredReservations = queryableReservations.ToArray();
-            return Task.FromResult(new PagedResult<EnergyReservation>
+            return new PagedResult<EnergyReservation>
             {
                 Items = filteredReservations.Skip((pageNumber - 1) * pageSize).Take(pageSize).ToArray(),
                 TotalCount = filteredReservations.Length,
                 PageNumber = pageNumber,
                 PageSize = pageSize
-            });
+            };
         }
 
         public Task<bool> HasActiveReservationForBookingSlotAsync(
