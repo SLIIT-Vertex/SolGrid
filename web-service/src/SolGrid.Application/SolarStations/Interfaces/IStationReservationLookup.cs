@@ -14,4 +14,8 @@ public interface IStationReservationLookup
     // state is owned by the reservation module. Station management depends on this contract
     // so it never reaches into another module's persistence.
     Task<int> CountActiveReservationsAsync(string stationId, CancellationToken cancellationToken = default);
+
+    // Slot deactivation and edits must be blocked while a live reservation still references the slot.
+    Task<bool> HasActiveReservationForSlotAsync(
+        string bookingSlotId, CancellationToken cancellationToken = default);
 }

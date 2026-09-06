@@ -12,6 +12,7 @@ using SolGrid.Application.SolarStations.Responses;
 using SolGrid.Application.SolarStations.Validation;
 using SolGrid.Domain.Entities;
 using SolGrid.Domain.Enums;
+using SolGrid.Domain.ValueObjects;
 using Xunit;
 
 namespace SolGrid.Application.Tests.SolarStations;
@@ -80,12 +81,16 @@ public sealed class MicrogridContractTests
         // Enforce the same absolute time-range rule on both write contracts.
         Assert.False(new CreateBookingSlotRequestValidator().Validate(new()
         {
-            SlotNumber = 1, BatteryCapacityKwh = 10m,
-            StartTime = Now.ToOffset(TimeSpan.FromHours(-4)), EndTime = Now.AddHours(hours)
+            SlotNumber = 1,
+            BatteryCapacityKwh = 10m,
+            StartTime = Now.ToOffset(TimeSpan.FromHours(-4)),
+            EndTime = Now.AddHours(hours)
         }).IsValid);
         Assert.False(new UpdateBookingSlotRequestValidator().Validate(new()
         {
-            BatteryCapacityKwh = 10m, StartTime = Now, EndTime = Now.AddHours(hours)
+            BatteryCapacityKwh = 10m,
+            StartTime = Now,
+            EndTime = Now.AddHours(hours)
         }).IsValid);
     }
 
@@ -95,11 +100,16 @@ public sealed class MicrogridContractTests
         // Accept valid capacity and booking intervals without imposing reservation lead-time rules.
         Assert.True(new CreateBookingSlotRequestValidator().Validate(new()
         {
-            SlotNumber = 1, BatteryCapacityKwh = 10m, StartTime = Now, EndTime = Now.AddHours(1)
+            SlotNumber = 1,
+            BatteryCapacityKwh = 10m,
+            StartTime = Now,
+            EndTime = Now.AddHours(1)
         }).IsValid);
         Assert.True(new UpdateBookingSlotRequestValidator().Validate(new()
         {
-            BatteryCapacityKwh = 20m, StartTime = Now, EndTime = Now.AddHours(2)
+            BatteryCapacityKwh = 20m,
+            StartTime = Now,
+            EndTime = Now.AddHours(2)
         }).IsValid);
     }
 
@@ -111,7 +121,9 @@ public sealed class MicrogridContractTests
         // Reject unusable capacity even when the booking interval is otherwise valid.
         Assert.False(new UpdateBookingSlotRequestValidator().Validate(new()
         {
-            BatteryCapacityKwh = capacity, StartTime = Now, EndTime = Now.AddHours(1)
+            BatteryCapacityKwh = capacity,
+            StartTime = Now,
+            EndTime = Now.AddHours(1)
         }).IsValid);
     }
 
@@ -134,13 +146,19 @@ public sealed class MicrogridContractTests
         // Guard query contracts before they reach any database-specific implementation.
         var stations = new SolarStationQueryValidator().Validate(new()
         {
-            Status = (StationStatus)999, PageNumber = 0, PageSize = -1
+            Status = (StationStatus)999,
+            PageNumber = 0,
+            PageSize = -1
         });
         Assert.Equal(3, stations.Errors.Count);
         var slots = new BookingSlotQueryValidator().Validate(new()
         {
-            StationId = " ", Status = (SlotStatus)999, PageNumber = 0, PageSize = -1,
-            From = Now, To = Now
+            StationId = " ",
+            Status = (SlotStatus)999,
+            PageNumber = 0,
+            PageSize = -1,
+            From = Now,
+            To = Now
         });
         Assert.Equal(5, slots.Errors.Count);
         Assert.True(new SolarStationQueryValidator().Validate(new()).IsValid);
@@ -155,7 +173,10 @@ public sealed class MicrogridContractTests
         // Prevent malformed nested slot lists from bypassing individual validators.
         var slot = new CreateBookingSlotRequest
         {
-            SlotNumber = 1, BatteryCapacityKwh = 10m, StartTime = Now, EndTime = Now.AddHours(1)
+            SlotNumber = 1,
+            BatteryCapacityKwh = 10m,
+            StartTime = Now,
+            EndTime = Now.AddHours(1)
         };
         Assert.NotEmpty(SolarStationValidationRules.ValidateSlots(null));
         Assert.NotEmpty(SolarStationValidationRules.ValidateSlots([slot, null!]));
@@ -171,6 +192,21 @@ public sealed class MicrogridContractTests
         var adjacent = new OperatingWindowRequest { Day = DayOfWeek.Monday, OpensAt = new(10, 0), ClosesAt = new(12, 0) };
         Assert.NotEmpty(SolarStationValidationRules.ValidateSchedule([first, overlap]));
         Assert.Empty(SolarStationValidationRules.ValidateSchedule([first, adjacent]));
+    }
+
+    [Fact]
+    public void SlotScheduleValidation_RequiresCoverageByOperatingWindows()
+    {
+        // Reject booking intervals that fall outside the station's weekly schedule.
+        var schedule = new[] { OperatingWindow.Create(DayOfWeek.Monday, new TimeOnly(8, 0), new TimeOnly(17, 0)) };
+        var mondayStart = new DateTimeOffset(2026, 9, 14, 8, 0, 0, TimeSpan.Zero);
+
+        Assert.Empty(SolarStationValidationRules.ValidateSlotAgainstSchedule(
+            schedule, mondayStart, mondayStart.AddHours(2)));
+        Assert.Contains(
+            "Booking slot times must fall within the station operating schedule.",
+            SolarStationValidationRules.ValidateSlotAgainstSchedule(
+                schedule, mondayStart.AddDays(1), mondayStart.AddDays(1).AddHours(2)));
     }
 
     [Theory]

@@ -282,6 +282,95 @@ public static class SolarStationValidationRules
         }
     }
 
+    public static IEnumerable<string> ValidateSlotAgainstSchedule(
+        IReadOnlyList<OperatingWindow> schedule,
+        DateTimeOffset startTime,
+        DateTimeOffset endTime)
+    {
+        // Confirm the booking interval is fully covered by the station's weekday windows.
+        if (endTime <= startTime)
+        {
+            yield break;
+        }
+
+        if (!IsIntervalCoveredBySchedule(schedule, startTime, endTime))
+        {
+            yield return "Booking slot times must fall within the station operating schedule.";
+        }
+    }
+
+    private static bool IsIntervalCoveredBySchedule(
+        IReadOnlyList<OperatingWindow> schedule,
+        DateTimeOffset startTime,
+        DateTimeOffset endTime)
+    {
+        // Walk each local-day portion of [start, end) against that weekday's operating windows.
+        var cursor = startTime;
+        while (cursor < endTime)
+        {
+            var nextMidnight = new DateTimeOffset(cursor.Date.AddDays(1), cursor.Offset);
+            var dayEnd = nextMidnight < endTime ? nextMidnight : endTime;
+            var coversUntilEndOfDay = dayEnd == nextMidnight;
+            var dayEndTime = coversUntilEndOfDay
+                ? TimeOnly.MaxValue
+                : TimeOnly.FromTimeSpan(dayEnd.TimeOfDay);
+
+            if (!IsDayPortionCovered(
+                    schedule,
+                    cursor.DayOfWeek,
+                    TimeOnly.FromTimeSpan(cursor.TimeOfDay),
+                    dayEndTime,
+                    coversUntilEndOfDay))
+            {
+                return false;
+            }
+
+            cursor = nextMidnight;
+        }
+
+        return true;
+    }
+
+    private static bool IsDayPortionCovered(
+        IReadOnlyList<OperatingWindow> schedule,
+        DayOfWeek day,
+        TimeOnly from,
+        TimeOnly to,
+        bool coversUntilEndOfDay)
+    {
+        // Merge same-day windows so a slot may span contiguous operating periods.
+        if (!coversUntilEndOfDay && from >= to)
+        {
+            return true;
+        }
+
+        var windows = schedule
+            .Where(window => window.Day == day)
+            .OrderBy(window => window.OpensAt)
+            .ToArray();
+        var cursor = from;
+
+        foreach (var window in windows)
+        {
+            if (window.OpensAt > cursor)
+            {
+                return false;
+            }
+
+            if (window.ClosesAt > cursor)
+            {
+                cursor = window.ClosesAt;
+            }
+
+            if (!coversUntilEndOfDay && cursor >= to)
+            {
+                return true;
+            }
+        }
+
+        return !coversUntilEndOfDay && cursor >= to;
+    }
+
     private static IEnumerable<string> ValidatePagination(int pageNumber, int pageSize)
     {
         // Reuse positive pagination rules for station and booking slot queries.

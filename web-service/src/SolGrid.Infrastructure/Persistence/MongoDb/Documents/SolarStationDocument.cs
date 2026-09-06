@@ -40,7 +40,7 @@ internal sealed class SolarStationDocument
 
     public int AvailableSlotCount { get; init; }
 
-    public IReadOnlyList<EnergyBookingSlotDocument> Slots { get; init; } = [];
+    public IReadOnlyList<OwnedEnergyBookingSlotDocument> Slots { get; init; } = [];
 
     public IReadOnlyList<OperatingWindowDocument> Schedule { get; init; } = [];
 
@@ -65,7 +65,7 @@ internal sealed class SolarStationDocument
             Status = station.Status,
             TotalSlotCount = station.TotalSlotCount,
             AvailableSlotCount = station.AvailableSlotCount,
-            Slots = station.Slots.Select(EnergyBookingSlotDocument.FromDomain).ToArray(),
+            Slots = station.Slots.Select(OwnedEnergyBookingSlotDocument.FromDomain).ToArray(),
             Schedule = station.Schedule.Select(OperatingWindowDocument.FromDomain).ToArray(),
             CreatedAtUtc = station.CreatedAt.UtcDateTime,
             UpdatedAtUtc = station.UpdatedAt.UtcDateTime
@@ -96,7 +96,7 @@ internal sealed class SolarStationDocument
     }
 }
 
-internal sealed class EnergyBookingSlotDocument
+internal sealed class OwnedEnergyBookingSlotDocument
 {
     public string Id { get; init; } = string.Empty;
 
@@ -116,10 +116,10 @@ internal sealed class EnergyBookingSlotDocument
 
     public DateTime UpdatedAtUtc { get; init; }
 
-    public static EnergyBookingSlotDocument FromDomain(EnergyBookingSlot slot)
+    public static OwnedEnergyBookingSlotDocument FromDomain(EnergyBookingSlot slot)
     {
         // Convert an owned booking slot into the nested SolarStationInfo document shape.
-        return new EnergyBookingSlotDocument
+        return new OwnedEnergyBookingSlotDocument
         {
             Id = slot.Id,
             StationId = slot.StationId,

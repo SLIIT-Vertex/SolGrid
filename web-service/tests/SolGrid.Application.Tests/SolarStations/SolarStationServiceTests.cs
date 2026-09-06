@@ -200,6 +200,7 @@ public sealed class SolarStationServiceTests
         // Create SolarStationService with deterministic test dependencies.
         return new SolarStationService(
             repository ?? new InMemorySolarStationRepository(),
+            new InMemoryBookingSlotRepository(),
             new FakeStationReservationLookup(activeReservationCount),
             new FakeCurrentUserContext("backoffice-id", role),
             new FixedTimeProvider(CurrentTime));
@@ -275,6 +276,13 @@ public sealed class SolarStationServiceTests
         {
             // Return the configured active-reservation count without reservation persistence.
             return Task.FromResult(activeReservationCount);
+        }
+
+        public Task<bool> HasActiveReservationForSlotAsync(
+            string bookingSlotId, CancellationToken cancellationToken = default)
+        {
+            // Station tests do not exercise slot-level reservation occupancy.
+            return Task.FromResult(false);
         }
     }
 
@@ -401,6 +409,65 @@ public sealed class SolarStationServiceTests
         {
             // Replace is not required because domain stations are updated in place for tests.
             return Task.CompletedTask;
+        }
+    }
+
+    private sealed class InMemoryBookingSlotRepository : IBookingSlotRepository
+    {
+        public Task<EnergyBookingSlot?> GetByIdAsync(string id, CancellationToken cancellationToken = default)
+        {
+            // Station tests do not look up independently persisted slots.
+            return Task.FromResult<EnergyBookingSlot?>(null);
+        }
+
+        public Task<PagedResult<EnergyBookingSlot>> GetPagedAsync(
+            BookingSlotQuery query, CancellationToken cancellationToken = default)
+        {
+            // Station tests do not page independently persisted slots.
+            return Task.FromResult(new PagedResult<EnergyBookingSlot>
+            {
+                PageNumber = query.PageNumber,
+                PageSize = query.PageSize
+            });
+        }
+
+        public Task AddAsync(EnergyBookingSlot slot, CancellationToken cancellationToken = default)
+        {
+            // Accept station-create slot persistence without extra assertions.
+            return Task.CompletedTask;
+        }
+
+        public Task UpdateAsync(EnergyBookingSlot slot, CancellationToken cancellationToken = default)
+        {
+            // Station tests do not update independently persisted slots.
+            return Task.CompletedTask;
+        }
+
+        public Task RemoveAsync(string id, CancellationToken cancellationToken = default)
+        {
+            // Station tests do not delete independently persisted slots.
+            return Task.CompletedTask;
+        }
+
+        public Task<bool> ExistsBySlotNumberAsync(
+            string stationId,
+            int slotNumber,
+            string? excludingSlotId = null,
+            CancellationToken cancellationToken = default)
+        {
+            // Station tests do not check independent slot-number uniqueness.
+            return Task.FromResult(false);
+        }
+
+        public Task<bool> HasOverlappingIntervalAsync(
+            string stationId,
+            DateTimeOffset startTime,
+            DateTimeOffset endTime,
+            string? excludingSlotId = null,
+            CancellationToken cancellationToken = default)
+        {
+            // Station tests do not check independent slot interval overlap.
+            return Task.FromResult(false);
         }
     }
 }
