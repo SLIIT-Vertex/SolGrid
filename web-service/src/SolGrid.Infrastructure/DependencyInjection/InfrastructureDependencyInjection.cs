@@ -53,10 +53,12 @@ public static class InfrastructureDependencyInjection
         services.AddScoped<IProsumerRepository, MongoProsumerRepository>();
         services.AddScoped<IReservationRepository, MongoReservationRepository>();
         services.AddScoped<ISolarStationRepository, MongoSolarStationRepository>();
+        services.AddScoped<IBookingSlotRepository, MongoBookingSlotRepository>();
         services.AddScoped<IUserCollectionInitializer, MongoUserCollectionInitializer>();
         services.AddScoped<IProsumerCollectionInitializer, MongoProsumerCollectionInitializer>();
         services.AddScoped<IReservationCollectionInitializer, MongoReservationCollectionInitializer>();
         services.AddScoped<ISolarStationCollectionInitializer, MongoSolarStationCollectionInitializer>();
+        services.AddScoped<IBookingSlotCollectionInitializer, MongoBookingSlotCollectionInitializer>();
         services.AddScoped<IUserSeedDataInitializer, MongoUserSeedDataInitializer>();
 
         return services;

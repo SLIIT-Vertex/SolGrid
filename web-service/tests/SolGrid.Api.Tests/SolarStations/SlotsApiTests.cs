@@ -1,8 +1,8 @@
 /*
  * Project: SolGrid
  * Module: SE4040 Enterprise Application Development
- * File: StationsApiTests.cs
- * Description: Verifies solar station API authorization and OpenAPI contracts.
+ * File: SlotsApiTests.cs
+ * Description: Verifies booking slot API authorization and OpenAPI contracts.
  * Contributor: Kavishi Godage
  */
 
@@ -18,6 +18,7 @@ using SolGrid.Application.SolarStations.Interfaces;
 using SolGrid.Application.SolarStations.Services;
 using SolGrid.Domain.Entities;
 using SolGrid.Domain.Enums;
+using SolGrid.Domain.ValueObjects;
 using System.IdentityModel.Tokens.Jwt;
 using System.Net;
 using System.Net.Http.Json;
@@ -27,98 +28,103 @@ using Xunit;
 
 namespace SolGrid.Api.Tests.SolarStations;
 
-public sealed class StationsApiTests
+public sealed class SlotsApiTests
 {
     private const string TestJwtSigningKey = "test-signing-key-for-solgrid-auth-tests-32";
+    private static readonly DateTimeOffset MondayStart = new(2026, 9, 14, 8, 0, 0, TimeSpan.Zero);
 
     [Fact]
-    public async Task OpenApiDocument_IncludesStationManagementEndpoints()
+    public async Task OpenApiDocument_IncludesBookingSlotManagementEndpoints()
     {
-        // Verify OpenAPI advertises the station management contract.
+        // Verify OpenAPI advertises the booking slot management contract.
         await using var factory = CreateFactory();
         var client = factory.CreateClient();
 
         var openApiJson = await client.GetStringAsync("/openapi/v1.json");
 
-        Assert.Contains("\"/api/v1/stations\"", openApiJson, StringComparison.Ordinal);
-        Assert.Contains("\"/api/v1/stations/{id}\"", openApiJson, StringComparison.Ordinal);
-        Assert.Contains("\"/api/v1/stations/{id}/activate\"", openApiJson, StringComparison.Ordinal);
-        Assert.Contains("\"/api/v1/stations/{id}/deactivate\"", openApiJson, StringComparison.Ordinal);
+        Assert.Contains("\"/api/v1/stations/{stationId}/slots\"", openApiJson, StringComparison.Ordinal);
+        Assert.Contains("\"/api/v1/slots/{id}\"", openApiJson, StringComparison.Ordinal);
+        Assert.Contains("\"/api/v1/slots/{id}/activate\"", openApiJson, StringComparison.Ordinal);
+        Assert.Contains("\"/api/v1/slots/{id}/deactivate\"", openApiJson, StringComparison.Ordinal);
         Assert.Contains("\"post\"", openApiJson, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("\"put\"", openApiJson, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("\"patch\"", openApiJson, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
-    public async Task CreateStation_WithoutJwt_ReturnsUnauthorized()
+    public async Task CreateSlot_WithoutJwt_ReturnsUnauthorized()
     {
-        // Verify station creation requires authentication.
+        // Verify slot creation requires authentication.
         await using var factory = CreateFactory();
         var client = factory.CreateClient();
 
-        var response = await client.PostAsJsonAsync("/api/v1/stations", CreateBody());
+        var response = await client.PostAsJsonAsync("/api/v1/stations/station-1/slots", CreateBody());
 
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
 
     [Fact]
-    public async Task CreateStation_WithGridOperatorJwt_ReturnsForbidden()
+    public async Task CreateSlot_WithGridOperatorJwt_ReturnsForbidden()
     {
-        // Verify GridOperator claims cannot create stations.
+        // Verify GridOperator claims cannot create booking slots.
         await using var factory = CreateFactory();
         var client = factory.CreateClient();
         client.DefaultRequestHeaders.Authorization = new("Bearer", CreateWebUserJwt(UserRole.GridOperator));
 
-        var response = await client.PostAsJsonAsync("/api/v1/stations", CreateBody());
+        var response = await client.PostAsJsonAsync("/api/v1/stations/station-1/slots", CreateBody());
 
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
     }
 
     [Fact]
-    public async Task DeactivateStation_WithGridOperatorJwt_ReturnsForbidden()
+    public async Task DeactivateSlot_WithGridOperatorJwt_ReturnsForbidden()
     {
-        // Verify GridOperator claims cannot deactivate stations.
+        // Verify GridOperator claims cannot deactivate booking slots.
         await using var factory = CreateFactory();
         var client = factory.CreateClient();
         client.DefaultRequestHeaders.Authorization = new("Bearer", CreateWebUserJwt(UserRole.GridOperator));
 
-        var response = await client.PatchAsync("/api/v1/stations/station-1/deactivate", content: null);
+        var response = await client.PatchAsync("/api/v1/slots/slot-1/deactivate", content: null);
 
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
     }
 
     [Fact]
-    public async Task CreateStation_WithBackofficeJwt_ReturnsCreatedStation()
+    public async Task CreateSlot_WithBackofficeJwt_ReturnsCreatedSlot()
     {
-        // Verify Backoffice callers can create a valid station through the public API.
+        // Verify Backoffice callers can create a valid slot through the public API.
         await using var factory = CreateFactory();
         var client = factory.CreateClient();
         client.DefaultRequestHeaders.Authorization = new("Bearer", CreateWebUserJwt(UserRole.Backoffice));
 
-        var response = await client.PostAsJsonAsync("/api/v1/stations", CreateBody());
-        var body = await response.Content.ReadFromJsonAsync<SolarStationBody>();
+        var response = await client.PostAsJsonAsync("/api/v1/stations/station-1/slots", CreateBody());
+        var body = await response.Content.ReadFromJsonAsync<SlotBody>();
 
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
-        Assert.Equal("ST-1", body!.Code);
-        Assert.Equal(StationStatus.Active, body.Status);
+        Assert.Equal("station-1", body!.StationId);
+        Assert.Equal(SlotStatus.Available, body.Status);
+        Assert.Equal(HttpStatusCode.OK, (await client.GetAsync($"/api/v1/slots/{body.Id}")).StatusCode);
     }
 
     [Fact]
-    public async Task GetStations_WithGridOperatorJwt_ReturnsOk()
+    public async Task GetStationSlots_WithGridOperatorJwt_ReturnsOk()
     {
-        // Verify GridOperator callers can list stations for operational use.
+        // Verify GridOperator callers can list slots for operational use.
         await using var factory = CreateFactory();
         var client = factory.CreateClient();
         client.DefaultRequestHeaders.Authorization = new("Bearer", CreateWebUserJwt(UserRole.GridOperator));
 
-        var response = await client.GetAsync("/api/v1/stations?status=1&searchText=north&pageNumber=1&pageSize=20");
+        var response = await client.GetAsync("/api/v1/stations/station-1/slots?pageNumber=1&pageSize=20");
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
 
     private static WebApplicationFactory<Program> CreateFactory()
     {
-        // Create an API test host with in-memory station persistence and JWT test configuration.
+        // Create an API test host with in-memory station/slot persistence and JWT test configuration.
+        var stationRepository = new TestSolarStationRepository(CreateStation());
+        var slotRepository = new TestBookingSlotRepository();
+
         return new WebApplicationFactory<Program>()
             .WithWebHostBuilder(builder =>
             {
@@ -139,15 +145,17 @@ public sealed class StationsApiTests
                 {
                     services.RemoveAll<IReservationService>();
                     services.RemoveAll<ISolarStationRepository>();
-                    services.AddSingleton<ISolarStationRepository>(new TestSolarStationRepository());
+                    services.AddSingleton<ISolarStationRepository>(stationRepository);
                     services.RemoveAll<IBookingSlotRepository>();
-                    services.AddSingleton<IBookingSlotRepository>(new TestBookingSlotRepository());
+                    services.AddSingleton<IBookingSlotRepository>(slotRepository);
                     services.RemoveAll<IStationReservationLookup>();
                     services.AddSingleton<IStationReservationLookup>(new TestStationReservationLookup());
                     services.RemoveAll<ISolarStationService>();
                     services.AddScoped<ISolarStationService, SolarStationService>();
                     services.RemoveAll<IBookingSlotService>();
                     services.AddScoped<IBookingSlotService, BookingSlotService>();
+                    services.RemoveAll<IReservationBookingSlotReadService>();
+                    services.AddScoped<IReservationBookingSlotReadService, ReservationBookingSlotReadService>();
                 });
             });
     }
@@ -172,39 +180,45 @@ public sealed class StationsApiTests
 
     private static object CreateBody()
     {
-        // Build a valid station create payload for API tests.
+        // Build a valid slot create payload aligned to the test station schedule.
         return new
         {
-            Code = "ST-1",
-            Name = "Colombo North",
-            AddressLine = "Colombo",
-            Location = new { Latitude = 6.9271, Longitude = 79.8612 },
-            CapacityKw = 50,
-            Slots = Array.Empty<object>(),
-            Schedule = new[]
-            {
-                new
-                {
-                    Day = DayOfWeek.Monday,
-                    OpensAt = "08:00:00",
-                    ClosesAt = "17:00:00"
-                }
-            }
+            SlotNumber = 1,
+            BatteryCapacityKwh = 12.5m,
+            StartTime = MondayStart,
+            EndTime = MondayStart.AddHours(2)
         };
     }
 
-    private sealed class SolarStationBody
+    private static SolarStation CreateStation()
     {
-        public string Code { get; init; } = string.Empty;
+        // Create the station targeted by nested slot API tests.
+        return SolarStation.Create(
+            "station-1",
+            "ST-1",
+            "Colombo North",
+            "Colombo",
+            GeoCoordinates.Create(6.9271, 79.8612),
+            50m,
+            [],
+            [OperatingWindow.Create(DayOfWeek.Monday, new TimeOnly(8, 0), new TimeOnly(17, 0))],
+            DateTimeOffset.UtcNow);
+    }
 
-        public StationStatus Status { get; init; }
+    private sealed class SlotBody
+    {
+        public string Id { get; init; } = string.Empty;
+
+        public string StationId { get; init; } = string.Empty;
+
+        public SlotStatus Status { get; init; }
     }
 
     private sealed class TestStationReservationLookup : IStationReservationLookup
     {
         public Task<int> CountActiveReservationsAsync(string stationId, CancellationToken cancellationToken = default)
         {
-            // Report no live bookings unless a specific API test configures otherwise.
+            // Report no live station bookings unless a specific API test configures otherwise.
             return Task.FromResult(0);
         }
 
@@ -218,7 +232,13 @@ public sealed class StationsApiTests
 
     private sealed class TestSolarStationRepository : ISolarStationRepository
     {
-        private readonly List<SolarStation> stations = [];
+        private readonly List<SolarStation> stations;
+
+        public TestSolarStationRepository(params SolarStation[] stations)
+        {
+            // Store test stations in memory.
+            this.stations = stations.ToList();
+        }
 
         public Task<SolarStation?> GetByIdAsync(string id, CancellationToken cancellationToken = default)
         {
@@ -240,10 +260,9 @@ public sealed class StationsApiTests
         }
 
         public Task<PagedResult<SolarStation>> GetPagedAsync(
-            SolarStationQuery query,
-            CancellationToken cancellationToken = default)
+            SolarStationQuery query, CancellationToken cancellationToken = default)
         {
-            // Return a simple page for API list authorization tests.
+            // Return a simple page for unused station list calls.
             return Task.FromResult(new PagedResult<SolarStation>
             {
                 Items = stations,
@@ -254,8 +273,7 @@ public sealed class StationsApiTests
         }
 
         public Task<IReadOnlyList<SolarStation>> GetNearbyAsync(
-            NearbyStationQuery query,
-            CancellationToken cancellationToken = default)
+            NearbyStationQuery query, CancellationToken cancellationToken = default)
         {
             // Nearby discovery is not exercised by these API authorization tests.
             return Task.FromResult<IReadOnlyList<SolarStation>>(stations);
@@ -288,18 +306,26 @@ public sealed class StationsApiTests
 
     private sealed class TestBookingSlotRepository : IBookingSlotRepository
     {
+        private readonly List<EnergyBookingSlot> slots = [];
+
         public Task<EnergyBookingSlot?> GetByIdAsync(string id, CancellationToken cancellationToken = default)
         {
-            // Station API tests do not look up independently persisted slots.
-            return Task.FromResult<EnergyBookingSlot?>(null);
+            // Find a test slot by id.
+            return Task.FromResult(slots.FirstOrDefault(slot => slot.Id == id));
         }
 
         public Task<PagedResult<EnergyBookingSlot>> GetPagedAsync(
             BookingSlotQuery query, CancellationToken cancellationToken = default)
         {
-            // Station API tests do not page independently persisted slots.
+            // Return a simple page for API list authorization tests.
+            var items = slots
+                .Where(slot => string.IsNullOrWhiteSpace(query.StationId) || slot.StationId == query.StationId)
+                .ToArray();
+
             return Task.FromResult(new PagedResult<EnergyBookingSlot>
             {
+                Items = items,
+                TotalCount = items.Length,
                 PageNumber = query.PageNumber,
                 PageSize = query.PageSize
             });
@@ -307,19 +333,21 @@ public sealed class StationsApiTests
 
         public Task AddAsync(EnergyBookingSlot slot, CancellationToken cancellationToken = default)
         {
-            // Accept station-create slot persistence without extra assertions.
+            // Add a test slot to in-memory storage.
+            slots.Add(slot);
             return Task.CompletedTask;
         }
 
         public Task UpdateAsync(EnergyBookingSlot slot, CancellationToken cancellationToken = default)
         {
-            // Station API tests do not update independently persisted slots.
+            // Preserve repository-contract compatibility without extra update behavior.
             return Task.CompletedTask;
         }
 
         public Task RemoveAsync(string id, CancellationToken cancellationToken = default)
         {
-            // Station API tests do not delete independently persisted slots.
+            // Remove a test slot from in-memory storage.
+            slots.RemoveAll(slot => slot.Id == id);
             return Task.CompletedTask;
         }
 
@@ -329,8 +357,9 @@ public sealed class StationsApiTests
             string? excludingSlotId = null,
             CancellationToken cancellationToken = default)
         {
-            // Station API tests do not check independent slot-number uniqueness.
-            return Task.FromResult(false);
+            // Check slot-number uniqueness in test storage.
+            return Task.FromResult(slots.Any(slot =>
+                slot.StationId == stationId && slot.SlotNumber == slotNumber && slot.Id != excludingSlotId));
         }
 
         public Task<bool> HasOverlappingIntervalAsync(
@@ -340,8 +369,12 @@ public sealed class StationsApiTests
             string? excludingSlotId = null,
             CancellationToken cancellationToken = default)
         {
-            // Station API tests do not check independent slot interval overlap.
-            return Task.FromResult(false);
+            // Detect overlapping test intervals for the same station.
+            return Task.FromResult(slots.Any(slot =>
+                slot.StationId == stationId
+                && slot.Id != excludingSlotId
+                && slot.StartTime < endTime
+                && slot.EndTime > startTime));
         }
     }
 }

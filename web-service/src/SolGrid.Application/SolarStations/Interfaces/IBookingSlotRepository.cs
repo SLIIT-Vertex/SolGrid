@@ -27,4 +27,19 @@ public interface IBookingSlotRepository
 
     // Remove a slot only after the service has checked station ownership and live reservations.
     Task RemoveAsync(string id, CancellationToken cancellationToken = default);
+
+    // Detect duplicate per-station slot numbers, including concurrent creates.
+    Task<bool> ExistsBySlotNumberAsync(
+        string stationId,
+        int slotNumber,
+        string? excludingSlotId = null,
+        CancellationToken cancellationToken = default);
+
+    // Detect overlapping booking intervals for the same station.
+    Task<bool> HasOverlappingIntervalAsync(
+        string stationId,
+        DateTimeOffset startTime,
+        DateTimeOffset endTime,
+        string? excludingSlotId = null,
+        CancellationToken cancellationToken = default);
 }

@@ -37,4 +37,19 @@ public sealed class ReservationStationLookup : IStationReservationLookup
 
         return hasActiveReservations ? 1 : 0;
     }
+
+    public async Task<bool> HasActiveReservationForSlotAsync(
+        string bookingSlotId,
+        CancellationToken cancellationToken = default)
+    {
+        // Translate the reservation module's slot occupancy check for slot lifecycle operations.
+        if (string.IsNullOrWhiteSpace(bookingSlotId))
+        {
+            return false;
+        }
+
+        return await reservationRepository
+            .HasActiveReservationForBookingSlotAsync(bookingSlotId.Trim(), cancellationToken: cancellationToken)
+            .ConfigureAwait(false);
+    }
 }

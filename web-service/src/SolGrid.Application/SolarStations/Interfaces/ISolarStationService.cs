@@ -12,7 +12,7 @@ using SolGrid.Application.SolarStations.Responses;
 
 namespace SolGrid.Application.SolarStations.Interfaces;
 
-public interface ISolarStationService : IBookingSlotService
+public interface ISolarStationService
 {
     // Validate station details and code uniqueness before creating the node.
     Task<SolarStationResponse> CreateStationAsync(

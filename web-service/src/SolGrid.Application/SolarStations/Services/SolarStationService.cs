@@ -28,18 +28,21 @@ public sealed class SolarStationService : ISolarStationService
     private static readonly UpdateStationScheduleRequestValidator ScheduleValidator = new();
 
     private readonly ISolarStationRepository stationRepository;
+    private readonly IBookingSlotRepository bookingSlotRepository;
     private readonly IStationReservationLookup reservationLookup;
     private readonly ICurrentUserContext currentUserContext;
     private readonly TimeProvider timeProvider;
 
     public SolarStationService(
         ISolarStationRepository stationRepository,
+        IBookingSlotRepository bookingSlotRepository,
         IStationReservationLookup reservationLookup,
         ICurrentUserContext currentUserContext,
         TimeProvider timeProvider)
     {
         // Capture station management dependencies without coupling to infrastructure implementations.
         this.stationRepository = stationRepository;
+        this.bookingSlotRepository = bookingSlotRepository;
         this.reservationLookup = reservationLookup;
         this.currentUserContext = currentUserContext;
         this.timeProvider = timeProvider;
@@ -73,6 +76,11 @@ public sealed class SolarStationService : ISolarStationService
             createdAt);
 
         await stationRepository.AddAsync(station, cancellationToken).ConfigureAwait(false);
+        foreach (var slot in station.Slots)
+        {
+            await bookingSlotRepository.AddAsync(slot, cancellationToken).ConfigureAwait(false);
+        }
+
         return SolarStationResponseMapper.ToResponse(station);
     }
 
@@ -195,58 +203,6 @@ public sealed class SolarStationService : ISolarStationService
         await stationRepository.UpdateAsync(station, cancellationToken).ConfigureAwait(false);
     }
 
-    public Task<EnergyBookingSlotResponse> AddSlotAsync(
-        string id,
-        CreateBookingSlotRequest request,
-        CancellationToken cancellationToken = default)
-    {
-        // Booking-slot management is intentionally deferred beyond this persistence phase.
-        return SlotManagementNotImplemented<EnergyBookingSlotResponse>();
-    }
-
-    public Task<EnergyBookingSlotResponse> UpdateSlotAsync(
-        string id,
-        string slotId,
-        UpdateBookingSlotRequest request,
-        CancellationToken cancellationToken = default)
-    {
-        // Booking-slot management is intentionally deferred beyond this persistence phase.
-        return SlotManagementNotImplemented<EnergyBookingSlotResponse>();
-    }
-
-    public Task<EnergyBookingSlotResponse> GetSlotByIdAsync(
-        string id,
-        string slotId,
-        CancellationToken cancellationToken = default)
-    {
-        // Booking-slot management is intentionally deferred beyond this persistence phase.
-        return SlotManagementNotImplemented<EnergyBookingSlotResponse>();
-    }
-
-    public Task<PagedResult<EnergyBookingSlotResponse>> GetSlotsAsync(
-        BookingSlotQuery query,
-        CancellationToken cancellationToken = default)
-    {
-        // Booking-slot management is intentionally deferred beyond this persistence phase.
-        return SlotManagementNotImplemented<PagedResult<EnergyBookingSlotResponse>>();
-    }
-
-    public Task<EnergyBookingSlotResponse> UpdateSlotStatusAsync(
-        string id,
-        string slotId,
-        UpdateSlotStatusRequest request,
-        CancellationToken cancellationToken = default)
-    {
-        // Booking-slot management is intentionally deferred beyond this persistence phase.
-        return SlotManagementNotImplemented<EnergyBookingSlotResponse>();
-    }
-
-    public Task RemoveSlotAsync(string id, string slotId, CancellationToken cancellationToken = default)
-    {
-        // Booking-slot management is intentionally deferred beyond this persistence phase.
-        return SlotManagementNotImplemented();
-    }
-
     private async Task<SolarStation> GetRequiredStationAsync(string id, CancellationToken cancellationToken)
     {
         // Load a station or return a client-safe not-found error.
@@ -333,17 +289,5 @@ public sealed class SolarStationService : ISolarStationService
     {
         // Convert a validated weekly window request into a domain value object.
         return OperatingWindow.Create(request.Day, request.OpensAt, request.ClosesAt);
-    }
-
-    private static Task<T> SlotManagementNotImplemented<T>()
-    {
-        // Keep the inherited slot contract while refusing slot-management work in this phase.
-        throw new InvalidOperationException("Booking-slot management is not implemented in this phase.");
-    }
-
-    private static Task SlotManagementNotImplemented()
-    {
-        // Keep the inherited slot contract while refusing slot-management work in this phase.
-        throw new InvalidOperationException("Booking-slot management is not implemented in this phase.");
     }
 }

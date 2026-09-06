@@ -56,8 +56,10 @@ builder.Services.AddScoped<IProsumerService, ProsumerService>();
 builder.Services.AddScoped<IReservationProsumerReadService, ReservationProsumerReadService>();
 builder.Services.AddScoped<IReservationService, ReservationService>();
 builder.Services.AddScoped<ISolarStationService, SolarStationService>();
+builder.Services.AddScoped<IBookingSlotService, BookingSlotService>();
 builder.Services.AddScoped<IStationReservationLookup, ReservationStationLookup>();
 builder.Services.AddScoped<IReservationStationReadService, ReservationStationReadService>();
+builder.Services.AddScoped<IReservationBookingSlotReadService, ReservationBookingSlotReadService>();
 builder.Services.AddScoped<ICurrentUserContext, HttpCurrentUserContext>();
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSolGridInfrastructure(
@@ -109,6 +111,9 @@ using (var startupScope = app.Services.CreateScope())
 
         var solarStationCollectionInitializer = startupScope.ServiceProvider.GetRequiredService<ISolarStationCollectionInitializer>();
         await solarStationCollectionInitializer.EnsureCreatedAsync().ConfigureAwait(false);
+
+        var bookingSlotCollectionInitializer = startupScope.ServiceProvider.GetRequiredService<IBookingSlotCollectionInitializer>();
+        await bookingSlotCollectionInitializer.EnsureCreatedAsync().ConfigureAwait(false);
 
         var userSeedDataInitializer = startupScope.ServiceProvider.GetRequiredService<IUserSeedDataInitializer>();
         await userSeedDataInitializer.SeedAsync().ConfigureAwait(false);
