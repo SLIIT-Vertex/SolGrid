@@ -490,3 +490,5 @@ $RECYCLE.BIN/
 /web-service/**/[Bb]in/
 /web-service/**/[Oo]bj/
 /web-service/**/[Aa]rtifacts/
+AGENTS.md
+members.txt

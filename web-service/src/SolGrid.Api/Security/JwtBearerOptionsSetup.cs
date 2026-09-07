@@ -88,11 +88,16 @@ public sealed class JwtBearerOptionsSetup : IConfigureNamedOptions<JwtBearerOpti
         context.Response.StatusCode = StatusCodes.Status401Unauthorized;
         context.Response.ContentType = "application/problem+json";
 
-        await context.Response.WriteAsJsonAsync(new ProblemDetails
-        {
-            Status = StatusCodes.Status401Unauthorized,
-            Title = "Authentication is required."
-        }).ConfigureAwait(false);
+        await context.Response
+            .WriteAsJsonAsync(
+                new ProblemDetails
+                {
+                    Status = StatusCodes.Status401Unauthorized,
+                    Title = "Authentication is required."
+                },
+                options: null,
+                contentType: "application/problem+json")
+            .ConfigureAwait(false);
     }
 
     private static async Task HandleForbiddenAsync(ForbiddenContext context)
@@ -101,10 +106,15 @@ public sealed class JwtBearerOptionsSetup : IConfigureNamedOptions<JwtBearerOpti
         context.Response.StatusCode = StatusCodes.Status403Forbidden;
         context.Response.ContentType = "application/problem+json";
 
-        await context.Response.WriteAsJsonAsync(new ProblemDetails
-        {
-            Status = StatusCodes.Status403Forbidden,
-            Title = "Access is forbidden."
-        }).ConfigureAwait(false);
+        await context.Response
+            .WriteAsJsonAsync(
+                new ProblemDetails
+                {
+                    Status = StatusCodes.Status403Forbidden,
+                    Title = "Access is forbidden."
+                },
+                options: null,
+                contentType: "application/problem+json")
+            .ConfigureAwait(false);
     }
 }
