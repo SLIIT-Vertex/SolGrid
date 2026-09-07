@@ -3,7 +3,7 @@
  * Module: SE4040 Enterprise Application Development
  * File: GlobalExceptionHandlingMiddleware.cs
  * Description: Converts application exceptions into consistent API problem responses.
- * Contributor: Dilshan Yapa S Y C T
+ * Contributor: Dilshan Yapa
  */
 
 using Microsoft.AspNetCore.Mvc;
@@ -98,6 +98,8 @@ public sealed class GlobalExceptionHandlingMiddleware
             problem.Extensions["errors"] = errors;
         }
 
-        await context.Response.WriteAsJsonAsync(problem).ConfigureAwait(false);
+        await context.Response
+            .WriteAsJsonAsync(problem, options: null, contentType: "application/problem+json")
+            .ConfigureAwait(false);
     }
 }
