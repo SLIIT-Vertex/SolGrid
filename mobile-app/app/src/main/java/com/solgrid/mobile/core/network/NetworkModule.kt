@@ -34,8 +34,22 @@ object NetworkModule {
         chain.proceed(request)
     }
 
+    /** A 401 on a request that carried our bearer token means the session expired or was
+     * revoked server-side — distinct from a 401 on an anonymous login attempt (wrong password),
+     * which never has this header. Clears the stale session and signals the nav layer. */
+    private val sessionExpiryInterceptor = okhttp3.Interceptor { chain ->
+        val request = chain.request()
+        val response = chain.proceed(request)
+        if (response.code == 401 && request.header("Authorization") != null) {
+            SessionStore.clear()
+            SessionExpiryNotifier.notifyExpired()
+        }
+        response
+    }
+
     private val okHttpClient = OkHttpClient.Builder()
         .addInterceptor(authInterceptor)
+        .addInterceptor(sessionExpiryInterceptor)
         .addInterceptor(loggingInterceptor)
         .connectTimeout(15, TimeUnit.SECONDS)
         .readTimeout(15, TimeUnit.SECONDS)
