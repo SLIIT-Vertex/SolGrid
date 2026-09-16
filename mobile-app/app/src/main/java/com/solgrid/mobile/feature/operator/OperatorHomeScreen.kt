@@ -1,5 +1,6 @@
 package com.solgrid.mobile.feature.operator
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -26,6 +27,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import com.solgrid.mobile.core.components.AppDivider
 import com.solgrid.mobile.core.components.AppTopBar
@@ -106,6 +108,7 @@ fun OperatorHomeScreen(
                     .padding(top = Spacing.xl)
                     .clip(RoundedCornerShape(Radius.lg))
                     .background(colors.accent)
+                    .clickable(role = Role.Button, onClickLabel = "Open QR scanner", onClick = onScanClick)
                     .padding(Spacing.lg),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(Spacing.md)
@@ -121,7 +124,6 @@ fun OperatorHomeScreen(
                     Text("Verify and finalize an energy transfer", style = AppType.caption, color = colors.onAccent.copy(alpha = 0.85f))
                 }
             }
-            PrimaryButton(text = "Open Scanner", onClick = onScanClick, modifier = Modifier.fillMaxWidth().padding(top = Spacing.md))
             PrimaryButton(text = "Browse grid nodes", onClick = onNodesClick, modifier = Modifier.fillMaxWidth().padding(top = Spacing.sm))
 
             SectionHeader(title = "Grid booking queue", modifier = Modifier.padding(top = Spacing.xl))
