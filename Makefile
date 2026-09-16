@@ -13,8 +13,8 @@ APPLICATION_TESTS := $(API_DIR)/tests/SolGrid.Application.Tests/SolGrid.Applicat
 API_TESTS := $(API_DIR)/tests/SolGrid.Api.Tests/SolGrid.Api.Tests.csproj
 INFRA_TESTS := $(API_DIR)/tests/SolGrid.Infrastructure.Tests/SolGrid.Infrastructure.Tests.csproj
 
-BASE_URL ?= http://localhost:5000
-ASPNETCORE_URLS ?= http://localhost:5000
+BASE_URL ?= http://localhost:5080
+ASPNETCORE_URLS ?= http://localhost:5080
 ASPNETCORE_ENVIRONMENT ?= Development
 
 MONGO_ROOT_USERNAME ?= solgrid_admin

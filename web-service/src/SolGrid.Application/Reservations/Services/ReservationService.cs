@@ -54,7 +54,7 @@ public sealed class ReservationService : IReservationService
         // Validate references, enforce slot availability rules, and persist a pending reservation.
         ValidateCreateRequest(request);
 
-        var prosumerId = ResolveProsumerIdForCreate(request.ProsumerId);
+        var requestedProsumerId = ResolveProsumerIdForCreate(request.ProsumerId);
         var stationId = NormalizeIdentifier(request.StationId);
         var bookingSlotId = NormalizeIdentifier(request.BookingSlotId);
         var scheduledAtUtc = ReservationTimeRules.NormalizeToUtc(request.ScheduledAt);
@@ -62,7 +62,7 @@ public sealed class ReservationService : IReservationService
 
         ValidateSchedule(scheduledAtUtc, nowUtc);
 
-        await EnsureProsumerCanReserveAsync(prosumerId, cancellationToken).ConfigureAwait(false);
+        var prosumer = await EnsureProsumerCanReserveAsync(requestedProsumerId, cancellationToken).ConfigureAwait(false);
         await EnsureStationCanBeReservedAsync(stationId, cancellationToken).ConfigureAwait(false);
         await EnsureBookingSlotCanBeReservedAsync(bookingSlotId, stationId, cancellationToken).ConfigureAwait(false);
 
@@ -75,7 +75,7 @@ public sealed class ReservationService : IReservationService
 
         var reservation = EnergyReservation.Create(
             Guid.NewGuid().ToString("N"),
-            prosumerId,
+            prosumer.Id,
             stationId,
             bookingSlotId,
             scheduledAtUtc,
@@ -164,6 +164,7 @@ public sealed class ReservationService : IReservationService
         CancellationToken cancellationToken = default)
     {
         // Return only reservations owned by the current authenticated user.
+        EnsureProsumerCaller();
         var currentUserId = GetRequiredCurrentUserId();
         ValidateQuery(query);
 
@@ -457,7 +458,9 @@ public sealed class ReservationService : IReservationService
         ThrowIfInvalid(errors);
     }
 
-    private async Task EnsureProsumerCanReserveAsync(string prosumerId, CancellationToken cancellationToken)
+    private async Task<ReservationProsumerSnapshot> EnsureProsumerCanReserveAsync(
+        string prosumerId,
+        CancellationToken cancellationToken)
     {
         // Verify the referenced prosumer exists and can make reservations.
         var prosumer = await prosumerReadService.GetByIdAsync(prosumerId, cancellationToken).ConfigureAwait(false);
@@ -471,6 +474,8 @@ public sealed class ReservationService : IReservationService
         {
             throw new ConflictException("Prosumer account is not active for reservations.");
         }
+
+        return prosumer;
     }
 
     private async Task EnsureStationCanBeReservedAsync(string stationId, CancellationToken cancellationToken)
@@ -678,7 +683,17 @@ public sealed class ReservationService : IReservationService
             return NormalizeIdentifier(requestedProsumerId);
         }
 
+        EnsureProsumerCaller();
         return GetRequiredCurrentUserId();
+    }
+
+    private void EnsureProsumerCaller()
+    {
+        // Restrict ownership-based reservation actions to a roleless prosumer JWT subject.
+        if (!currentUserContext.IsAuthenticated || currentUserContext.Role is not null)
+        {
+            throw new ForbiddenException("A prosumer identity is required for this reservation action.");
+        }
     }
 
     private bool IsQrUsable(EnergyReservation reservation, string verificationToken, DateTimeOffset nowUtc)
