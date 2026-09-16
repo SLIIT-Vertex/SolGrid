@@ -10,11 +10,15 @@ namespace SolGrid.Infrastructure.Persistence.MongoDb;
 
 public sealed class MongoDbOptions
 {
-    public string ConnectionString { get; init; } = "mongodb://localhost:27017";
+    public string ConnectionString { get; init; } = string.Empty;
 
     public string DatabaseName { get; init; } = "SolGrid";
 
     public string UsersCollectionName { get; init; } = "Users";
+
+    public string EnergyReservationsCollectionName { get; init; } = "EnergyReservations";
+
+    public bool InitializeOnStartup { get; init; } = true;
 
     public bool SeedDevelopmentUsers { get; init; }
 

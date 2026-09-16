@@ -52,6 +52,13 @@ public sealed class GlobalExceptionHandlingMiddleware
                 StatusCodes.Status403Forbidden,
                 exception.Message).ConfigureAwait(false);
         }
+        catch (ForbiddenException exception)
+        {
+            await WriteProblemAsync(
+                context,
+                StatusCodes.Status403Forbidden,
+                exception.Message).ConfigureAwait(false);
+        }
         catch (NotFoundException exception)
         {
             await WriteProblemAsync(
