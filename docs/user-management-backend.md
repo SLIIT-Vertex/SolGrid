@@ -75,19 +75,19 @@ Tokens do not include password hashes or unnecessary personal data.
 
 `appsettings.json` intentionally does not contain a production JWT signing key.
 
-These commands run in Windows PowerShell/Command Prompt, macOS, and Linux with Node.js 22.12+ installed. See [development commands](development.md) for prerequisites and all tasks.
+These commands run in Windows PowerShell/Command Prompt, macOS, and Linux with GNU Make and Node.js 22.12+ installed. See [development commands](development.md) for prerequisites and all tasks.
 
 For local development, create `.env` with generated local-only secrets:
 
 ```bash
-node scripts/tasks.mjs env-init
+make env-init
 ```
 
 For `dotnet run`, store those `.env` values in .NET user-secrets:
 
 ```bash
-node scripts/tasks.mjs secrets-set
-node scripts/tasks.mjs run
+make secrets-set
+make run
 ```
 
 The API project has a `UserSecretsId`, so `ASPNETCORE_ENVIRONMENT=Development` loads these local secrets without committing them.
@@ -95,7 +95,7 @@ The API project has a `UserSecretsId`, so `ASPNETCORE_ENVIRONMENT=Development` l
 For Docker Compose, use the same `.env` file:
 
 ```bash
-node scripts/tasks.mjs docker-up
+make docker-up
 ```
 
 The backend container reads configuration through environment variables such as `Jwt__SigningKey` and `MongoDb__ConnectionString`. Docker Compose requires `JWT_SIGNING_KEY` and `MONGO_ROOT_PASSWORD` to be present in `.env`; real secrets must never be committed.
@@ -128,8 +128,7 @@ The `Users` collection stores normalized email, BCrypt password hash, role, acco
 MongoDB repository integration tests are designed to run against a real MongoDB instance when `SOLGRID_MONGO_TEST_CONNECTION_STRING` is set. A compose file is included for that workflow:
 
 ```bash
-docker compose -f docker-compose.test.yml up -d
-SOLGRID_MONGO_TEST_CONNECTION_STRING=mongodb://localhost:27018 \
-  dotnet test web-service/tests/SolGrid.Infrastructure.Tests/SolGrid.Infrastructure.Tests.csproj
-docker compose -f docker-compose.test.yml down
+make docker-test-mongo-up
+make test SOLGRID_MONGO_TEST_CONNECTION_STRING=mongodb://localhost:27018
+make docker-test-mongo-down
 ```
