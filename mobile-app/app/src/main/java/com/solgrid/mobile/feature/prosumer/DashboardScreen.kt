@@ -199,6 +199,7 @@ fun ReservationRow(reservation: EnergyReservation, onClick: () -> Unit) {
 fun statusLabel(status: ReservationStatus): String = when (status) {
     ReservationStatus.PENDING -> "Pending"
     ReservationStatus.APPROVED -> "Approved"
+    ReservationStatus.REJECTED -> "Rejected"
     ReservationStatus.CANCELLED -> "Cancelled"
     ReservationStatus.COMPLETED -> "Completed"
 }
@@ -206,6 +207,7 @@ fun statusLabel(status: ReservationStatus): String = when (status) {
 fun statusTone(status: ReservationStatus): BadgeTone = when (status) {
     ReservationStatus.PENDING -> BadgeTone.WARNING
     ReservationStatus.APPROVED -> BadgeTone.SUCCESS
+    ReservationStatus.REJECTED -> BadgeTone.ERROR
     ReservationStatus.CANCELLED -> BadgeTone.ERROR
     ReservationStatus.COMPLETED -> BadgeTone.NEUTRAL
 }

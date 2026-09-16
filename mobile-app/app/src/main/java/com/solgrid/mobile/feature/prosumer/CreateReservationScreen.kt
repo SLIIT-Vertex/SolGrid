@@ -15,6 +15,8 @@ import androidx.compose.material3.Text
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.ExpandMore
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -22,7 +24,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import com.solgrid.mobile.core.components.AppTextField
 import com.solgrid.mobile.core.components.AppTopBar
 import com.solgrid.mobile.core.components.PrimaryButton
 import com.solgrid.mobile.core.components.clickableNoRipple
@@ -30,10 +31,16 @@ import com.solgrid.mobile.core.design.AppType
 import com.solgrid.mobile.core.design.Radius
 import com.solgrid.mobile.core.design.SolGridTheme
 import com.solgrid.mobile.core.design.Spacing
-import com.solgrid.mobile.core.mock.MockData
-import com.solgrid.mobile.core.models.SlotStatus
+import com.solgrid.mobile.core.network.BookingSlotDto
+import com.solgrid.mobile.feature.microgrid.NodeViewModel
+import java.time.OffsetDateTime
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 
-/** Create a new reservation (MOB-08). The API enforces the 7-day window; this UI mirrors that check. */
+private val slotLabelFormatter = DateTimeFormatter.ofPattern("MMM d, hh:mm a")
+
+/** Create a new reservation (MOB-08). Slots come live from the station; the API enforces the
+ * 7-day window and duplicate-active-booking rule authoritatively. */
 @Composable
 fun CreateReservationScreen(
     viewModel: ProsumerViewModel,
@@ -42,10 +49,13 @@ fun CreateReservationScreen(
     onCreated: (reservationId: String) -> Unit
 ) {
     val colors = SolGridTheme.colors
-    val node = MockData.nodes.find { it.id == nodeId } ?: MockData.nodes.first()
-    val availableSlots = MockData.slotsForNode(node.id).filter { it.status == SlotStatus.AVAILABLE }
+    val nodeViewModel = remember { NodeViewModel() }
+    val nodeState by nodeViewModel.state.collectAsState()
+
+    LaunchedEffect(nodeId) { nodeViewModel.loadDetail(nodeId) }
+
+    val availableSlots = nodeState.slots.filter { it.isActive && it.isAvailable }
     var selectedSlotIndex by remember { mutableStateOf(0) }
-    var energyKwh by remember { mutableStateOf("5.0") }
     var slotMenuExpanded by remember { mutableStateOf(false) }
     var errorText by remember { mutableStateOf<String?>(null) }
     var submitting by remember { mutableStateOf(false) }
@@ -53,8 +63,13 @@ fun CreateReservationScreen(
     Column(modifier = Modifier.fillMaxSize().background(colors.background)) {
         AppTopBar(title = "Create Reservation", onBack = onBack)
         Column(modifier = Modifier.fillMaxSize().padding(horizontal = Spacing.lg)) {
-            Text(node.name, style = AppType.sectionTitle, color = colors.textPrimary, modifier = Modifier.padding(top = Spacing.md))
-            Text(node.address, style = AppType.supporting, color = colors.textSecondary)
+            Text(
+                nodeState.selected?.name ?: "Loading station…",
+                style = AppType.sectionTitle,
+                color = colors.textPrimary,
+                modifier = Modifier.padding(top = Spacing.md)
+            )
+            Text(nodeState.selected?.addressLine.orEmpty(), style = AppType.supporting, color = colors.textSecondary)
 
             Text("Select an available slot", style = AppType.bodyStrong, color = colors.textPrimary, modifier = Modifier.padding(top = Spacing.xl))
             Box(modifier = Modifier.padding(top = Spacing.sm)) {
@@ -69,7 +84,7 @@ fun CreateReservationScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = selected?.let { "${it.date}  ·  ${it.startTime} - ${it.endTime}" } ?: "No slots available",
+                        text = selected?.let(::slotLabel) ?: "No slots available",
                         style = AppType.body,
                         color = colors.textPrimary,
                         modifier = Modifier
@@ -81,23 +96,18 @@ fun CreateReservationScreen(
                 DropdownMenu(expanded = slotMenuExpanded, onDismissRequest = { slotMenuExpanded = false }) {
                     availableSlots.forEachIndexed { index, slot ->
                         DropdownMenuItem(
-                            text = { Text("${slot.date} · ${slot.startTime} - ${slot.endTime}") },
+                            text = { Text(slotLabel(slot)) },
                             onClick = { selectedSlotIndex = index; slotMenuExpanded = false }
                         )
                     }
                 }
             }
 
-            AppTextField(
-                value = energyKwh,
-                onValueChange = { energyKwh = it },
-                label = "Estimated energy (kWh)",
-                keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal,
-                modifier = Modifier.padding(top = Spacing.lg)
-            )
-
             if (errorText != null) {
                 Text(errorText!!, style = AppType.caption, color = colors.error, modifier = Modifier.padding(top = Spacing.sm))
+            }
+            nodeState.error?.let {
+                Text(it, style = AppType.caption, color = colors.error, modifier = Modifier.padding(top = Spacing.sm))
             }
 
             Text(
@@ -113,24 +123,21 @@ fun CreateReservationScreen(
                 enabled = availableSlots.isNotEmpty(),
                 onClick = {
                     val slot = availableSlots.getOrNull(selectedSlotIndex)
-                    val energy = energyKwh.toDoubleOrNull()
                     if (slot == null) {
                         errorText = "Please select a slot."
-                        return@PrimaryButton
-                    }
-                    if (energy == null || energy <= 0) {
-                        errorText = "Enter a valid energy amount."
                         return@PrimaryButton
                     }
                     errorText = null
                     submitting = true
                     viewModel.createReservation(
-                        nodeId = node.id,
-                        nodeName = node.name,
-                        date = slot.date,
-                        startTime = slot.startTime,
-                        endTime = slot.endTime,
-                        energyKwh = energy
+                        stationId = nodeId,
+                        bookingSlotId = slot.id,
+                        nodeName = nodeState.selected?.name ?: nodeId,
+                        scheduledAtIso = slot.startTime,
+                        onError = {
+                            submitting = false
+                            errorText = it
+                        },
                     ) { reservation ->
                         submitting = false
                         onCreated(reservation.id)
@@ -140,4 +147,10 @@ fun CreateReservationScreen(
             )
         }
     }
+}
+
+private fun slotLabel(slot: BookingSlotDto): String {
+    val start = OffsetDateTime.parse(slot.startTime).atZoneSameInstant(ZoneId.systemDefault())
+    val end = OffsetDateTime.parse(slot.endTime).atZoneSameInstant(ZoneId.systemDefault())
+    return "${start.format(slotLabelFormatter)} – ${end.format(DateTimeFormatter.ofPattern("hh:mm a"))}"
 }

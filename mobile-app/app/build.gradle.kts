@@ -68,6 +68,9 @@ dependencies {
     implementation(libs.okhttp)
     implementation(libs.okhttp.logging.interceptor)
     implementation(libs.google.maps.compose)
+    implementation(libs.play.services.location)
+    implementation(libs.kotlinx.coroutines.play.services)
+    implementation(libs.places.sdk)
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)

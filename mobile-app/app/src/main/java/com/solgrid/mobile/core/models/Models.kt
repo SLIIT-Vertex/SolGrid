@@ -67,20 +67,22 @@ data class BookingSlot(
     val status: SlotStatus
 )
 
-enum class ReservationStatus { PENDING, APPROVED, CANCELLED, COMPLETED }
+enum class ReservationStatus { PENDING, APPROVED, REJECTED, CANCELLED, COMPLETED }
 
-/** Mirrors an Energy Reservation document. */
+/** Mirrors an Energy Reservation document (SolGrid.Application.Reservations.Responses.ReservationResponse). */
 data class EnergyReservation(
     val id: String,
     val prosumerNic: String,
     val nodeId: String,
     val nodeName: String,
+    val bookingSlotId: String = "",
     val date: String,
     val startTime: String,
     val endTime: String,
     val energyKwh: Double,
     val status: ReservationStatus,
     val createdAt: String,
+    val rejectionReason: String? = null,
     /** Populated once the reservation is approved; drives the transaction QR screen. */
     val qrPayload: String? = null
 ) {

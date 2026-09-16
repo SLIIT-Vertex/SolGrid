@@ -9,6 +9,7 @@ import { EditMicrogridNodePage } from '@/features/microgrid/pages/EditMicrogridN
 import { MicrogridListPage } from '@/features/microgrid/pages/MicrogridListPage'
 import { MicrogridNodeDetailsPage } from '@/features/microgrid/pages/MicrogridNodeDetailsPage'
 import { ProsumersListPage } from '@/features/prosumers/pages/ProsumersListPage'
+import { ReservationsPage } from '@/features/reservations/pages/ReservationsPage'
 import { UserEditPage } from '@/features/users/pages/UserEditPage'
 import { UsersListPage } from '@/features/users/pages/UsersListPage'
 
@@ -22,6 +23,10 @@ export const router = createBrowserRouter([
         element: <AppLayout />,
         children: [
           { path: '/', element: <DashboardPage /> },
+          {
+            element: <ProtectedRoute allowedRoles={['Backoffice', 'GridOperator']} />,
+            children: [{ path: '/reservations', element: <ReservationsPage /> }],
+          },
           {
             path: 'microgrid',
             children: [

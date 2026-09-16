@@ -87,7 +87,7 @@ fun VerificationResultScreen(
                     InfoRow("Prosumer NIC", reservation.prosumerNic)
                     InfoRow("Node", reservation.nodeName)
                     InfoRow("Slot", "${reservation.date} · ${reservation.startTime}-${reservation.endTime}")
-                    InfoRow("Energy", "${reservation.energyKwh} kWh")
+                    InfoRow("Status", reservation.status.name)
                 }
             }
         }

@@ -16,6 +16,7 @@ data class NodeState(
     val bookings: List<ReservationDto> = emptyList(), val loading: Boolean = false,
     val error: String? = null, val nodePage: Int = 1, val nodePageSize: Int = 20,
     val slotTotalCount: Long = 0, val bookingTotalCount: Long = 0,
+    val searchAreaLabel: String? = null,
 )
 
 class NodeViewModel(private val repository: NodeRepository = NodeRepository()) : ViewModel() {
@@ -29,8 +30,8 @@ class NodeViewModel(private val repository: NodeRepository = NodeRepository()) :
             is NodeResult.Failure -> _state.update { it.copy(loading = false, error = result.message) }
         }
     }
-    fun loadNearby(latitude: Double = 6.9271, longitude: Double = 79.8612) = viewModelScope.launch {
-        _state.update { it.copy(loading = true, error = null) }
+    fun loadNearby(latitude: Double, longitude: Double, areaLabel: String? = null) = viewModelScope.launch {
+        _state.update { it.copy(loading = true, error = null, searchAreaLabel = areaLabel) }
         when (val result = repository.nearby(latitude, longitude)) {
             is NodeResult.Success -> _state.update { it.copy(nodes = result.value, loading = false) }
             is NodeResult.Failure -> _state.update { it.copy(loading = false, error = result.message) }

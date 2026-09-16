@@ -1,12 +1,12 @@
 import { FormProvider, useForm } from 'react-hook-form'
 import { Button } from '@/components/common/Button'
 import { TextField } from '@/components/common/TextField'
+import { AddressAutocompleteField } from '@/features/microgrid/components/AddressAutocompleteField'
 import { BatterySlotForm } from '@/features/microgrid/components/BatterySlotForm'
-import { CoordinateFields } from '@/features/microgrid/components/CoordinateFields'
 import { FormError } from '@/features/microgrid/components/FormError'
 import { MicrogridSection } from '@/features/microgrid/components/MicrogridSection'
 import { ScheduleEditor } from '@/features/microgrid/components/ScheduleEditor'
-import { MAX_ADDRESS_LENGTH, MAX_CODE_LENGTH, MAX_NAME_LENGTH, defaultCreateNodeValues } from '@/features/microgrid/types'
+import { MAX_CODE_LENGTH, MAX_NAME_LENGTH, defaultCreateNodeValues } from '@/features/microgrid/types'
 import type {
   CreateSolarStationRequest,
   MicrogridNodeFormValues,
@@ -15,7 +15,6 @@ import type {
 import {
   toCreateStationRequest,
   toUpdateStationRequest,
-  validateAddress,
   validateCode,
   validateInitialSlots,
   validateName,
@@ -80,7 +79,7 @@ export function NodeForm(props: NodeFormProps) {
 
         <MicrogridSection
           title={isEdit ? 'Node identity' : '1. Node identity'}
-          description="Code, name, and address for this generation node."
+          description="Code and name for this generation node."
         >
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <TextField
@@ -96,19 +95,14 @@ export function NodeForm(props: NodeFormProps) {
               error={errors.name?.message}
               {...register('name', { validate: (value) => validateName(value) ?? true })}
             />
-            <div className="sm:col-span-2">
-              <TextField
-                label="Address"
-                maxLength={MAX_ADDRESS_LENGTH}
-                error={errors.addressLine?.message}
-                {...register('addressLine', { validate: (value) => validateAddress(value) ?? true })}
-              />
-            </div>
           </div>
         </MicrogridSection>
 
-        <MicrogridSection title={isEdit ? 'Location' : '2. Location'} description="Latitude and longitude in decimal degrees.">
-          <CoordinateFields />
+        <MicrogridSection
+          title={isEdit ? 'Location' : '2. Location'}
+          description="Search for the station's address — latitude and longitude are filled in automatically."
+        >
+          <AddressAutocompleteField />
         </MicrogridSection>
 
         <MicrogridSection

@@ -68,11 +68,47 @@ data class BookingSlotDto(
     val isActive: Boolean, val isAvailable: Boolean,
 )
 
+/** `status` is a raw ordinal — see SolGrid.Domain.Enums.ReservationStatus (Pending=1, Approved=2,
+ * Rejected=3, Cancelled=4, Completed=5). */
 @Serializable
 data class ReservationDto(
     val id: String, val prosumerId: String, val stationId: String, val bookingSlotId: String,
-    val scheduledAt: String, val status: Int, val createdAt: String,
+    val scheduledAt: String, val status: Int, val createdAt: String, val updatedAt: String = createdAt,
+    val approvedAt: String? = null, val approvedBy: String? = null,
+    val rejectedAt: String? = null, val rejectedBy: String? = null, val rejectionReason: String? = null,
+    val cancelledAt: String? = null,
+    val completedAt: String? = null, val completedBy: String? = null,
+    val hasQrVerificationToken: Boolean = false,
+    val qrVerificationTokenIssuedAt: String? = null, val qrVerificationTokenExpiresAt: String? = null,
+    val qrVerifiedAt: String? = null,
 )
+
+@Serializable
+data class CreateReservationRequestDto(
+    val prosumerId: String, val stationId: String, val bookingSlotId: String, val scheduledAt: String,
+)
+
+@Serializable
+data class UpdateReservationRequestDto(
+    val stationId: String, val bookingSlotId: String, val scheduledAt: String,
+)
+
+@Serializable
+data class RejectReservationRequestDto(val rejectionReason: String)
+
+@Serializable
+data class ReservationQrResponseDto(
+    val reservationId: String, val verificationToken: String, val expiresAt: String,
+)
+
+@Serializable
+data class VerifyReservationQrRequestDto(val reservationId: String, val verificationToken: String)
+
+@Serializable
+data class VerifyReservationQrResponseDto(val isValid: Boolean, val reservationId: String, val message: String)
+
+@Serializable
+data class CompleteReservationRequestDto(val verificationToken: String)
 
 /** POST /api/v1/prosumers/register request body. */
 @Serializable
