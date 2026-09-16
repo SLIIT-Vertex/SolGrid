@@ -13,6 +13,8 @@ using SolGrid.Api.Security;
 using SolGrid.Application.Auth.Interfaces;
 using SolGrid.Application.Auth.Services;
 using SolGrid.Application.Common.Identity;
+using SolGrid.Application.Prosumers.Interfaces;
+using SolGrid.Application.Prosumers.Services;
 using SolGrid.Application.Reservations.Interfaces;
 using SolGrid.Application.Reservations.Services;
 using SolGrid.Application.Users.Interfaces;
@@ -48,6 +50,8 @@ builder.Services.AddCors(options =>
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IUserService, UserService>();
+builder.Services.AddScoped<IProsumerService, ProsumerService>();
+builder.Services.AddScoped<IReservationProsumerReadService, ReservationProsumerReadService>();
 builder.Services.AddScoped<IReservationService, ReservationService>();
 builder.Services.AddScoped<ICurrentUserContext, HttpCurrentUserContext>();
 builder.Services.AddSingleton(TimeProvider.System);
@@ -91,6 +95,9 @@ using (var startupScope = app.Services.CreateScope())
     {
         var userCollectionInitializer = startupScope.ServiceProvider.GetRequiredService<IUserCollectionInitializer>();
         await userCollectionInitializer.EnsureCreatedAsync().ConfigureAwait(false);
+
+        var prosumerCollectionInitializer = startupScope.ServiceProvider.GetRequiredService<IProsumerCollectionInitializer>();
+        await prosumerCollectionInitializer.EnsureCreatedAsync().ConfigureAwait(false);
 
         var reservationCollectionInitializer = startupScope.ServiceProvider.GetRequiredService<IReservationCollectionInitializer>();
         await reservationCollectionInitializer.EnsureCreatedAsync().ConfigureAwait(false);
