@@ -13,17 +13,23 @@ package com.solgrid.mobile.core.models
 /** The two mobile-facing roles. Backoffice is web-only per the assignment brief. */
 enum class AppRole { PROSUMER, GRID_OPERATOR }
 
-enum class ProsumerAccountStatus { PENDING, ACTIVE, DEACTIVATED }
+enum class ProsumerAccountStatus { PENDING, ACTIVE, DEACTIVATION_REQUESTED, DEACTIVATED }
 
-/** A registered Solar Prosumer. NIC is the primary/unique identity, per the assignment rule. */
+/**
+ * A registered Solar Prosumer. NIC is the primary/unique identity, per the assignment rule.
+ * Mirrors SolGrid.Application.Prosumers.Responses.ProsumerResponse — the backend has no address
+ * field, so none is modeled here.
+ */
 data class ProsumerProfile(
     val nic: String,
-    val fullName: String,
+    val firstName: String,
+    val lastName: String,
     val email: String,
     val phone: String,
-    val address: String,
-    val status: ProsumerAccountStatus = ProsumerAccountStatus.ACTIVE
-)
+    val status: ProsumerAccountStatus = ProsumerAccountStatus.PENDING
+) {
+    val fullName: String get() = "$firstName $lastName"
+}
 
 /** A Grid Operator's mobile profile (operational role, not Backoffice). */
 data class OperatorProfile(

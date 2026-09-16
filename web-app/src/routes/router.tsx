@@ -4,6 +4,7 @@ import { AppLayout } from '@/components/layout/AppLayout'
 import { LoginPage } from '@/features/auth/pages/LoginPage'
 import { DashboardPage } from '@/features/dashboard/pages/DashboardPage'
 import { ForbiddenPage } from '@/features/shared/pages/ForbiddenPage'
+import { ProsumersListPage } from '@/features/prosumers/pages/ProsumersListPage'
 import { UserEditPage } from '@/features/users/pages/UserEditPage'
 import { UsersListPage } from '@/features/users/pages/UsersListPage'
 
@@ -22,6 +23,7 @@ export const router = createBrowserRouter([
             children: [
               { path: '/users', element: <UsersListPage /> },
               { path: '/users/:id/edit', element: <UserEditPage /> },
+              { path: '/prosumers', element: <ProsumersListPage /> },
             ],
           },
         ],

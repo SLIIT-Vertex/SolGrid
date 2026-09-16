@@ -31,6 +31,7 @@ fun DeactivationRequestScreen(viewModel: ProsumerViewModel, onBack: () -> Unit, 
     var confirmed by remember { mutableStateOf(false) }
     var showConfirm by remember { mutableStateOf(false) }
     var submitting by remember { mutableStateOf(false) }
+    var submitError by remember { mutableStateOf<String?>(null) }
 
     Column(modifier = Modifier.fillMaxSize().background(colors.background)) {
         AppTopBar(title = "Deactivate Account", onBack = onBack)
@@ -62,6 +63,10 @@ fun DeactivationRequestScreen(viewModel: ProsumerViewModel, onBack: () -> Unit, 
                 )
             }
 
+            submitError?.let {
+                Text(it, style = AppType.supporting, color = colors.error, modifier = Modifier.padding(top = Spacing.md))
+            }
+
             PrimaryButton(
                 text = "Request Deactivation",
                 destructive = true,
@@ -82,10 +87,17 @@ fun DeactivationRequestScreen(viewModel: ProsumerViewModel, onBack: () -> Unit, 
             onConfirm = {
                 showConfirm = false
                 submitting = true
-                viewModel.requestDeactivation {
-                    submitting = false
-                    onDeactivated()
-                }
+                submitError = null
+                viewModel.requestDeactivation(
+                    onError = {
+                        submitting = false
+                        submitError = it
+                    },
+                    onDone = {
+                        submitting = false
+                        onDeactivated()
+                    },
+                )
             },
             onDismiss = { showConfirm = false }
         )
