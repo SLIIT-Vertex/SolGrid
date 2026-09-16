@@ -64,6 +64,12 @@ class AuthViewModel : ViewModel() {
         _login.value = LoginUiState()
     }
 
+    /** Call after SessionExpiryNotifier fires (a 401 on an authenticated request) so Login
+     * explains why the user was bounced back, rather than looking like an unprompted logout. */
+    fun showSessionExpiredMessage() {
+        _login.update { it.copy(infoMessage = "Your session expired. Please sign in again.") }
+    }
+
     /** Call when the Register screen is (re)entered so stale input from a previous visit doesn't linger. */
     fun resetRegisterForm() {
         _register.value = RegisterUiState()

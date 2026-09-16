@@ -11,12 +11,23 @@ import com.solgrid.mobile.core.network.ProsumerActionOutcome
 import com.solgrid.mobile.core.network.ProsumerProfileOutcome
 import com.solgrid.mobile.core.network.ProsumerRepository
 import com.solgrid.mobile.core.network.ProsumerResponseDto
-import kotlinx.coroutines.delay
+import com.solgrid.mobile.core.network.ReservationActionOutcome
+import com.solgrid.mobile.core.network.ReservationDto
+import com.solgrid.mobile.core.network.ReservationListOutcome
+import com.solgrid.mobile.core.network.ReservationOutcome
+import com.solgrid.mobile.core.network.ReservationQrOutcome
+import com.solgrid.mobile.core.network.ReservationRepository
+import com.solgrid.mobile.core.network.SessionStore
+import com.solgrid.mobile.feature.microgrid.NodeRepository
+import com.solgrid.mobile.feature.microgrid.NodeResult
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import java.time.Instant
 import java.time.LocalDateTime
+import java.time.OffsetDateTime
+import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
 private val statusByOrdinal: Map<Int, ProsumerAccountStatus> = mapOf(
@@ -35,11 +46,44 @@ private fun ProsumerResponseDto.toProfile(): ProsumerProfile = ProsumerProfile(
     status = statusByOrdinal[status] ?: ProsumerAccountStatus.PENDING,
 )
 
+private val reservationStatusByOrdinal: Map<Int, ReservationStatus> = mapOf(
+    1 to ReservationStatus.PENDING,
+    2 to ReservationStatus.APPROVED,
+    3 to ReservationStatus.REJECTED,
+    4 to ReservationStatus.CANCELLED,
+    5 to ReservationStatus.COMPLETED,
+)
+
+private val displayDateFormatter = DateTimeFormatter.ofPattern("MMM d, yyyy")
+private val displayTimeFormatter = DateTimeFormatter.ofPattern("hh:mm a")
+
+private fun ReservationDto.toEnergyReservation(nodeName: String): EnergyReservation {
+    val scheduled = OffsetDateTime.parse(scheduledAt).atZoneSameInstant(ZoneId.systemDefault())
+    val created = OffsetDateTime.parse(createdAt).atZoneSameInstant(ZoneId.systemDefault())
+    return EnergyReservation(
+        id = id,
+        prosumerNic = prosumerId,
+        nodeId = stationId,
+        nodeName = nodeName,
+        bookingSlotId = bookingSlotId,
+        date = scheduled.format(displayDateFormatter),
+        startTime = scheduled.format(displayTimeFormatter),
+        endTime = scheduled.format(displayTimeFormatter),
+        energyKwh = 0.0,
+        status = reservationStatusByOrdinal[status] ?: ReservationStatus.PENDING,
+        createdAt = created.format(displayDateFormatter),
+        rejectionReason = rejectionReason,
+        qrPayload = null,
+    )
+}
+
 data class ProsumerUiState(
     val profile: ProsumerProfile = MockData.prosumer,
-    val reservations: List<EnergyReservation> = MockData.reservations.toList(),
+    val reservations: List<EnergyReservation> = emptyList(),
     val loading: Boolean = true,
-    val profileError: String? = null
+    val profileError: String? = null,
+    val reservationsLoading: Boolean = false,
+    val reservationsError: String? = null,
 ) {
     val currentAndPending: List<EnergyReservation>
         get() = reservations.filter { it.status == ReservationStatus.PENDING || it.status == ReservationStatus.APPROVED }
@@ -61,7 +105,9 @@ class ProsumerViewModel : ViewModel() {
     val uiState: StateFlow<ProsumerUiState> = _uiState
 
     private val prosumerRepository = ProsumerRepository()
-    private var nextId = 2000
+    private val reservationRepository = ReservationRepository()
+    private val nodeRepository = NodeRepository()
+    private val stationNameCache = mutableMapOf<String, String>()
 
     /** Call after sign-in/registration navigates into the Prosumer flow — there is no session yet
      * when this ViewModel is first constructed (see AppNavGraph), so profile loading is explicit
@@ -78,6 +124,30 @@ class ProsumerViewModel : ViewModel() {
                 }
             }
         }
+        loadReservations()
+    }
+
+    fun loadReservations() {
+        viewModelScope.launch {
+            _uiState.update { it.copy(reservationsLoading = true, reservationsError = null) }
+            when (val outcome = reservationRepository.getMyReservations()) {
+                is ReservationListOutcome.Success -> {
+                    val mapped = outcome.response.items.map { dto -> dto.toEnergyReservation(nodeName(dto.stationId)) }
+                    _uiState.update { it.copy(reservations = mapped, reservationsLoading = false) }
+                }
+                is ReservationListOutcome.Failure -> {
+                    _uiState.update { it.copy(reservationsLoading = false, reservationsError = outcome.message) }
+                }
+            }
+        }
+    }
+
+    private suspend fun nodeName(stationId: String): String {
+        stationNameCache[stationId]?.let { return it }
+        return when (val result = nodeRepository.station(stationId)) {
+            is NodeResult.Success -> result.value.name.also { stationNameCache[stationId] = it }
+            is NodeResult.Failure -> stationId
+        }
     }
 
     fun reservationById(id: String): EnergyReservation? = _uiState.value.reservations.find { it.id == id }
@@ -93,80 +163,111 @@ class ProsumerViewModel : ViewModel() {
     }
 
     fun createReservation(
-        nodeId: String,
+        stationId: String,
+        bookingSlotId: String,
         nodeName: String,
-        date: String,
-        startTime: String,
-        endTime: String,
-        energyKwh: Double,
-        onResult: (EnergyReservation) -> Unit
+        scheduledAtIso: String,
+        onError: (String) -> Unit,
+        onResult: (EnergyReservation) -> Unit,
     ) {
         viewModelScope.launch {
-            delay(700)
-            val reservation = EnergyReservation(
-                id = "res-${nextId++}",
-                prosumerNic = _uiState.value.profile.nic,
-                nodeId = nodeId,
-                nodeName = nodeName,
-                date = date,
-                startTime = startTime,
-                endTime = endTime,
-                energyKwh = energyKwh,
-                status = ReservationStatus.PENDING,
-                createdAt = "Just now"
-            )
-            _uiState.update { it.copy(reservations = listOf(reservation) + it.reservations) }
-            onResult(reservation)
+            val prosumerId = SessionStore.userId
+            if (prosumerId == null) {
+                onError("Your session has expired. Please sign in again.")
+                return@launch
+            }
+            when (
+                val outcome = reservationRepository.create(
+                    prosumerId = prosumerId,
+                    stationId = stationId,
+                    bookingSlotId = bookingSlotId,
+                    scheduledAt = scheduledAtIso,
+                )
+            ) {
+                is ReservationOutcome.Success -> {
+                    val reservation = outcome.response.toEnergyReservation(nodeName)
+                    _uiState.update { it.copy(reservations = listOf(reservation) + it.reservations) }
+                    onResult(reservation)
+                }
+                is ReservationOutcome.Failure -> onError(outcome.message)
+            }
         }
     }
 
     /** Returns an error message if fewer than 12 hours remain before the booking, else null (allowed). */
     fun validateModifyWindow(reservation: EnergyReservation): String? {
-        // Mock check: PENDING bookings are treated as always modifiable; APPROVED ones simulate the
-        // 12-hour cutoff based on a fixed "now" for demo purposes.
-        return if (reservation.status == ReservationStatus.APPROVED && reservation.id == "res-1001") {
-            null // demo booking is > 12h away — allowed
-        } else if (reservation.status == ReservationStatus.PENDING) {
-            null
-        } else {
-            "This booking is less than 12 hours away and can no longer be changed."
+        if (reservation.status != ReservationStatus.PENDING && reservation.status != ReservationStatus.APPROVED) {
+            return "This booking can no longer be changed."
         }
+        // The exact 12-hour cutoff is authoritatively enforced server-side; the API returns a 409
+        // Conflict if the notice window has passed, surfaced as onError in the caller.
+        return null
     }
 
     fun updateReservation(
         reservationId: String,
-        date: String,
-        startTime: String,
-        endTime: String,
-        onResult: (EnergyReservation) -> Unit
+        stationId: String,
+        bookingSlotId: String,
+        nodeName: String,
+        scheduledAtIso: String,
+        onError: (String) -> Unit,
+        onResult: (EnergyReservation) -> Unit,
     ) {
         viewModelScope.launch {
-            delay(700)
-            var updated: EnergyReservation? = null
-            _uiState.update { state ->
-                state.copy(
-                    reservations = state.reservations.map {
-                        if (it.id == reservationId) {
-                            it.copy(date = date, startTime = startTime, endTime = endTime).also { r -> updated = r }
-                        } else it
-                    }
+            when (
+                val outcome = reservationRepository.update(
+                    id = reservationId,
+                    stationId = stationId,
+                    bookingSlotId = bookingSlotId,
+                    scheduledAt = scheduledAtIso,
                 )
+            ) {
+                is ReservationOutcome.Success -> {
+                    val updated = outcome.response.toEnergyReservation(nodeName)
+                    _uiState.update { state ->
+                        state.copy(reservations = state.reservations.map { if (it.id == reservationId) updated else it })
+                    }
+                    onResult(updated)
+                }
+                is ReservationOutcome.Failure -> onError(outcome.message)
             }
-            updated?.let(onResult)
         }
     }
 
-    fun cancelReservation(reservationId: String, onDone: () -> Unit) {
+    fun cancelReservation(reservationId: String, onError: (String) -> Unit, onDone: () -> Unit) {
         viewModelScope.launch {
-            delay(600)
-            _uiState.update { state ->
-                state.copy(
-                    reservations = state.reservations.map {
-                        if (it.id == reservationId) it.copy(status = ReservationStatus.CANCELLED) else it
+            when (val outcome = reservationRepository.cancel(reservationId)) {
+                is ReservationActionOutcome.Success -> {
+                    _uiState.update { state ->
+                        state.copy(
+                            reservations = state.reservations.map {
+                                if (it.id == reservationId) it.copy(status = ReservationStatus.CANCELLED) else it
+                            }
+                        )
                     }
-                )
+                    onDone()
+                }
+                is ReservationActionOutcome.Failure -> onError(outcome.message)
             }
-            onDone()
+        }
+    }
+
+    fun issueReservationQr(reservationId: String, onError: (String) -> Unit, onResult: (String, String) -> Unit) {
+        viewModelScope.launch {
+            when (val outcome = reservationRepository.issueQr(reservationId)) {
+                is ReservationQrOutcome.Success -> {
+                    val payload = "${outcome.response.reservationId}|${outcome.response.verificationToken}"
+                    _uiState.update { state ->
+                        state.copy(
+                            reservations = state.reservations.map {
+                                if (it.id == reservationId) it.copy(qrPayload = payload) else it
+                            }
+                        )
+                    }
+                    onResult(payload, outcome.response.expiresAt)
+                }
+                is ReservationQrOutcome.Failure -> onError(outcome.message)
+            }
         }
     }
 

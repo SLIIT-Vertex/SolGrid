@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
@@ -23,6 +24,7 @@ import com.solgrid.mobile.feature.auth.OnboardingScreen
 import com.solgrid.mobile.feature.auth.RegisterScreen
 import com.solgrid.mobile.feature.auth.SplashScreen
 import com.solgrid.mobile.core.models.AppRole
+import com.solgrid.mobile.core.network.SessionExpiryNotifier
 import com.solgrid.mobile.core.network.SessionStore
 import com.solgrid.mobile.feature.operator.OperatorHomeScreen
 import com.solgrid.mobile.feature.operator.OperatorViewModel
@@ -58,6 +60,14 @@ fun AppNavGraph(onThemeModeChange: (AppThemeMode) -> Unit) {
     val prosumerViewModel = remember { ProsumerViewModel() }
     val operatorViewModel = remember { OperatorViewModel() }
     val nodeViewModel = remember { NodeViewModel() }
+
+    LaunchedEffect(Unit) {
+        SessionExpiryNotifier.events.collect {
+            authViewModel.resetLoginForm()
+            authViewModel.showSessionExpiredMessage()
+            navController.navigate(Routes.LOGIN) { popUpTo(0) { inclusive = true } }
+        }
+    }
 
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route

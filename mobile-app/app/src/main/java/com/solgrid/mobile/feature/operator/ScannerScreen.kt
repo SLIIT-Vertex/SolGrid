@@ -35,12 +35,11 @@ import com.solgrid.mobile.core.design.AppType
 import com.solgrid.mobile.core.design.Radius
 import com.solgrid.mobile.core.design.SolGridTheme
 import com.solgrid.mobile.core.design.Spacing
-import com.solgrid.mobile.core.mock.MockData
 
 /**
- * Operator QR scanner (MOB-12). No camera/QR SDK is wired into this frontend-only build, so the
- * viewfinder is a labelled placeholder; "Simulate Scan" and the manual code field stand in for a
- * real camera capture + ZXing/ML Kit decode, which would call the same [onCodeScanned] callback.
+ * Operator QR scanner (MOB-12). No camera/QR SDK is wired into this build, so the viewfinder is a
+ * labelled placeholder; manual code entry stands in for a real camera capture + ZXing/ML Kit
+ * decode, which would call the same [onCodeScanned] callback with the scanned payload text.
  */
 @Composable
 fun ScannerScreen(onBack: () -> Unit, onCodeScanned: (String) -> Unit) {
@@ -74,20 +73,14 @@ fun ScannerScreen(onBack: () -> Unit, onCodeScanned: (String) -> Unit) {
                 }
             }
 
-            PrimaryButton(
-                text = "Simulate Scan (Approved Booking)",
-                onClick = { onCodeScanned(MockData.reservations.first { it.qrPayload != null }.qrPayload!!) },
-                modifier = Modifier.fillMaxWidth().padding(top = Spacing.xl)
-            )
-
-            Text("Or enter the code manually", style = AppType.supporting, color = colors.textTertiary, modifier = Modifier.padding(top = Spacing.xl))
+            Text("Enter the transaction code", style = AppType.supporting, color = colors.textTertiary, modifier = Modifier.padding(top = Spacing.xl))
             AppTextField(
                 value = manualCode,
                 onValueChange = { manualCode = it },
                 label = "Transaction code",
                 modifier = Modifier.padding(top = Spacing.sm)
             )
-            SecondaryButton(
+            PrimaryButton(
                 text = "Verify Code",
                 onClick = { if (manualCode.isNotBlank()) onCodeScanned(manualCode) },
                 modifier = Modifier.fillMaxWidth().padding(top = Spacing.md, bottom = Spacing.xxxl)

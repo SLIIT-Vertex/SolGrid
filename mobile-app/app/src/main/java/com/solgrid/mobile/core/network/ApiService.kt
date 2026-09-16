@@ -67,4 +67,44 @@ interface ApiService {
         @Query("pageNumber") pageNumber: Int = 1,
         @Query("pageSize") pageSize: Int = 20,
     ): Response<PagedResponseDto<ReservationDto>>
+
+    @GET("api/v1/reservations/{id}")
+    suspend fun getReservation(@Path("id") id: String): Response<ReservationDto>
+
+    @GET("api/v1/reservations/current")
+    suspend fun getCurrentReservations(
+        @Query("pageNumber") pageNumber: Int = 1,
+        @Query("pageSize") pageSize: Int = 50,
+    ): Response<PagedResponseDto<ReservationDto>>
+
+    @GET("api/v1/reservations/me")
+    suspend fun getMyReservations(
+        @Query("status") status: Int? = null,
+        @Query("pageNumber") pageNumber: Int = 1,
+        @Query("pageSize") pageSize: Int = 20,
+    ): Response<PagedResponseDto<ReservationDto>>
+
+    @POST("api/v1/reservations")
+    suspend fun createReservation(@Body request: CreateReservationRequestDto): Response<ReservationDto>
+
+    @PUT("api/v1/reservations/{id}")
+    suspend fun updateReservation(
+        @Path("id") id: String,
+        @Body request: UpdateReservationRequestDto,
+    ): Response<ReservationDto>
+
+    @PATCH("api/v1/reservations/{id}/cancel")
+    suspend fun cancelReservation(@Path("id") id: String): Response<Unit>
+
+    @POST("api/v1/reservations/{id}/qr")
+    suspend fun issueReservationQr(@Path("id") id: String): Response<ReservationQrResponseDto>
+
+    @POST("api/v1/reservations/verify-qr")
+    suspend fun verifyReservationQr(@Body request: VerifyReservationQrRequestDto): Response<VerifyReservationQrResponseDto>
+
+    @POST("api/v1/reservations/{id}/complete")
+    suspend fun completeReservation(
+        @Path("id") id: String,
+        @Body request: CompleteReservationRequestDto,
+    ): Response<ReservationDto>
 }
