@@ -19,7 +19,8 @@ object NetworkModule {
     private val json = Json { ignoreUnknownKeys = true }
 
     private val loggingInterceptor = HttpLoggingInterceptor().apply {
-        level = HttpLoggingInterceptor.Level.BODY
+        // Never log authorization headers, request bodies, or response bodies containing account data.
+        level = HttpLoggingInterceptor.Level.BASIC
     }
 
     /** Attaches the current session's bearer token, if any, to every outgoing request. */
