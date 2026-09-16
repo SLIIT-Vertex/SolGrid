@@ -14,4 +14,6 @@ namespace SolGrid.Application.Auth.Interfaces;
 public interface IAuthService
 {
     Task<LoginResponse> LoginAsync(LoginRequest request, CancellationToken cancellationToken = default);
+
+    Task<ProsumerLoginResponse> LoginProsumerAsync(LoginRequest request, CancellationToken cancellationToken = default);
 }
