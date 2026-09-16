@@ -23,6 +23,7 @@ import com.solgrid.mobile.feature.auth.OnboardingScreen
 import com.solgrid.mobile.feature.auth.RegisterScreen
 import com.solgrid.mobile.feature.auth.SplashScreen
 import com.solgrid.mobile.core.models.AppRole
+import com.solgrid.mobile.core.network.SessionStore
 import com.solgrid.mobile.feature.operator.OperatorHomeScreen
 import com.solgrid.mobile.feature.operator.OperatorViewModel
 import com.solgrid.mobile.feature.operator.ScannerScreen
@@ -82,7 +83,12 @@ fun AppNavGraph(onThemeModeChange: (AppThemeMode) -> Unit) {
             ) {
                 composable(Routes.SPLASH) {
                     SplashScreen(onFinished = {
-                        navController.navigate(Routes.ONBOARDING) { popUpTo(Routes.SPLASH) { inclusive = true } }
+                        val destination = if (SessionStore.accessToken != null && SessionStore.role == "GridOperator") {
+                            Routes.OPERATOR_HOME
+                        } else {
+                            Routes.ONBOARDING
+                        }
+                        navController.navigate(destination) { popUpTo(Routes.SPLASH) { inclusive = true } }
                     })
                 }
                 composable(Routes.ONBOARDING) {
@@ -240,7 +246,10 @@ fun AppNavGraph(onThemeModeChange: (AppThemeMode) -> Unit) {
                         viewModel = operatorViewModel,
                         onScanClick = { navController.navigate(Routes.OPERATOR_SCANNER) },
                         onBookingClick = { },
-                        onLogout = { navController.navigate(Routes.LOGIN) { popUpTo(0) { inclusive = true } } }
+                        onLogout = {
+                            SessionStore.clear()
+                            navController.navigate(Routes.LOGIN) { popUpTo(0) { inclusive = true } }
+                        }
                     )
                 }
                 composable(Routes.OPERATOR_SCANNER) {

@@ -3,6 +3,9 @@ package com.solgrid.mobile.feature.auth
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.solgrid.mobile.core.models.AppRole
+import com.solgrid.mobile.core.network.AuthRepository
+import com.solgrid.mobile.core.network.LoginOutcome
+import com.solgrid.mobile.core.network.SessionStore
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -43,6 +46,8 @@ data class RegisterUiState(
  * (operator ID + password). In the real system, `POST /api/auth/login` returns the role/context
  * used to route the user to the correct mobile home — this ViewModel simulates that call.
  */
+private const val USER_ROLE_GRID_OPERATOR = 2
+
 class AuthViewModel : ViewModel() {
 
     private val _login = MutableStateFlow(LoginUiState())
@@ -55,6 +60,8 @@ class AuthViewModel : ViewModel() {
     fun onIdentifierChange(value: String) = _login.update { it.copy(identifier = value, identifierError = null) }
     fun onPasswordChange(value: String) = _login.update { it.copy(password = value, passwordError = null) }
 
+    private val authRepository = AuthRepository()
+
     fun submitLogin(onSuccess: (AppRole) -> Unit) {
         val state = _login.value
         var identifierError: String? = null
@@ -64,13 +71,50 @@ class AuthViewModel : ViewModel() {
                 identifierError = "Enter a valid 12-digit NIC number"
             }
         } else {
-            if (state.identifier.isBlank()) identifierError = "Enter your Operator ID"
+            if (!state.identifier.contains("@")) identifierError = "Enter your account email"
         }
         if (state.password.isBlank()) passwordError = "Password is required"
         if (identifierError != null || passwordError != null) {
             _login.update { it.copy(identifierError = identifierError, passwordError = passwordError) }
             return
         }
+
+        if (state.role == AppRole.GRID_OPERATOR) {
+            submitGridOperatorLogin(state, onSuccess)
+        } else {
+            submitMockProsumerLogin(state, onSuccess)
+        }
+    }
+
+    private fun submitGridOperatorLogin(state: LoginUiState, onSuccess: (AppRole) -> Unit) {
+        viewModelScope.launch {
+            _login.update { it.copy(requestState = AuthRequestState.Loading) }
+            when (val outcome = authRepository.login(state.identifier, state.password)) {
+                is LoginOutcome.Success -> {
+                    // SolGrid.Domain.Enums.UserRole: Backoffice = 1, GridOperator = 2.
+                    if (outcome.response.user.role != USER_ROLE_GRID_OPERATOR) {
+                        _login.update {
+                            it.copy(requestState = AuthRequestState.Error("This account is not a Grid Operator."))
+                        }
+                        return@launch
+                    }
+                    SessionStore.save(
+                        accessToken = outcome.response.accessToken,
+                        userId = outcome.response.user.id,
+                        displayName = "${outcome.response.user.firstName} ${outcome.response.user.lastName}",
+                        role = "GridOperator",
+                    )
+                    _login.update { it.copy(requestState = AuthRequestState.Success) }
+                    onSuccess(state.role)
+                }
+                is LoginOutcome.Failure -> {
+                    _login.update { it.copy(requestState = AuthRequestState.Error(outcome.message)) }
+                }
+            }
+        }
+    }
+
+    private fun submitMockProsumerLogin(state: LoginUiState, onSuccess: (AppRole) -> Unit) {
         viewModelScope.launch {
             _login.update { it.copy(requestState = AuthRequestState.Loading) }
             delay(1000)

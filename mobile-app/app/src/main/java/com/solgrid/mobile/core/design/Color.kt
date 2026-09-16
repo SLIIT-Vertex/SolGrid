@@ -11,8 +11,8 @@ import androidx.compose.ui.graphics.Color
 // Brand
 val Navy = Color(0xFF181511) // near-black ink used for primary text + the bottom nav bar
 val NavyLight = Color(0xFF2A251E) // lifted ink for elevated dark surfaces
-val Copper = Color(0xFF74C476) // brand green accent
-val CopperLight = Color(0xFF74C476) // same green used consistently on dark backgrounds too
+val Copper = Color(0xFF139A68) // brand green accent, matches the web app's brand-600
+val CopperLight = Color(0xFF139A68) // same green used consistently on dark backgrounds too
 
 // Light theme — soft cream background matching the reference UI set
 val LightBackground = Color(0xFFFBF8F2)
