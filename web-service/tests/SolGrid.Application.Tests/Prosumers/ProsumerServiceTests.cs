@@ -253,10 +253,10 @@ public sealed class ProsumerServiceTests
         var activeRepository = repository ?? new InMemoryProsumerRepository();
         if (currentUserContext is null)
         {
-            return new ProsumerService(activeRepository, new FakePasswordHasher(), new FixedTimeProvider(CurrentTime));
+            return new ProsumerService(activeRepository, new EmptyUserRepository(), new FakePasswordHasher(), new FixedTimeProvider(CurrentTime));
         }
 
-        return new ProsumerService(activeRepository, new FakePasswordHasher(), currentUserContext, new FixedTimeProvider(CurrentTime));
+        return new ProsumerService(activeRepository, new EmptyUserRepository(), new FakePasswordHasher(), currentUserContext, new FixedTimeProvider(CurrentTime));
     }
 
     private static RegisterProsumerRequest CreateRequest(

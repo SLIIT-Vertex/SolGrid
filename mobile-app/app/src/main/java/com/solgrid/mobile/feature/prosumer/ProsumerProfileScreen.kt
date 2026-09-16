@@ -12,7 +12,6 @@ import androidx.compose.material.icons.automirrored.outlined.Logout
 import androidx.compose.material.icons.outlined.Badge
 import androidx.compose.material.icons.outlined.Email
 import androidx.compose.material.icons.automirrored.outlined.HelpOutline
-import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.PersonOff
 import androidx.compose.material.icons.outlined.Phone
 import androidx.compose.material.icons.outlined.Settings
@@ -63,11 +62,13 @@ fun ProsumerProfileScreen(
                 text = when (state.profile.status) {
                     ProsumerAccountStatus.ACTIVE -> "Active"
                     ProsumerAccountStatus.PENDING -> "Pending Activation"
+                    ProsumerAccountStatus.DEACTIVATION_REQUESTED -> "Deactivation Requested"
                     ProsumerAccountStatus.DEACTIVATED -> "Deactivated"
                 },
                 tone = when (state.profile.status) {
                     ProsumerAccountStatus.ACTIVE -> BadgeTone.SUCCESS
                     ProsumerAccountStatus.PENDING -> BadgeTone.WARNING
+                    ProsumerAccountStatus.DEACTIVATION_REQUESTED -> BadgeTone.WARNING
                     ProsumerAccountStatus.DEACTIVATED -> BadgeTone.ERROR
                 },
                 modifier = Modifier.padding(top = Spacing.sm)
@@ -80,22 +81,22 @@ fun ProsumerProfileScreen(
         AppDivider()
         ListRow(title = "Phone", subtitle = state.profile.phone, icon = Icons.Outlined.Phone)
         AppDivider()
-        ListRow(title = "Address", subtitle = state.profile.address, icon = Icons.Outlined.Home)
-        AppDivider()
         ListRow(title = "NIC", subtitle = state.profile.nic, icon = Icons.Outlined.Badge)
 
         SectionHeader(title = "Account", modifier = Modifier.padding(top = Spacing.xl))
         ListRow(title = "Settings", icon = Icons.Outlined.Settings, showChevron = true, onClick = onSettings)
         AppDivider()
         ListRow(title = "Help & Support", icon = Icons.AutoMirrored.Outlined.HelpOutline, showChevron = true, onClick = onHelp)
-        AppDivider()
-        ListRow(
-            title = "Request Account Deactivation",
-            icon = Icons.Outlined.PersonOff,
-            iconTint = colors.warning,
-            showChevron = true,
-            onClick = onDeactivationRequest
-        )
+        if (state.profile.status == ProsumerAccountStatus.ACTIVE) {
+            AppDivider()
+            ListRow(
+                title = "Request Account Deactivation",
+                icon = Icons.Outlined.PersonOff,
+                iconTint = colors.warning,
+                showChevron = true,
+                onClick = onDeactivationRequest
+            )
+        }
 
         ListRow(
             title = "Log Out",

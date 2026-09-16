@@ -83,10 +83,14 @@ fun AppNavGraph(onThemeModeChange: (AppThemeMode) -> Unit) {
             ) {
                 composable(Routes.SPLASH) {
                     SplashScreen(onFinished = {
-                        val destination = if (SessionStore.accessToken != null && SessionStore.role == "GridOperator") {
-                            Routes.OPERATOR_HOME
-                        } else {
-                            Routes.ONBOARDING
+                        val destination = when {
+                            SessionStore.accessToken == null -> Routes.ONBOARDING
+                            SessionStore.role == "GridOperator" -> Routes.OPERATOR_HOME
+                            SessionStore.role == "Prosumer" -> {
+                                prosumerViewModel.loadProfile()
+                                Routes.PROSUMER_DASHBOARD
+                            }
+                            else -> Routes.ONBOARDING
                         }
                         navController.navigate(destination) { popUpTo(Routes.SPLASH) { inclusive = true } }
                     })
@@ -100,7 +104,12 @@ fun AppNavGraph(onThemeModeChange: (AppThemeMode) -> Unit) {
                     LoginScreen(
                         viewModel = authViewModel,
                         onLoginSuccess = { role ->
-                            val destination = if (role == AppRole.PROSUMER) Routes.PROSUMER_DASHBOARD else Routes.OPERATOR_HOME
+                            val destination = if (role == AppRole.PROSUMER) {
+                                prosumerViewModel.loadProfile()
+                                Routes.PROSUMER_DASHBOARD
+                            } else {
+                                Routes.OPERATOR_HOME
+                            }
                             navController.navigate(destination) { popUpTo(0) { inclusive = true } }
                         },
                         onNavigateToRegister = { navController.navigate(Routes.REGISTER) }
@@ -110,7 +119,9 @@ fun AppNavGraph(onThemeModeChange: (AppThemeMode) -> Unit) {
                     RegisterScreen(
                         viewModel = authViewModel,
                         onRegisterSuccess = {
-                            navController.navigate(Routes.PROSUMER_DASHBOARD) { popUpTo(0) { inclusive = true } }
+                            // New accounts start Pending until Backoffice activates them, so
+                            // route back to Login rather than straight into the dashboard.
+                            navController.navigate(Routes.LOGIN) { popUpTo(Routes.LOGIN) { inclusive = true } }
                         },
                         onNavigateToLogin = { navController.popBackStack() }
                     )
@@ -226,7 +237,11 @@ fun AppNavGraph(onThemeModeChange: (AppThemeMode) -> Unit) {
                         onDeactivationRequest = { navController.navigate(Routes.DEACTIVATION_REQUEST) },
                         onSettings = { navController.navigate(Routes.SETTINGS) },
                         onHelp = { navController.navigate(Routes.HELP) },
-                        onLogout = { navController.navigate(Routes.LOGIN) { popUpTo(0) { inclusive = true } } }
+                        onLogout = {
+                            SessionStore.clear()
+                            authViewModel.resetLoginForm()
+                            navController.navigate(Routes.LOGIN) { popUpTo(0) { inclusive = true } }
+                        }
                     )
                 }
                 composable(Routes.EDIT_PROSUMER_PROFILE) {
@@ -248,6 +263,7 @@ fun AppNavGraph(onThemeModeChange: (AppThemeMode) -> Unit) {
                         onBookingClick = { },
                         onLogout = {
                             SessionStore.clear()
+                            authViewModel.resetLoginForm()
                             navController.navigate(Routes.LOGIN) { popUpTo(0) { inclusive = true } }
                         }
                     )

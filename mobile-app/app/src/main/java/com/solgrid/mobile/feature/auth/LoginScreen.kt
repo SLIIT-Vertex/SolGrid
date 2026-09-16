@@ -28,7 +28,6 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.solgrid.mobile.R
 import com.solgrid.mobile.core.components.AppTextField
-import com.solgrid.mobile.core.components.FilterChip
 import com.solgrid.mobile.core.components.PasswordField
 import com.solgrid.mobile.core.components.PrimaryButton
 import com.solgrid.mobile.core.components.clickableNoRipple
@@ -69,24 +68,6 @@ fun LoginScreen(
             modifier = Modifier.padding(top = Spacing.xs)
         )
 
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(top = Spacing.xl),
-            horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
-        ) {
-            FilterChip(
-                label = "Solar Prosumer",
-                selected = state.role == AppRole.PROSUMER,
-                onClick = { viewModel.onRoleSelect(AppRole.PROSUMER) },
-                modifier = Modifier.weight(1f)
-            )
-            FilterChip(
-                label = "Grid Operator",
-                selected = state.role == AppRole.GRID_OPERATOR,
-                onClick = { viewModel.onRoleSelect(AppRole.GRID_OPERATOR) },
-                modifier = Modifier.weight(1f)
-            )
-        }
-
         if (state.requestState is AuthRequestState.Error) {
             Row(
                 modifier = Modifier
@@ -105,15 +86,29 @@ fun LoginScreen(
                     color = colors.error
                 )
             }
+        } else {
+            state.infoMessage?.let { infoMessage ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = Spacing.lg)
+                        .clip(RoundedCornerShape(Radius.md))
+                        .background(colors.accentSurface)
+                        .padding(Spacing.md),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(infoMessage, style = AppType.supporting, color = colors.accent)
+                }
+            }
         }
 
         AppTextField(
             value = state.identifier,
             onValueChange = viewModel::onIdentifierChange,
-            label = if (state.role == AppRole.PROSUMER) "NIC number" else "Email",
-            placeholder = if (state.role == AppRole.PROSUMER) "e.g. 200114701234" else "you@solgrid.com",
+            label = "Email",
+            placeholder = "you@solgrid.com",
             errorText = state.identifierError,
-            keyboardType = if (state.role == AppRole.PROSUMER) KeyboardType.Number else KeyboardType.Email,
+            keyboardType = KeyboardType.Email,
             modifier = Modifier.padding(top = Spacing.xl)
         )
         PasswordField(
@@ -131,26 +126,24 @@ fun LoginScreen(
             modifier = Modifier.fillMaxWidth().padding(top = Spacing.xxl)
         )
 
-        if (state.role == AppRole.PROSUMER) {
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(vertical = Spacing.xxxl),
-                horizontalArrangement = Arrangement.Center
-            ) {
-                Text("Don't have an account? ", style = AppType.body, color = colors.textSecondary)
-                Text(
-                    "Register as Prosumer",
-                    style = AppType.bodyStrong,
-                    color = colors.accent,
-                    modifier = Modifier.clickableNoRipple(onNavigateToRegister)
-                )
-            }
-        } else {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(top = Spacing.xxxl),
+            horizontalArrangement = Arrangement.Center
+        ) {
+            Text("New Solar Prosumer? ", style = AppType.body, color = colors.textSecondary)
             Text(
-                "Grid Operator accounts are created by Backoffice. Contact your administrator if you need access.",
-                style = AppType.caption,
-                color = colors.textTertiary,
-                modifier = Modifier.padding(top = Spacing.xxxl, bottom = Spacing.xxxl)
+                "Register",
+                style = AppType.bodyStrong,
+                color = colors.accent,
+                modifier = Modifier.clickableNoRipple(onNavigateToRegister)
             )
         }
+        Text(
+            "Grid Operator accounts are created by Backoffice. Contact your administrator if you need access.",
+            style = AppType.caption,
+            color = colors.textTertiary,
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+            modifier = Modifier.fillMaxWidth().padding(top = Spacing.md, bottom = Spacing.xxxl)
+        )
     }
 }

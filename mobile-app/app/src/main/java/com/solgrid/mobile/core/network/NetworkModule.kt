@@ -22,7 +22,19 @@ object NetworkModule {
         level = HttpLoggingInterceptor.Level.BODY
     }
 
+    /** Attaches the current session's bearer token, if any, to every outgoing request. */
+    private val authInterceptor = okhttp3.Interceptor { chain ->
+        val token = SessionStore.accessToken
+        val request = if (token != null) {
+            chain.request().newBuilder().addHeader("Authorization", "Bearer $token").build()
+        } else {
+            chain.request()
+        }
+        chain.proceed(request)
+    }
+
     private val okHttpClient = OkHttpClient.Builder()
+        .addInterceptor(authInterceptor)
         .addInterceptor(loggingInterceptor)
         .connectTimeout(15, TimeUnit.SECONDS)
         .readTimeout(15, TimeUnit.SECONDS)

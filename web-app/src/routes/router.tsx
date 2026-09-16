@@ -8,6 +8,7 @@ import { CreateMicrogridNodePage } from '@/features/microgrid/pages/CreateMicrog
 import { EditMicrogridNodePage } from '@/features/microgrid/pages/EditMicrogridNodePage'
 import { MicrogridListPage } from '@/features/microgrid/pages/MicrogridListPage'
 import { MicrogridNodeDetailsPage } from '@/features/microgrid/pages/MicrogridNodeDetailsPage'
+import { ProsumersListPage } from '@/features/prosumers/pages/ProsumersListPage'
 import { UserEditPage } from '@/features/users/pages/UserEditPage'
 import { UsersListPage } from '@/features/users/pages/UsersListPage'
 
@@ -40,6 +41,7 @@ export const router = createBrowserRouter([
             children: [
               { path: '/users', element: <UsersListPage /> },
               { path: '/users/:id/edit', element: <UserEditPage /> },
+              { path: '/prosumers', element: <ProsumersListPage /> },
             ],
           },
         ],

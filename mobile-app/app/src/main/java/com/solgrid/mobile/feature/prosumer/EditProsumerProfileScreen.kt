@@ -35,8 +35,9 @@ fun EditProsumerProfileScreen(viewModel: ProsumerViewModel, onBack: () -> Unit) 
     var fullName by remember { mutableStateOf(state.profile.fullName) }
     var email by remember { mutableStateOf(state.profile.email) }
     var phone by remember { mutableStateOf(state.profile.phone) }
-    var address by remember { mutableStateOf(state.profile.address) }
     var nameError by remember { mutableStateOf<String?>(null) }
+    var submitError by remember { mutableStateOf<String?>(null) }
+    var submitting by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
 
@@ -59,25 +60,44 @@ fun EditProsumerProfileScreen(viewModel: ProsumerViewModel, onBack: () -> Unit) 
                     modifier = Modifier.padding(top = Spacing.md)
                 )
                 AppTextField(value = email, onValueChange = { email = it }, label = "Email", keyboardType = KeyboardType.Email, modifier = Modifier.padding(top = Spacing.md))
-                AppTextField(value = phone, onValueChange = { phone = it }, label = "Phone", keyboardType = KeyboardType.Phone, modifier = Modifier.padding(top = Spacing.md))
                 AppTextField(
-                    value = address,
-                    onValueChange = { address = it },
-                    label = "Address",
-                    singleLine = false,
-                    minLines = 2,
+                    value = phone,
+                    onValueChange = { phone = it },
+                    label = "Phone",
+                    keyboardType = KeyboardType.Phone,
                     modifier = Modifier.padding(top = Spacing.md, bottom = Spacing.huge)
                 )
+                submitError?.let {
+                    androidx.compose.material3.Text(it, color = colors.error, modifier = Modifier.padding(bottom = Spacing.md))
+                }
 
                 PrimaryButton(
                     text = "Save Changes",
+                    loading = submitting,
                     onClick = {
                         if (fullName.isBlank()) {
                             nameError = "Full name is required"
                             return@PrimaryButton
                         }
-                        viewModel.updateProfile(fullName, email, phone, address)
-                        scope.launch { snackbarHostState.showSnackbar("Profile updated successfully") }
+                        submitError = null
+                        submitting = true
+                        val spaceIndex = fullName.trim().indexOf(' ')
+                        val firstName = if (spaceIndex == -1) fullName.trim() else fullName.trim().substring(0, spaceIndex)
+                        val lastName = if (spaceIndex == -1) fullName.trim() else fullName.trim().substring(spaceIndex + 1).trim()
+                        viewModel.updateProfile(
+                            firstName = firstName,
+                            lastName = lastName,
+                            email = email,
+                            phone = phone,
+                            onError = {
+                                submitting = false
+                                submitError = it
+                            },
+                            onDone = {
+                                submitting = false
+                                scope.launch { snackbarHostState.showSnackbar("Profile updated successfully") }
+                            },
+                        )
                     },
                     modifier = Modifier.fillMaxWidth().padding(bottom = Spacing.xxl)
                 )
