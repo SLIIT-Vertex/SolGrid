@@ -16,7 +16,9 @@ using SolGrid.Api.Security;
 using SolGrid.Application.Auth.Interfaces;
 using SolGrid.Application.Auth.Services;
 using SolGrid.Application.Common.Models;
+using SolGrid.Application.Prosumers.Interfaces;
 using SolGrid.Application.Reservations.Interfaces;
+using SolGrid.Application.SolarStations.Interfaces;
 using SolGrid.Application.Users.Interfaces;
 using SolGrid.Application.Users.Services;
 using SolGrid.Domain.Entities;
@@ -169,6 +171,20 @@ public sealed class AuthApiAuthorizationTests
         var response = await client.GetAsync("/api/v1/reservations/dashboard/summary");
 
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task ApiComposition_ResolvesCrossComponentServiceGraph()
+    {
+        // Verify the API host can construct User, Prosumer, station, slot, and reservation services together.
+        await using var factory = CreateFactory();
+        using var scope = factory.Services.CreateScope();
+
+        Assert.NotNull(scope.ServiceProvider.GetRequiredService<IUserService>());
+        Assert.NotNull(scope.ServiceProvider.GetRequiredService<IProsumerService>());
+        Assert.NotNull(scope.ServiceProvider.GetRequiredService<ISolarStationService>());
+        Assert.NotNull(scope.ServiceProvider.GetRequiredService<IBookingSlotService>());
+        Assert.NotNull(scope.ServiceProvider.GetRequiredService<IReservationService>());
     }
 
     [Fact]

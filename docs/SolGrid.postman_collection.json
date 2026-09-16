@@ -1,0 +1,161 @@
+{
+  "info": {
+    "_postman_id": "d65c16b3-1976-4b63-bdfb-solgrid-api",
+    "name": "SolGrid Backend API",
+    "description": "Import this collection into Postman. Set backofficeEmail, backofficePassword, gridOperatorEmail, gridOperatorPassword, and prosumerPassword before running the workflow. Login, station, slot, reservation, and QR values are captured automatically.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:5080" },
+    { "key": "backofficeEmail", "value": "" },
+    { "key": "backofficePassword", "value": "" },
+    { "key": "gridOperatorEmail", "value": "" },
+    { "key": "gridOperatorPassword", "value": "" },
+    { "key": "prosumerPassword", "value": "ProsumerPass123" },
+    { "key": "backofficeToken", "value": "" },
+    { "key": "gridOperatorToken", "value": "" },
+    { "key": "prosumerToken", "value": "" },
+    { "key": "prosumerNic", "value": "" },
+    { "key": "prosumerEmail", "value": "" },
+    { "key": "stationId", "value": "" },
+    { "key": "bookingSlotId", "value": "" },
+    { "key": "reservationId", "value": "" },
+    { "key": "qrToken", "value": "" },
+    { "key": "slotStart", "value": "" },
+    { "key": "slotEnd", "value": "" },
+    { "key": "slotWeekday", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "00 - Health and OpenAPI",
+      "item": [
+        {
+          "name": "Health",
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('API is healthy', () => pm.response.to.have.status(200));"] } }],
+          "request": { "method": "GET", "url": "{{baseUrl}}/health" }
+        },
+        {
+          "name": "OpenAPI document",
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('OpenAPI is returned', () => pm.response.to.have.status(200));", "pm.expect(pm.response.json().paths).to.be.an('object');"] } }],
+          "request": { "method": "GET", "url": "{{baseUrl}}/openapi/v1.json" }
+        }
+      ]
+    },
+    {
+      "name": "01 - Web User Authentication",
+      "item": [
+        {
+          "name": "Login Backoffice and save token",
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('Backoffice login succeeds', () => pm.response.to.have.status(200));", "const body = pm.response.json();", "pm.collectionVariables.set('backofficeToken', body.accessToken);", "pm.test('Backoffice token was captured', () => pm.expect(body.accessToken).to.be.a('string').and.not.empty);"] } }],
+          "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"email\": \"{{backofficeEmail}}\",\n  \"password\": \"{{backofficePassword}}\"\n}" }, "url": "{{baseUrl}}/api/v1/auth/login" }
+        },
+        {
+          "name": "Current Backoffice identity",
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('Current identity is returned', () => pm.response.to.have.status(200));"] } }],
+          "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{backofficeToken}}" }], "url": "{{baseUrl}}/api/v1/auth/me" }
+        },
+        {
+          "name": "Login GridOperator and save token",
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('GridOperator login succeeds', () => pm.response.to.have.status(200));", "pm.collectionVariables.set('gridOperatorToken', pm.response.json().accessToken);"] } }],
+          "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"email\": \"{{gridOperatorEmail}}\",\n  \"password\": \"{{gridOperatorPassword}}\"\n}" }, "url": "{{baseUrl}}/api/v1/auth/login" }
+        }
+      ]
+    },
+    {
+      "name": "02 - User Management",
+      "item": [
+        {
+          "name": "List web users",
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('Backoffice can list users', () => pm.response.to.have.status(200));"] } }],
+          "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{backofficeToken}}" }], "url": "{{baseUrl}}/api/v1/users?pageNumber=1&pageSize=20" }
+        },
+        {
+          "name": "Create GridOperator user",
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('Web user is created', () => pm.response.to.have.status(201));", "pm.collectionVariables.set('webUserId', pm.response.json().id);"] } }],
+          "request": { "method": "POST", "header": [{ "key": "Authorization", "value": "Bearer {{backofficeToken}}" }, { "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"firstName\": \"Test\",\n  \"lastName\": \"Operator\",\n  \"email\": \"operator.{{$timestamp}}@example.test\",\n  \"password\": \"ChangeThis123\",\n  \"role\": 2\n}" }, "url": "{{baseUrl}}/api/v1/users" }
+        }
+      ]
+    },
+    {
+      "name": "03 - Prosumer Lifecycle",
+      "item": [
+        {
+          "name": "Register Prosumer and save NIC",
+          "event": [
+            { "listen": "prerequest", "script": { "exec": ["pm.collectionVariables.set('prosumerNic', String(Date.now()).slice(-12));", "pm.collectionVariables.set('prosumerEmail', `prosumer.${Date.now()}@example.test`);"] } },
+            { "listen": "test", "script": { "exec": ["pm.test('Prosumer registration succeeds', () => pm.response.to.have.status(201));", "const body = pm.response.json();", "pm.collectionVariables.set('prosumerNic', body.nic);", "pm.test('Pending prosumer is returned', () => pm.expect(body.status).to.eql(1));"] } }
+          ],
+          "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"nic\": \"{{prosumerNic}}\",\n  \"firstName\": \"Nimal\",\n  \"lastName\": \"Perera\",\n  \"email\": \"{{prosumerEmail}}\",\n  \"phoneNumber\": \"+94771234567\",\n  \"password\": \"{{prosumerPassword}}\"\n}" }, "url": "{{baseUrl}}/api/v1/prosumers/register" }
+        },
+        {
+          "name": "Activate Prosumer",
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('Prosumer is activated', () => pm.response.to.have.status(204));"] } }],
+          "request": { "method": "PATCH", "header": [{ "key": "Authorization", "value": "Bearer {{backofficeToken}}" }], "url": "{{baseUrl}}/api/v1/prosumers/{{prosumerNic}}/activate" }
+        },
+        {
+          "name": "Login Prosumer and save token",
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('Prosumer login succeeds', () => pm.response.to.have.status(200));", "pm.collectionVariables.set('prosumerToken', pm.response.json().accessToken);"] } }],
+          "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"email\": \"{{prosumerEmail}}\",\n  \"password\": \"{{prosumerPassword}}\"\n}" }, "url": "{{baseUrl}}/api/v1/prosumers/login" }
+        },
+        {
+          "name": "Get own Prosumer profile",
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('Own active profile is returned', () => pm.response.to.have.status(200));"] } }],
+          "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{prosumerToken}}" }], "url": "{{baseUrl}}/api/v1/prosumers/me" }
+        }
+      ]
+    },
+    {
+      "name": "04 - Microgrid Node and Slot",
+      "item": [
+        {
+          "name": "Create station with an available slot",
+          "event": [
+            { "listen": "prerequest", "script": { "exec": ["const start = new Date(Date.now() + 48 * 60 * 60 * 1000);", "start.setUTCMinutes(0, 0, 0);", "start.setUTCHours(10);", "const end = new Date(start.getTime() + 60 * 60 * 1000);", "pm.collectionVariables.set('slotStart', start.toISOString());", "pm.collectionVariables.set('slotEnd', end.toISOString());", "pm.collectionVariables.set('slotWeekday', String(start.getUTCDay()));"] } },
+            { "listen": "test", "script": { "exec": ["pm.test('Station is created', () => pm.response.to.have.status(201));", "const body = pm.response.json();", "pm.collectionVariables.set('stationId', body.id);", "pm.collectionVariables.set('bookingSlotId', body.slots[0].id);", "pm.test('Station and slot IDs were captured', () => pm.expect(body.slots).to.have.length.above(0));"] } }
+          ],
+          "request": { "method": "POST", "header": [{ "key": "Authorization", "value": "Bearer {{backofficeToken}}" }, { "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"code\": \"ST-{{$timestamp}}\",\n  \"name\": \"Postman Test Station\",\n  \"addressLine\": \"Colombo\",\n  \"location\": { \"latitude\": 6.9271, \"longitude\": 79.8612 },\n  \"capacityKw\": 50,\n  \"slots\": [{ \"slotNumber\": 1, \"batteryCapacityKwh\": 12.5, \"startTime\": \"{{slotStart}}\", \"endTime\": \"{{slotEnd}}\" }],\n  \"schedule\": [{ \"day\": {{slotWeekday}}, \"opensAt\": \"08:00:00\", \"closesAt\": \"18:00:00\" }]\n}" }, "url": "{{baseUrl}}/api/v1/stations" }
+        },
+        {
+          "name": "Get station slots",
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('Station slots are returned', () => pm.response.to.have.status(200));"] } }],
+          "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{prosumerToken}}" }], "url": "{{baseUrl}}/api/v1/stations/{{stationId}}/slots?pageNumber=1&pageSize=20" }
+        }
+      ]
+    },
+    {
+      "name": "05 - Reservation and QR Workflow",
+      "item": [
+        {
+          "name": "Create reservation as Prosumer",
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('Reservation is created', () => pm.response.to.have.status(201));", "pm.collectionVariables.set('reservationId', pm.response.json().id);"] } }],
+          "request": { "method": "POST", "header": [{ "key": "Authorization", "value": "Bearer {{prosumerToken}}" }, { "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"stationId\": \"{{stationId}}\",\n  \"bookingSlotId\": \"{{bookingSlotId}}\",\n  \"scheduledAt\": \"{{slotStart}}\"\n}" }, "url": "{{baseUrl}}/api/v1/reservations" }
+        },
+        {
+          "name": "Approve reservation as Backoffice",
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('Reservation is approved', () => pm.response.to.have.status(200));"] } }],
+          "request": { "method": "PATCH", "header": [{ "key": "Authorization", "value": "Bearer {{backofficeToken}}" }, { "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{}" }, "url": "{{baseUrl}}/api/v1/reservations/{{reservationId}}/approve" }
+        },
+        {
+          "name": "Issue QR as Prosumer and save token",
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('QR payload is issued', () => pm.response.to.have.status(200));", "pm.collectionVariables.set('qrToken', pm.response.json().verificationToken);"] } }],
+          "request": { "method": "POST", "header": [{ "key": "Authorization", "value": "Bearer {{prosumerToken}}" }], "url": "{{baseUrl}}/api/v1/reservations/{{reservationId}}/qr" }
+        },
+        {
+          "name": "Verify QR as GridOperator",
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('QR is valid', () => pm.response.to.have.status(200));", "pm.expect(pm.response.json().isValid).to.eql(true);"] } }],
+          "request": { "method": "POST", "header": [{ "key": "Authorization", "value": "Bearer {{gridOperatorToken}}" }, { "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"reservationId\": \"{{reservationId}}\",\n  \"verificationToken\": \"{{qrToken}}\"\n}" }, "url": "{{baseUrl}}/api/v1/reservations/verify-qr" }
+        },
+        {
+          "name": "Complete reservation as GridOperator",
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('Reservation is completed', () => pm.response.to.have.status(200));"] } }],
+          "request": { "method": "POST", "header": [{ "key": "Authorization", "value": "Bearer {{gridOperatorToken}}" }, { "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"verificationToken\": \"{{qrToken}}\"\n}" }, "url": "{{baseUrl}}/api/v1/reservations/{{reservationId}}/complete" }
+        },
+        {
+          "name": "Reservation dashboard summary",
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('Dashboard summary is returned', () => pm.response.to.have.status(200));"] } }],
+          "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{backofficeToken}}" }], "url": "{{baseUrl}}/api/v1/reservations/dashboard/summary" }
+        }
+      ]
+    }
+  ]
+}
