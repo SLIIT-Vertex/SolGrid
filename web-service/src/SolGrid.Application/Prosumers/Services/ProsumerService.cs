@@ -24,27 +24,31 @@ namespace SolGrid.Application.Prosumers.Services;
 public sealed class ProsumerService : IProsumerService
 {
     private readonly IProsumerRepository prosumerRepository;
+    private readonly IUserRepository userRepository;
     private readonly IPasswordHasher passwordHasher;
     private readonly TimeProvider timeProvider;
     private readonly ICurrentUserContext? currentUserContext;
 
     public ProsumerService(
         IProsumerRepository prosumerRepository,
+        IUserRepository userRepository,
         IPasswordHasher passwordHasher,
         TimeProvider timeProvider)
     {
         // Capture registration dependencies without coupling to infrastructure implementations.
         this.prosumerRepository = prosumerRepository;
+        this.userRepository = userRepository;
         this.passwordHasher = passwordHasher;
         this.timeProvider = timeProvider;
     }
 
     public ProsumerService(
         IProsumerRepository prosumerRepository,
+        IUserRepository userRepository,
         IPasswordHasher passwordHasher,
         ICurrentUserContext currentUserContext,
         TimeProvider timeProvider)
-        : this(prosumerRepository, passwordHasher, timeProvider)
+        : this(prosumerRepository, userRepository, passwordHasher, timeProvider)
     {
         // Capture trusted current-user identity for profile ownership and Backoffice checks.
         this.currentUserContext = currentUserContext;
@@ -68,6 +72,11 @@ public sealed class ProsumerService : IProsumerService
         if (await prosumerRepository.ExistsByEmailAsync(email, cancellationToken: cancellationToken).ConfigureAwait(false))
         {
             throw new ConflictException("Email is already registered to another prosumer.");
+        }
+
+        if (await userRepository.ExistsByEmailAsync(email, cancellationToken: cancellationToken).ConfigureAwait(false))
+        {
+            throw new ConflictException("Email is already registered to another account.");
         }
 
         var createdAt = timeProvider.GetUtcNow();
@@ -100,10 +109,17 @@ public sealed class ProsumerService : IProsumerService
         EnsureSelfServiceEligible(prosumer);
         var email = NormalizeEmail(request.Email);
 
-        if (!string.Equals(prosumer.Email, email, StringComparison.OrdinalIgnoreCase)
-            && await prosumerRepository.ExistsByEmailAsync(email, prosumer.Nic, cancellationToken).ConfigureAwait(false))
+        if (!string.Equals(prosumer.Email, email, StringComparison.OrdinalIgnoreCase))
         {
-            throw new ConflictException("Email is already registered to another prosumer.");
+            if (await prosumerRepository.ExistsByEmailAsync(email, prosumer.Nic, cancellationToken).ConfigureAwait(false))
+            {
+                throw new ConflictException("Email is already registered to another prosumer.");
+            }
+
+            if (await userRepository.ExistsByEmailAsync(email, cancellationToken: cancellationToken).ConfigureAwait(false))
+            {
+                throw new ConflictException("Email is already registered to another account.");
+            }
         }
 
         prosumer.UpdateProfile(request.FirstName, request.LastName, email, request.PhoneNumber, timeProvider.GetUtcNow());

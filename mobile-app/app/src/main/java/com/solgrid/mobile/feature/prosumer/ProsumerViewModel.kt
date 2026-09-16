@@ -7,6 +7,10 @@ import com.solgrid.mobile.core.models.EnergyReservation
 import com.solgrid.mobile.core.models.ProsumerAccountStatus
 import com.solgrid.mobile.core.models.ProsumerProfile
 import com.solgrid.mobile.core.models.ReservationStatus
+import com.solgrid.mobile.core.network.ProsumerActionOutcome
+import com.solgrid.mobile.core.network.ProsumerProfileOutcome
+import com.solgrid.mobile.core.network.ProsumerRepository
+import com.solgrid.mobile.core.network.ProsumerResponseDto
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -15,10 +19,27 @@ import kotlinx.coroutines.launch
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 
+private val statusByOrdinal: Map<Int, ProsumerAccountStatus> = mapOf(
+    1 to ProsumerAccountStatus.PENDING,
+    2 to ProsumerAccountStatus.ACTIVE,
+    3 to ProsumerAccountStatus.DEACTIVATION_REQUESTED,
+    4 to ProsumerAccountStatus.DEACTIVATED,
+)
+
+private fun ProsumerResponseDto.toProfile(): ProsumerProfile = ProsumerProfile(
+    nic = nic,
+    firstName = firstName,
+    lastName = lastName,
+    email = email,
+    phone = phoneNumber.orEmpty(),
+    status = statusByOrdinal[status] ?: ProsumerAccountStatus.PENDING,
+)
+
 data class ProsumerUiState(
     val profile: ProsumerProfile = MockData.prosumer,
     val reservations: List<EnergyReservation> = MockData.reservations.toList(),
-    val loading: Boolean = true
+    val loading: Boolean = true,
+    val profileError: String? = null
 ) {
     val currentAndPending: List<EnergyReservation>
         get() = reservations.filter { it.status == ReservationStatus.PENDING || it.status == ReservationStatus.APPROVED }
@@ -39,12 +60,23 @@ class ProsumerViewModel : ViewModel() {
     private val _uiState = MutableStateFlow(ProsumerUiState())
     val uiState: StateFlow<ProsumerUiState> = _uiState
 
+    private val prosumerRepository = ProsumerRepository()
     private var nextId = 2000
 
-    init {
+    /** Call after sign-in/registration navigates into the Prosumer flow — there is no session yet
+     * when this ViewModel is first constructed (see AppNavGraph), so profile loading is explicit
+     * rather than happening in init. */
+    fun loadProfile() {
         viewModelScope.launch {
-            delay(600)
-            _uiState.update { it.copy(loading = false) }
+            _uiState.update { it.copy(loading = true, profileError = null) }
+            when (val outcome = prosumerRepository.getMyProfile()) {
+                is ProsumerProfileOutcome.Success -> {
+                    _uiState.update { it.copy(profile = outcome.response.toProfile(), loading = false) }
+                }
+                is ProsumerProfileOutcome.Failure -> {
+                    _uiState.update { it.copy(loading = false, profileError = outcome.message) }
+                }
+            }
         }
     }
 
@@ -138,15 +170,43 @@ class ProsumerViewModel : ViewModel() {
         }
     }
 
-    fun updateProfile(fullName: String, email: String, phone: String, address: String) {
-        _uiState.update { it.copy(profile = it.profile.copy(fullName = fullName, email = email, phone = phone, address = address)) }
+    fun updateProfile(
+        firstName: String,
+        lastName: String,
+        email: String,
+        phone: String,
+        onError: (String) -> Unit,
+        onDone: () -> Unit,
+    ) {
+        viewModelScope.launch {
+            when (
+                val outcome = prosumerRepository.updateMyProfile(
+                    firstName = firstName,
+                    lastName = lastName,
+                    email = email,
+                    phoneNumber = phone.ifBlank { null },
+                )
+            ) {
+                is ProsumerProfileOutcome.Success -> {
+                    _uiState.update { it.copy(profile = outcome.response.toProfile()) }
+                    onDone()
+                }
+                is ProsumerProfileOutcome.Failure -> onError(outcome.message)
+            }
+        }
     }
 
-    fun requestDeactivation(onDone: () -> Unit) {
+    fun requestDeactivation(onError: (String) -> Unit, onDone: () -> Unit) {
         viewModelScope.launch {
-            delay(700)
-            _uiState.update { it.copy(profile = it.profile.copy(status = ProsumerAccountStatus.DEACTIVATED)) }
-            onDone()
+            when (val outcome = prosumerRepository.requestDeactivation()) {
+                is ProsumerActionOutcome.Success -> {
+                    _uiState.update {
+                        it.copy(profile = it.profile.copy(status = ProsumerAccountStatus.DEACTIVATION_REQUESTED))
+                    }
+                    onDone()
+                }
+                is ProsumerActionOutcome.Failure -> onError(outcome.message)
+            }
         }
     }
 }

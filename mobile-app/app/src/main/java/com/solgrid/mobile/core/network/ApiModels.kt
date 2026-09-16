@@ -43,3 +43,44 @@ data class ProblemDetailsDto(
     val detail: String? = null,
     val status: Int? = null
 )
+
+/** POST /api/v1/prosumers/register request body. */
+@Serializable
+data class RegisterProsumerRequestDto(
+    val nic: String,
+    val firstName: String,
+    val lastName: String,
+    val email: String,
+    val phoneNumber: String? = null,
+    val password: String
+)
+
+/** PUT /api/v1/prosumers/me request body — NIC is immutable, not included. */
+@Serializable
+data class UpdateProsumerRequestDto(
+    val firstName: String,
+    val lastName: String,
+    val email: String,
+    val phoneNumber: String? = null
+)
+
+@Serializable
+data class ProsumerLoginResponseDto(
+    val accessToken: String,
+    val expiresAt: String,
+    val prosumer: ProsumerResponseDto
+)
+
+/** `status` arrives as a raw ordinal — see SolGrid.Domain.Enums.ProsumerAccountStatus (Pending=1,
+ * Active=2, DeactivationRequested=3, Deactivated=4). */
+@Serializable
+data class ProsumerResponseDto(
+    val nic: String,
+    val firstName: String,
+    val lastName: String,
+    val email: String,
+    val phoneNumber: String? = null,
+    val status: Int,
+    val createdAt: String,
+    val updatedAt: String
+)
