@@ -13,7 +13,7 @@ export function Pagination({ pageNumber, pageSize, totalCount, onPageChange }: P
   const rangeEnd = Math.min(totalCount, pageNumber * pageSize)
 
   return (
-    <div className="flex items-center justify-between border-t border-ink-100 px-4 py-3">
+    <nav aria-label="Pagination" className="flex flex-col gap-3 border-t border-ink-100 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
       <p className="text-sm text-ink-500">
         {totalCount === 0 ? (
           'No results'
@@ -46,6 +46,6 @@ export function Pagination({ pageNumber, pageSize, totalCount, onPageChange }: P
           Next
         </Button>
       </div>
-    </div>
+    </nav>
   )
 }

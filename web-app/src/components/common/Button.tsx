@@ -47,11 +47,12 @@ export function Button({
         sizeClasses[size],
         className,
       )}
-      disabled={disabled || isLoading}
       {...rest}
+      disabled={disabled || isLoading}
+      aria-busy={isLoading || undefined}
     >
       {isLoading ? (
-        <span className="size-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+        <span className="size-4 animate-spin rounded-full border-2 border-current border-t-transparent" aria-hidden="true" />
       ) : (
         leftIcon
       )}
