@@ -6,6 +6,7 @@
  * Contributor: Gunasekara H N
  */
 
+using SolGrid.Application.Common.Models;
 using SolGrid.Application.Prosumers.Requests;
 using SolGrid.Application.Prosumers.Responses;
 using SolGrid.Application.Users.Interfaces;

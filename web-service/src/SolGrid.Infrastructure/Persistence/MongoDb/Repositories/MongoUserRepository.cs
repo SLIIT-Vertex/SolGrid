@@ -8,6 +8,7 @@
 
 using Microsoft.Extensions.Options;
 using MongoDB.Driver;
+using SolGrid.Application.Common.Models;
 using SolGrid.Application.Users.Interfaces;
 using SolGrid.Domain.Entities;
 using SolGrid.Infrastructure.Persistence.MongoDb.Documents;

@@ -6,6 +6,7 @@
  * Contributor: Dilshan Yapa S Y C T
  */
 
+using SolGrid.Application.Common.Models;
 using SolGrid.Application.Users.Interfaces;
 using SolGrid.Domain.Entities;
 using SolGrid.Domain.Enums;

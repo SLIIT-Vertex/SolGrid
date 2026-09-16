@@ -12,6 +12,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.IdentityModel.Tokens;
+using SolGrid.Application.Common.Models;
 using SolGrid.Application.Prosumers.Interfaces;
 using SolGrid.Application.Reservations.Interfaces;
 using SolGrid.Application.Users.Interfaces;

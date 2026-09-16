@@ -8,6 +8,7 @@
 
 using SolGrid.Application.Auth.Interfaces;
 using SolGrid.Application.Common.Exceptions;
+using SolGrid.Application.Common.Models;
 using SolGrid.Application.Common.Validation;
 using SolGrid.Application.Users.Interfaces;
 using SolGrid.Application.Users.Requests;

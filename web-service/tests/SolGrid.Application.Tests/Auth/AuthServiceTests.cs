@@ -11,6 +11,7 @@ using SolGrid.Application.Auth.Requests;
 using SolGrid.Application.Auth.Responses;
 using SolGrid.Application.Auth.Services;
 using SolGrid.Application.Common.Exceptions;
+using SolGrid.Application.Common.Models;
 using SolGrid.Application.Users.Interfaces;
 using SolGrid.Domain.Entities;
 using SolGrid.Domain.Enums;
