@@ -1,5 +1,6 @@
 package com.solgrid.mobile.feature.auth
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -13,7 +14,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Bolt
 import androidx.compose.material.icons.outlined.ErrorOutline
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -23,8 +23,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import com.solgrid.mobile.R
 import com.solgrid.mobile.core.components.AppTextField
 import com.solgrid.mobile.core.components.FilterChip
 import com.solgrid.mobile.core.components.PasswordField
@@ -53,16 +55,11 @@ fun LoginScreen(
             .padding(horizontal = Spacing.xxl)
     ) {
         Box(modifier = Modifier.padding(top = Spacing.huge))
-        Box(
-            modifier = Modifier.size(56.dp).clip(RoundedCornerShape(Radius.lg)).background(colors.accent),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                Icons.Outlined.Bolt,
-                contentDescription = null,
-                tint = androidx.compose.ui.graphics.Color.White
-            )
-        }
+        Image(
+            painter = painterResource(id = R.drawable.app_logo),
+            contentDescription = "SolGrid logo",
+            modifier = Modifier.size(72.dp)
+        )
 
         Text("Welcome back", style = AppType.screenTitle, color = colors.textPrimary, modifier = Modifier.padding(top = Spacing.xxl))
         Text(
@@ -113,10 +110,10 @@ fun LoginScreen(
         AppTextField(
             value = state.identifier,
             onValueChange = viewModel::onIdentifierChange,
-            label = if (state.role == AppRole.PROSUMER) "NIC number" else "Operator ID",
-            placeholder = if (state.role == AppRole.PROSUMER) "e.g. 200114701234" else "e.g. OP-1042",
+            label = if (state.role == AppRole.PROSUMER) "NIC number" else "Email",
+            placeholder = if (state.role == AppRole.PROSUMER) "e.g. 200114701234" else "you@solgrid.com",
             errorText = state.identifierError,
-            keyboardType = if (state.role == AppRole.PROSUMER) KeyboardType.Number else KeyboardType.Text,
+            keyboardType = if (state.role == AppRole.PROSUMER) KeyboardType.Number else KeyboardType.Email,
             modifier = Modifier.padding(top = Spacing.xl)
         )
         PasswordField(
