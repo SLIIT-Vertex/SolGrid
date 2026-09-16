@@ -7,16 +7,20 @@
  */
 
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.Extensions.Options;
 using SolGrid.Api.Middleware;
 using SolGrid.Api.Security;
 using SolGrid.Application.Auth.Interfaces;
 using SolGrid.Application.Auth.Services;
 using SolGrid.Application.Common.Identity;
+using SolGrid.Application.Reservations.Interfaces;
+using SolGrid.Application.Reservations.Services;
 using SolGrid.Application.Users.Interfaces;
 using SolGrid.Application.Users.Services;
 using SolGrid.Domain.Enums;
 using SolGrid.Infrastructure.DependencyInjection;
 using SolGrid.Infrastructure.Persistence.MongoDb;
+using SolGrid.Infrastructure.Persistence.MongoDb.Seeding;
 using SolGrid.Infrastructure.Security;
 
 const string CorsPolicyName = "SolGridClientCors";
@@ -25,6 +29,7 @@ var builder = WebApplication.CreateBuilder(args);
 
 // Configure API, application, infrastructure, authentication, and authorization services.
 builder.Services.AddControllers();
+builder.Services.AddHealthChecks();
 builder.Services.AddCors(options =>
 {
     // Allow configured browser clients to call the API without allowing credentials from wildcard origins.
@@ -43,7 +48,9 @@ builder.Services.AddCors(options =>
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IUserService, UserService>();
+builder.Services.AddScoped<IReservationService, ReservationService>();
 builder.Services.AddScoped<ICurrentUserContext, HttpCurrentUserContext>();
+builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSolGridInfrastructure(
     mongoDbOptions => builder.Configuration.GetSection("MongoDb").Bind(mongoDbOptions),
     jwtOptions => builder.Configuration.GetSection("Jwt").Bind(jwtOptions));
@@ -70,10 +77,28 @@ var app = builder.Build();
 // Configure middleware order for errors, authentication, authorization, and controllers.
 app.UseMiddleware<GlobalExceptionHandlingMiddleware>();
 app.MapOpenApi();
+app.MapHealthChecks("/health");
 app.UseCors(CorsPolicyName);
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
+
+// Initialize MongoDB indexes and optional development seed users before serving traffic.
+using (var startupScope = app.Services.CreateScope())
+{
+    var mongoDbOptions = startupScope.ServiceProvider.GetRequiredService<IOptions<MongoDbOptions>>().Value;
+    if (mongoDbOptions.InitializeOnStartup)
+    {
+        var userCollectionInitializer = startupScope.ServiceProvider.GetRequiredService<IUserCollectionInitializer>();
+        await userCollectionInitializer.EnsureCreatedAsync().ConfigureAwait(false);
+
+        var reservationCollectionInitializer = startupScope.ServiceProvider.GetRequiredService<IReservationCollectionInitializer>();
+        await reservationCollectionInitializer.EnsureCreatedAsync().ConfigureAwait(false);
+
+        var userSeedDataInitializer = startupScope.ServiceProvider.GetRequiredService<IUserSeedDataInitializer>();
+        await userSeedDataInitializer.SeedAsync().ConfigureAwait(false);
+    }
+}
 
 app.Run();
 
