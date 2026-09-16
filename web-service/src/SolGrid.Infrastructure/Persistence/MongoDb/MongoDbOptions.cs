@@ -20,6 +20,10 @@ public sealed class MongoDbOptions
 
     public string EnergyReservationsCollectionName { get; init; } = "EnergyReservations";
 
+    public string SolarStationInfoCollectionName { get; init; } = "SolarStationInfo";
+
+    public string EnergyBookingSlotsCollectionName { get; init; } = "EnergyBookingSlots";
+
     public bool InitializeOnStartup { get; init; } = true;
 
     public bool SeedDevelopmentUsers { get; init; }

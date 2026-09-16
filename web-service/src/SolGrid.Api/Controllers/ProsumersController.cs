@@ -9,6 +9,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SolGrid.Api.Security;
+using SolGrid.Application.Common.Models;
 using SolGrid.Application.Auth.Interfaces;
 using SolGrid.Application.Auth.Requests;
 using SolGrid.Application.Auth.Responses;

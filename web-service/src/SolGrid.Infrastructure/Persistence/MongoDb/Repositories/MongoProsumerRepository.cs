@@ -9,6 +9,7 @@
 using Microsoft.Extensions.Options;
 using MongoDB.Driver;
 using SolGrid.Application.Common.Exceptions;
+using SolGrid.Application.Common.Models;
 using SolGrid.Application.Prosumers.Interfaces;
 using SolGrid.Application.Users.Interfaces;
 using SolGrid.Domain.Entities;
