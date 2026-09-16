@@ -119,7 +119,7 @@ public sealed class SlotsController : ControllerBase
     }
 
     [HttpPatch("slots/{id}/activate")]
-    [Authorize(Policy = AuthorizationPolicies.Backoffice)]
+    [Authorize(Roles = "Backoffice,GridOperator")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
@@ -128,13 +128,13 @@ public sealed class SlotsController : ControllerBase
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
     public async Task<IActionResult> Activate(string id, CancellationToken cancellationToken)
     {
-        // Activate a booking slot through Backoffice management.
+        // Activate a booking slot through authorized operational management.
         await bookingSlotService.ActivateBookingSlotAsync(id, cancellationToken).ConfigureAwait(false);
         return NoContent();
     }
 
     [HttpPatch("slots/{id}/deactivate")]
-    [Authorize(Policy = AuthorizationPolicies.Backoffice)]
+    [Authorize(Roles = "Backoffice,GridOperator")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
@@ -143,7 +143,7 @@ public sealed class SlotsController : ControllerBase
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
     public async Task<IActionResult> Deactivate(string id, CancellationToken cancellationToken)
     {
-        // Deactivate a booking slot without deleting historical reservation references.
+        // Deactivate a booking slot through authorized operational management.
         await bookingSlotService.DeactivateBookingSlotAsync(id, cancellationToken).ConfigureAwait(false);
         return NoContent();
     }

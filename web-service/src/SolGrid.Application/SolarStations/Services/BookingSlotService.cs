@@ -141,7 +141,7 @@ public sealed class BookingSlotService : IBookingSlotService
     public async Task ActivateBookingSlotAsync(string id, CancellationToken cancellationToken = default)
     {
         // Return an out-of-service slot to the bookable pool through the domain transition.
-        EnsureSlotAdministrator();
+        EnsureSlotAvailabilityManager();
         ValidateId(id, "Booking slot id is required.");
 
         var slot = await GetRequiredSlotAsync(id, cancellationToken).ConfigureAwait(false);
@@ -154,7 +154,7 @@ public sealed class BookingSlotService : IBookingSlotService
     public async Task DeactivateBookingSlotAsync(string id, CancellationToken cancellationToken = default)
     {
         // Withdraw the slot from bookings without deleting history referenced by reservations.
-        EnsureSlotAdministrator();
+        EnsureSlotAvailabilityManager();
         ValidateId(id, "Booking slot id is required.");
 
         var slot = await GetRequiredSlotAsync(id, cancellationToken).ConfigureAwait(false);
@@ -230,6 +230,15 @@ public sealed class BookingSlotService : IBookingSlotService
         if (currentUserContext.Role != UserRole.Backoffice)
         {
             throw new ForbiddenException("Backoffice authorization is required for booking slot administration.");
+        }
+    }
+
+    private void EnsureSlotAvailabilityManager()
+    {
+        // Permit GridOperators to change service availability without granting specification administration.
+        if (currentUserContext.Role is not UserRole.Backoffice and not UserRole.GridOperator)
+        {
+            throw new ForbiddenException("Backoffice or GridOperator authorization is required for booking slot availability.");
         }
     }
 
