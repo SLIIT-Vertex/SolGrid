@@ -55,6 +55,29 @@ public sealed class JwtTokenService : ITokenService
         };
     }
 
+    public IssuedToken CreateProsumerToken(string nic)
+    {
+        // Issue a signed JWT containing the stable prosumer NIC without a web-user role claim.
+        ValidateOptions();
+
+        var expiresAt = DateTimeOffset.UtcNow.AddMinutes(options.ExpiresMinutes);
+        var signingKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(options.SigningKey));
+        var credentials = new SigningCredentials(signingKey, SecurityAlgorithms.HmacSha256);
+        var claims = new[] { new Claim(ClaimTypes.NameIdentifier, nic) };
+        var token = new JwtSecurityToken(
+            issuer: options.Issuer,
+            audience: options.Audience,
+            claims: claims,
+            expires: expiresAt.UtcDateTime,
+            signingCredentials: credentials);
+
+        return new IssuedToken
+        {
+            AccessToken = new JwtSecurityTokenHandler().WriteToken(token),
+            ExpiresAt = expiresAt
+        };
+    }
+
     private void ValidateOptions()
     {
         // Ensure JWT tokens cannot be issued with missing or weak configuration.

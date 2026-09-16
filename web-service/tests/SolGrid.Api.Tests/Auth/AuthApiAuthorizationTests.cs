@@ -15,7 +15,7 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using SolGrid.Api.Security;
 using SolGrid.Application.Auth.Interfaces;
 using SolGrid.Application.Auth.Services;
-using SolGrid.Application.Common.Models;
+using SolGrid.Application.Reservations.Interfaces;
 using SolGrid.Application.Users.Interfaces;
 using SolGrid.Application.Users.Services;
 using SolGrid.Domain.Entities;
@@ -80,6 +80,34 @@ public sealed class AuthApiAuthorizationTests
     }
 
     [Fact]
+    public async Task OpenApiDocument_IncludesReservationCreateEndpoint()
+    {
+        // Verify OpenAPI metadata advertises reservation endpoints.
+        await using var factory = CreateFactory();
+        var client = factory.CreateClient();
+
+        var openApiJson = await client.GetStringAsync("/openapi/v1.json");
+
+        Assert.Contains("\"/api/v1/reservations\"", openApiJson, StringComparison.Ordinal);
+        Assert.Contains("\"/api/v1/reservations/{id}\"", openApiJson, StringComparison.Ordinal);
+        Assert.Contains("\"/api/v1/reservations/{id}/cancel\"", openApiJson, StringComparison.Ordinal);
+        Assert.Contains("\"/api/v1/reservations/{id}/approve\"", openApiJson, StringComparison.Ordinal);
+        Assert.Contains("\"/api/v1/reservations/{id}/reject\"", openApiJson, StringComparison.Ordinal);
+        Assert.Contains("\"/api/v1/reservations/{id}/qr\"", openApiJson, StringComparison.Ordinal);
+        Assert.Contains("\"/api/v1/reservations/{id}/complete\"", openApiJson, StringComparison.Ordinal);
+        Assert.Contains("\"/api/v1/reservations/me\"", openApiJson, StringComparison.Ordinal);
+        Assert.Contains("\"/api/v1/reservations/verify-qr\"", openApiJson, StringComparison.Ordinal);
+        Assert.Contains("\"/api/v1/reservations/dashboard/summary\"", openApiJson, StringComparison.Ordinal);
+        Assert.Contains("\"/api/v1/reservations/current\"", openApiJson, StringComparison.Ordinal);
+        Assert.Contains("\"/api/v1/reservations/pending\"", openApiJson, StringComparison.Ordinal);
+        Assert.Contains("\"/api/v1/reservations/history\"", openApiJson, StringComparison.Ordinal);
+        Assert.Contains("\"get\"", openApiJson, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("\"post\"", openApiJson, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("\"put\"", openApiJson, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("\"patch\"", openApiJson, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public async Task UserAdministration_WithGridOperatorJwt_ReturnsForbidden()
     {
         // Verify GridOperator users cannot perform Backoffice-only user administration.
@@ -108,6 +136,36 @@ public sealed class AuthApiAuthorizationTests
         var client = factory.CreateClient();
 
         var response = await client.GetAsync("/api/v1/users");
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task ReservationCreate_WithoutJwt_ReturnsUnauthorized()
+    {
+        // Verify reservation creation requires authentication.
+        await using var factory = CreateFactory();
+        var client = factory.CreateClient();
+
+        var response = await client.PostAsJsonAsync("/api/v1/reservations", new
+        {
+            ProsumerId = "prosumer-1",
+            StationId = "station-1",
+            BookingSlotId = "slot-1",
+            ScheduledAt = DateTimeOffset.UtcNow.AddHours(1)
+        });
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task ReservationDashboard_WithoutJwt_ReturnsUnauthorized()
+    {
+        // Verify operational dashboard data is not exposed without a valid JWT.
+        await using var factory = CreateFactory();
+        var client = factory.CreateClient();
+
+        var response = await client.GetAsync("/api/v1/reservations/dashboard/summary");
 
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
@@ -186,7 +244,8 @@ public sealed class AuthApiAuthorizationTests
                         ["Cors:AllowedOrigins:0"] = "http://localhost:5173",
                         ["MongoDb:ConnectionString"] = "mongodb://127.0.0.1:1",
                         ["MongoDb:DatabaseName"] = "SolGridTests",
-                        ["MongoDb:UsersCollectionName"] = "Users"
+                        ["MongoDb:UsersCollectionName"] = "Users",
+                        ["MongoDb:InitializeOnStartup"] = "false"
                     });
                 });
                 builder.ConfigureServices(services =>
@@ -197,6 +256,9 @@ public sealed class AuthApiAuthorizationTests
                     services.AddScoped<IAuthService, AuthService>();
                     services.RemoveAll<IUserService>();
                     services.AddScoped<IUserService, UserService>();
+                    services.AddSingleton<IReservationProsumerReadService>(new TestProsumerReadService());
+                    services.AddSingleton<IReservationStationReadService>(new TestStationReadService());
+                    services.AddSingleton<IReservationBookingSlotReadService>(new TestBookingSlotReadService());
                 });
             });
     }
@@ -309,6 +371,53 @@ public sealed class AuthApiAuthorizationTests
                 BCrypt.Net.BCrypt.HashPassword(password),
                 role,
                 DateTimeOffset.UtcNow);
+        }
+    }
+
+    private sealed class TestProsumerReadService : IReservationProsumerReadService
+    {
+        public Task<ReservationProsumerSnapshot?> GetByIdAsync(
+            string prosumerId,
+            CancellationToken cancellationToken = default)
+        {
+            // Return a generic active prosumer snapshot for API host wiring tests.
+            return Task.FromResult<ReservationProsumerSnapshot?>(new ReservationProsumerSnapshot
+            {
+                Id = prosumerId,
+                IsActive = true
+            });
+        }
+    }
+
+    private sealed class TestStationReadService : IReservationStationReadService
+    {
+        public Task<ReservationStationSnapshot?> GetByIdAsync(
+            string stationId,
+            CancellationToken cancellationToken = default)
+        {
+            // Return a generic active station snapshot for API host wiring tests.
+            return Task.FromResult<ReservationStationSnapshot?>(new ReservationStationSnapshot
+            {
+                Id = stationId,
+                IsActive = true
+            });
+        }
+    }
+
+    private sealed class TestBookingSlotReadService : IReservationBookingSlotReadService
+    {
+        public Task<ReservationBookingSlotSnapshot?> GetByIdAsync(
+            string bookingSlotId,
+            CancellationToken cancellationToken = default)
+        {
+            // Return a generic available booking slot snapshot for API host wiring tests.
+            return Task.FromResult<ReservationBookingSlotSnapshot?>(new ReservationBookingSlotSnapshot
+            {
+                Id = bookingSlotId,
+                StationId = "station-1",
+                IsActive = true,
+                IsAvailable = true
+            });
         }
     }
 }
