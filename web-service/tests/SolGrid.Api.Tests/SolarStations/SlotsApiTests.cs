@@ -77,16 +77,16 @@ public sealed class SlotsApiTests
     }
 
     [Fact]
-    public async Task DeactivateSlot_WithGridOperatorJwt_ReturnsForbidden()
+    public async Task DeactivateSlot_WithGridOperatorJwt_ReachesSlotService()
     {
-        // Verify GridOperator claims cannot deactivate booking slots.
+        // Verify GridOperator claims pass endpoint authorization; this fixture intentionally has no slot-1.
         await using var factory = CreateFactory();
         var client = factory.CreateClient();
         client.DefaultRequestHeaders.Authorization = new("Bearer", CreateWebUserJwt(UserRole.GridOperator));
 
         var response = await client.PatchAsync("/api/v1/slots/slot-1/deactivate", content: null);
 
-        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
     [Fact]

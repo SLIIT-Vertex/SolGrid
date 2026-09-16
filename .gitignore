@@ -492,3 +492,5 @@ $RECYCLE.BIN/
 /web-service/**/[Aa]rtifacts/
 AGENTS.md
 members.txt
+mobile-app/secrets.properties
+mobile-app/local.properties

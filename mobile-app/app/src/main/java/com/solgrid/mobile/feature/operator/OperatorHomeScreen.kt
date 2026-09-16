@@ -48,6 +48,7 @@ fun OperatorHomeScreen(
     viewModel: OperatorViewModel,
     onScanClick: () -> Unit,
     onBookingClick: (String) -> Unit,
+    onNodesClick: () -> Unit,
     onLogout: () -> Unit
 ) {
     val colors = SolGridTheme.colors
@@ -117,6 +118,7 @@ fun OperatorHomeScreen(
                 }
             }
             PrimaryButton(text = "Open Scanner", onClick = onScanClick, modifier = Modifier.fillMaxWidth().padding(top = Spacing.md))
+            PrimaryButton(text = "Browse grid nodes", onClick = onNodesClick, modifier = Modifier.fillMaxWidth().padding(top = Spacing.sm))
 
             SectionHeader(title = "Assigned Node Queue", modifier = Modifier.padding(top = Spacing.xl))
             Column {
