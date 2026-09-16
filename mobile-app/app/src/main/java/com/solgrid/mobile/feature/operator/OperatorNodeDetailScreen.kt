@@ -34,7 +34,16 @@ fun OperatorNodeDetailScreen(viewModel: NodeViewModel, nodeId: String, onBack: (
             Text("Node bookings", style = AppType.sectionTitle, modifier = Modifier.padding(top = Spacing.xl))
             if (state.bookings.isEmpty()) Text("No bookings found for this node.", style = AppType.body, color = colors.textSecondary)
             state.bookings.forEach { booking -> Text("${booking.scheduledAt} · ${status(booking.status)} · slot ${booking.bookingSlotId}", style = AppType.body, modifier = Modifier.padding(top = Spacing.xs)) }
-            Text("Availability changes are managed by Backoffice.", style = AppType.caption, color = colors.textSecondary, modifier = Modifier.padding(vertical = Spacing.xxl))
+            Text("Battery slot availability", style = AppType.sectionTitle, modifier = Modifier.padding(top = Spacing.xl))
+            state.error?.let { Text(it, color = colors.error, style = AppType.body) }
+            state.slots.forEach { slot ->
+                Text("Slot ${slot.slotNumber} · ${slot.batteryCapacityKwh} kWh · ${slot.startTime} – ${slot.endTime}", style = AppType.body, modifier = Modifier.padding(top = Spacing.md))
+                if (slot.status == 1 || slot.status == 4) com.solgrid.mobile.core.components.SecondaryButton(
+                    text = if (slot.isActive) "Take out of service" else "Make available",
+                    enabled = state.changingSlot == null,
+                    onClick = { viewModel.setSlotAvailability(nodeId, slot.id, !slot.isActive) }
+                ) else Text("Reserved or occupied", style = AppType.caption)
+            }
         }
     }
 }

@@ -30,6 +30,31 @@ sealed interface VerifyQrOutcome {
 /** Wraps the Retrofit calls under api/v1/reservations for Prosumer and Grid Operator flows. */
 class ReservationRepository(private val apiService: ApiService = NetworkModule.apiService) {
 
+    suspend fun getMySummary(): ReservationDashboardSummaryDto = apiService.getMyDashboardSummary().let {
+        if (!it.isSuccessful) error(parseApiErrorMessage(it.errorBody()?.string(), it.code()))
+        it.body() ?: error("Dashboard data is unavailable.")
+    }
+
+    suspend fun getAllMine(): ReservationListOutcome = allPages { page -> getMyReservations(pageNumber = page) }
+    suspend fun getAllCurrent(): ReservationListOutcome = allPages { page -> getCurrent(pageNumber = page) }
+
+    private suspend fun allPages(load: suspend (Int) -> ReservationListOutcome): ReservationListOutcome {
+        val items = mutableListOf<ReservationDto>()
+        var page = 1
+        while (true) {
+            when (val result = load(page)) {
+                is ReservationListOutcome.Failure -> return result
+                is ReservationListOutcome.Success -> {
+                    items.addAll(result.response.items)
+                    if (items.size >= result.response.totalCount || result.response.items.isEmpty()) {
+                        return ReservationListOutcome.Success(PagedResponseDto(items.distinctBy { it.id }, items.size.toLong(), 1, items.size))
+                    }
+                }
+            }
+            page++
+        }
+    }
+
     suspend fun getById(id: String): ReservationOutcome = runCatching {
         val response = apiService.getReservation(id)
         val body = response.body()

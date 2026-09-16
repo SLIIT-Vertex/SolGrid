@@ -9,6 +9,7 @@ class SolGridApp : Application() {
     override fun onCreate() {
         super.onCreate()
         SessionStore.init(this)
+        com.solgrid.mobile.feature.microgrid.NodeReferenceCache.database = com.solgrid.mobile.core.storage.AppDatabase.getInstance(this)
         initializePlaces()
     }
 

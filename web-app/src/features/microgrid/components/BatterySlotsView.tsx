@@ -144,7 +144,7 @@ function SlotActions({
 
   return (
     <div className={align === 'end' ? 'flex justify-end gap-2' : 'flex flex-wrap gap-2'}>
-      {canEdit ? (
+      {canEdit && onEdit ? (
         <Button type="button" variant="secondary" size="sm" onClick={() => onEdit?.(slot)}>
           Edit
         </Button>

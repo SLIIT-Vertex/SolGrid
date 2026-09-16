@@ -39,22 +39,32 @@ import com.solgrid.mobile.core.models.ReservationStatus
 fun ReservationQrScreen(viewModel: ProsumerViewModel, reservationId: String, onBack: () -> Unit) {
     val colors = SolGridTheme.colors
     val reservation = viewModel.reservationById(reservationId)
-    var qrPayload by remember { mutableStateOf<String?>(null) }
-    var qrError by remember { mutableStateOf<String?>(null) }
-    var loading by remember { mutableStateOf(true) }
+    var qrPayload by remember(reservationId) { mutableStateOf<String?>(null) }
+    var qrError by remember(reservationId) { mutableStateOf<String?>(null) }
+    var loading by remember(reservationId) { mutableStateOf(true) }
 
-    LaunchedEffect(reservationId) {
-        if (reservation?.status == ReservationStatus.APPROVED) {
-            viewModel.issueReservationQr(
-                reservationId,
-                onError = { loading = false; qrError = it },
-            ) { payload, _ ->
-                loading = false
-                qrPayload = payload
-            }
-        } else {
+    var expiresAt by remember(reservationId) { mutableStateOf<String?>(null) }
+    var expired by remember(reservationId) { mutableStateOf(false) }
+    fun requestQr() {
+        loading = true
+        qrError = null
+        qrPayload = null
+        expiresAt = null
+        expired = false
+        viewModel.issueReservationQr(reservationId, onError = { loading = false; qrError = it }) { payload, expiry ->
             loading = false
+            qrPayload = payload
+            expiresAt = expiry
         }
+    }
+    LaunchedEffect(reservationId, reservation?.status) {
+        if (reservation?.status == ReservationStatus.APPROVED) requestQr() else loading = false
+    }
+    LaunchedEffect(expiresAt) {
+        val expiry = expiresAt ?: return@LaunchedEffect
+        val milliseconds = java.time.Duration.between(java.time.Instant.now(), java.time.OffsetDateTime.parse(expiry).toInstant()).toMillis()
+        if (milliseconds > 0) kotlinx.coroutines.delay(milliseconds)
+        expired = true
     }
 
     Column(modifier = Modifier.fillMaxSize().background(colors.background)) {
@@ -86,6 +96,8 @@ fun ReservationQrScreen(viewModel: ProsumerViewModel, reservationId: String, onB
                 icon = Icons.Outlined.ErrorOutline,
                 title = "Couldn't generate QR",
                 description = qrError ?: "Something went wrong. Please try again.",
+                actionText = "Try again",
+                onAction = { requestQr() },
                 modifier = Modifier.padding(top = Spacing.xxxl)
             )
             return@Column
@@ -110,7 +122,9 @@ fun ReservationQrScreen(viewModel: ProsumerViewModel, reservationId: String, onB
                 modifier = Modifier.padding(top = Spacing.xs, bottom = Spacing.xxl)
             )
 
-            QrCodeVisual(payload = payload)
+            if (expired) Text("This QR has expired. Generate a new code before presenting it.", style = AppType.body, color = colors.error, textAlign = TextAlign.Center)
+            else QrCodeVisual(payload = payload)
+            com.solgrid.mobile.core.components.SecondaryButton("Generate new QR", { requestQr() }, modifier = Modifier.padding(top = Spacing.md))
 
             Row(modifier = Modifier.padding(top = Spacing.xl)) {
                 StatusBadge(text = "Approved", tone = BadgeTone.SUCCESS)
@@ -127,10 +141,11 @@ fun ReservationQrScreen(viewModel: ProsumerViewModel, reservationId: String, onB
                 InfoRow(label = "Reservation ID", value = reservation.id)
                 InfoRow(label = "Station", value = reservation.nodeName)
                 InfoRow(label = "Time", value = reservation.startTime)
+                expiresAt?.let { InfoRow(label = "QR expires", value = java.time.OffsetDateTime.parse(it).atZoneSameInstant(java.time.ZoneId.systemDefault()).format(java.time.format.DateTimeFormatter.ofPattern("MMM d, HH:mm"))) }
             }
 
             Text(
-                "This code is unique to your reservation and expires once the transfer is finalized.",
+                "This code expires at the time shown above. Completing the transfer or generating a new code invalidates it.",
                 style = AppType.caption,
                 color = colors.textTertiary,
                 textAlign = TextAlign.Center,

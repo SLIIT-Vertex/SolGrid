@@ -202,6 +202,24 @@ public sealed class ReservationService : IReservationService
         return MapPage(reservations);
     }
 
+    public async Task<ReservationDashboardSummaryResponse> GetMyDashboardSummaryAsync(CancellationToken cancellationToken = default)
+    {
+        // Count the authenticated owner's bookings centrally, using one-row queries for totals.
+        EnsureProsumerCaller();
+        var now = timeProvider.GetUtcNow();
+        var pending = await GetMyReservationsAsync(new ReservationQuery { Status = ReservationStatus.Pending, PageSize = 1 }, cancellationToken).ConfigureAwait(false);
+        var approvedFuture = await GetMyReservationsAsync(new ReservationQuery { Status = ReservationStatus.Approved, ScheduledFrom = now, PageSize = 1 }, cancellationToken).ConfigureAwait(false);
+        var pendingFuture = await GetMyReservationsAsync(new ReservationQuery { Status = ReservationStatus.Pending, ScheduledFrom = now, PageSize = 1 }, cancellationToken).ConfigureAwait(false);
+        var all = await GetMyReservationsAsync(new ReservationQuery { PageSize = 1 }, cancellationToken).ConfigureAwait(false);
+        return new ReservationDashboardSummaryResponse
+        {
+            PendingReservationsCount = pending.TotalCount,
+            ApprovedFutureReservationsCount = approvedFuture.TotalCount,
+            CurrentReservationsCount = pendingFuture.TotalCount + approvedFuture.TotalCount,
+            BookingHistoryCount = all.TotalCount - pendingFuture.TotalCount - approvedFuture.TotalCount
+        };
+    }
+
     public async Task<ReservationDashboardSummaryResponse> GetDashboardSummaryAsync(
         CancellationToken cancellationToken = default)
     {

@@ -31,6 +31,7 @@ import com.solgrid.mobile.core.components.AppDivider
 import com.solgrid.mobile.core.components.AppTopBar
 import com.solgrid.mobile.core.components.ConfirmationDialog
 import com.solgrid.mobile.core.components.PrimaryButton
+import com.solgrid.mobile.core.components.SecondaryButton
 import com.solgrid.mobile.core.components.SectionHeader
 import com.solgrid.mobile.core.components.StatTile
 import com.solgrid.mobile.core.components.UserAvatar
@@ -92,8 +93,8 @@ fun OperatorHomeScreen(
                     modifier = Modifier.weight(1f)
                 )
                 StatTile(
-                    value = state.queue.count { it.status == ReservationStatus.COMPLETED }.toString(),
-                    label = "Completed Today",
+                    value = state.queue.count { it.status == ReservationStatus.PENDING }.toString(),
+                    label = "Pending requests",
                     icon = Icons.Outlined.EventAvailable,
                     modifier = Modifier.weight(1f)
                 )
@@ -123,7 +124,9 @@ fun OperatorHomeScreen(
             PrimaryButton(text = "Open Scanner", onClick = onScanClick, modifier = Modifier.fillMaxWidth().padding(top = Spacing.md))
             PrimaryButton(text = "Browse grid nodes", onClick = onNodesClick, modifier = Modifier.fillMaxWidth().padding(top = Spacing.sm))
 
-            SectionHeader(title = "Assigned Node Queue", modifier = Modifier.padding(top = Spacing.xl))
+            SectionHeader(title = "Grid booking queue", modifier = Modifier.padding(top = Spacing.xl))
+            if (state.queueLoading) Text("Loading bookings…", style = AppType.body)
+            state.queueError?.let { Text(it, style = AppType.body, color = colors.error); SecondaryButton("Retry", { viewModel.loadQueue() }) }
             Column {
                 state.queue.forEach { reservation ->
                     ReservationRow(reservation = reservation, onClick = { onBookingClick(reservation.id) })

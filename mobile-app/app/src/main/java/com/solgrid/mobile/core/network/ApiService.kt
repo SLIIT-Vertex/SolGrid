@@ -68,6 +68,15 @@ interface ApiService {
         @Query("pageSize") pageSize: Int = 20,
     ): Response<PagedResponseDto<ReservationDto>>
 
+    @PATCH("api/v1/slots/{id}/activate")
+    suspend fun activateSlot(@Path("id") id: String): Response<Unit>
+
+    @PATCH("api/v1/slots/{id}/deactivate")
+    suspend fun deactivateSlot(@Path("id") id: String): Response<Unit>
+
+    @GET("api/v1/reservations/me/dashboard/summary")
+    suspend fun getMyDashboardSummary(): Response<ReservationDashboardSummaryDto>
+
     @GET("api/v1/reservations/{id}")
     suspend fun getReservation(@Path("id") id: String): Response<ReservationDto>
 

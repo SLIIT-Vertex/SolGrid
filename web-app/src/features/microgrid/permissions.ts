@@ -25,3 +25,7 @@ export function canManageSlots(user: RoleHolder): boolean {
 export function canChangeNodeStatus(user: RoleHolder): boolean {
   return isBackoffice(user)
 }
+
+export function canManageSlotAvailability(user: RoleHolder): boolean {
+  return user?.role === 'Backoffice' || user?.role === 'GridOperator'
+}

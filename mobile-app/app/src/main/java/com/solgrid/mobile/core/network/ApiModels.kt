@@ -150,3 +150,6 @@ data class ProsumerResponseDto(
     val createdAt: String,
     val updatedAt: String
 )
+
+@Serializable
+data class ReservationDashboardSummaryDto(val pendingReservationsCount: Long, val approvedFutureReservationsCount: Long, val currentReservationsCount: Long, val bookingHistoryCount: Long)

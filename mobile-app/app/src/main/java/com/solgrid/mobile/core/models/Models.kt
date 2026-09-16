@@ -84,7 +84,8 @@ data class EnergyReservation(
     val createdAt: String,
     val rejectionReason: String? = null,
     /** Populated once the reservation is approved; drives the transaction QR screen. */
-    val qrPayload: String? = null
+    val qrPayload: String? = null,
+    val scheduledAt: String? = null
 ) {
     /** Whether this booking is still within the 12-hour modify/cancel window (mock check). */
     val canModify: Boolean

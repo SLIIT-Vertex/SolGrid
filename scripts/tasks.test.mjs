@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createServer } from 'node:http';
 import { spawnSync, spawn } from 'node:child_process';
-import { configuration, initializeEnv, checkSecrets, request, root, descriptions } from './tasks.mjs';
+import { configuration, initializeEnv, checkSecrets, request, root, descriptions, initializeMobileEnv } from './tasks.mjs';
 
 function fixture(t) {
   const directory = mkdtempSync(join(tmpdir(), 'SolGrid tasks '));
@@ -78,6 +78,7 @@ test('all command tasks invoke tools correctly through Make in an isolated proje
   const directory = fixture(t);
   mkdirSync(join(directory, 'scripts'));
   mkdirSync(join(directory, 'web-app'));
+  mkdirSync(join(directory, 'mobile-app'));
   mkdirSync(join(directory, 'tools'));
   copyFileSync(join(root, 'scripts/tasks.mjs'), join(directory, 'scripts/tasks.mjs'));
   copyFileSync(join(root, 'Makefile'), join(directory, 'Makefile'));
@@ -89,6 +90,8 @@ test('all command tasks invoke tools correctly through Make in an isolated proje
     writeFileSync(path, `#!/usr/bin/env node\nrequire('node:fs').appendFileSync(process.env.TASK_TEST_LOG, JSON.stringify({ tool: ${JSON.stringify(tool)}, args: process.argv.slice(2), cwd: process.cwd(), environment: process.env.ASPNETCORE_ENVIRONMENT }) + '\\n');\nprocess.exit(Number(process.env.TASK_TEST_EXIT || 0));\n`);
     chmodSync(path, 0o755);
   }
+  copyFileSync(join(directory, 'tools', 'dotnet'), join(directory, 'mobile-app', 'gradlew'));
+  chmodSync(join(directory, 'mobile-app', 'gradlew'), 0o755);
   const env = { ...process.env, PATH: `${join(directory, 'tools')}:${process.env.PATH}`, TASK_TEST_LOG: log };
   // These tools record arguments only: no secrets, containers, or dependencies are modified.
   const invoke = (task, ...overrides) => spawnSync('make', [task, ...overrides], { cwd: directory, env, encoding: 'utf8' });
@@ -99,13 +102,17 @@ test('all command tasks invoke tools correctly through Make in an isolated proje
     const result = invoke(task, 'ASPNETCORE_ENVIRONMENT=Development', 'MONGO_PORT=3456');
     assert.equal(result.status, 0, `${task}: ${result.stderr}`);
     const recorded = calls();
-    const noTool = ['help', 'env-init', 'env-example', 'check-runtime-secrets'].includes(task);
+    const noTool = ['help', 'env-init', 'env-example', 'check-runtime-secrets', 'mobile-env'].includes(task);
     assert.equal(recorded.length, noTool ? 0 : expectedCounts[task] ?? 1, task);
     for (const call of recorded) assert.equal(call.environment, 'Development', task);
     if (task.startsWith('web-')) {
       assert.equal(recorded[0].tool, 'npm');
       assert.equal(recorded[0].cwd, realpathSync(join(directory, 'web-app')));
       assert.deepEqual(recorded[0].args, task === 'web-install' ? ['install'] : ['run', task === 'web-dev' ? 'dev' : 'build']);
+    }
+    if (task.startsWith('mobile-') && task !== 'mobile-env') {
+      assert.equal(recorded[0].cwd, realpathSync(join(directory, 'mobile-app')));
+      assert.deepEqual(recorded[0].args, [({ 'mobile-build': ':app:assembleDebug', 'mobile-install': ':app:installDebug', 'mobile-test': ':app:testDebugUnitTest', 'mobile-clean': 'clean' })[task]]);
     }
     if (task === 'secrets-set') {
       assert.equal(recorded[0].args[3], 'mongodb://solgrid_admin:mock%23password@localhost:3456/SolGrid?authSource=admin');
@@ -148,4 +155,21 @@ test('Make HTTP tasks reach the expected endpoints and send valid login JSON', {
   assert.deepEqual(received.map(value => [value.method, value.path]), [['GET', '/health'], ['GET', '/openapi/v1.json'], ['POST', '/api/v1/auth/login'], ['POST', '/api/v1/auth/login']]);
   assert.deepEqual(received[2].body, { email: env.BACKOFFICE_SEED_EMAIL, password });
   assert.deepEqual(received[3].body, { email: env.GRID_OPERATOR_SEED_EMAIL, password });
+});
+
+test('Android configuration uses dotenv precedence, escapes properties and rejects invalid URLs', t => {
+  const directory = fixture(t);
+  mkdirSync(join(directory, 'mobile-app'));
+  writeFileSync(join(directory, '.env'), 'MOBILE_API_BASE_URL=http://192.168.1.2:5080/\nMOBILE_MAPS_API_KEY="sample key#value"\n');
+  initializeMobileEnv(configuration(directory, {}), directory);
+  const path = join(directory, 'mobile-app', 'env.properties');
+  assert.match(readFileSync(path, 'utf8'), /API_BASE_URL=http:\/\/192\.168\.1\.2:5080\//);
+  assert.ok(readFileSync(path, 'utf8').includes('MAPS_API_KEY=sample\\ key#value'));
+  initializeMobileEnv(configuration(directory, { MOBILE_API_BASE_URL: 'http://10.0.2.2:5080/' }), directory);
+  const original = readFileSync(path);
+  assert.ok(original.toString().includes('API_BASE_URL=http://10.0.2.2:5080/'));
+  for (const value of ['invalid', 'ftp://host/', 'http://host', 'http://host/?key=value/', 'http://user:password@host/', 'http://host/"']) {
+    assert.throws(() => initializeMobileEnv({ MOBILE_API_BASE_URL: value }, directory), /MOBILE_API_BASE_URL/);
+    assert.deepEqual(readFileSync(path), original);
+  }
 });

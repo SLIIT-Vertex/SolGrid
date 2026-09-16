@@ -6,6 +6,7 @@ import {
   canEditNode,
   canManageSchedule,
   canManageSlots,
+  canManageSlotAvailability,
 } from '@/features/microgrid/permissions'
 
 function user(role: UserRole) {
@@ -23,8 +24,9 @@ describe('microgrid permissions', () => {
     expect(canChangeNodeStatus(backoffice)).toBe(true)
   })
 
-  it('keeps Grid Operator read-only', () => {
+  it('allows operator availability changes while restricting administration', () => {
     const operator = user('GridOperator')
+    expect(canManageSlotAvailability(operator)).toBe(true)
 
     expect(canCreateNode(operator)).toBe(false)
     expect(canEditNode(operator)).toBe(false)
@@ -34,6 +36,7 @@ describe('microgrid permissions', () => {
   })
 
   it('denies access without a session', () => {
+    expect(canManageSlotAvailability(null)).toBe(false)
     expect(canCreateNode(null)).toBe(false)
     expect(canEditNode(undefined)).toBe(false)
     expect(canManageSchedule(null)).toBe(false)

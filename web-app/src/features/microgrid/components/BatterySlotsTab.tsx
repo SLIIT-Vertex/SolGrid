@@ -1,4 +1,6 @@
 import { useState } from 'react'
+import { useAuth } from '@/auth/useAuth'
+import { canManageSlotAvailability } from '@/features/microgrid/permissions'
 import { Button } from '@/components/common/Button'
 import { ConfirmDialog } from '@/components/common/ConfirmDialog'
 import { EmptyState, ErrorState, LoadingState } from '@/components/common/QueryStates'
@@ -28,6 +30,8 @@ function PlusIcon({ className }: { className?: string }) {
 
 export function BatterySlotsTab({ node, canManage }: { node: MicrogridNode; canManage: boolean }) {
   const { showToast } = useToast()
+  const { session } = useAuth()
+  const canChangeAvailability = canManageSlotAvailability(session)
   const [filters, setFilters] = useState<MicrogridSlotFilters>(defaultMicrogridSlotFilters)
   const [dialog, setDialog] = useState<{ mode: 'create' | 'edit'; slot?: MicrogridBatterySlot } | null>(null)
   const [pendingAction, setPendingAction] = useState<{
@@ -125,8 +129,8 @@ export function BatterySlotsTab({ node, canManage }: { node: MicrogridNode; canM
           <>
             <BatterySlotsView
               slots={data.items}
-              canManage={canManage}
-              onEdit={(slot) => setDialog({ mode: 'edit', slot })}
+              canManage={canChangeAvailability}
+              onEdit={canManage ? (slot) => setDialog({ mode: 'edit', slot }) : undefined}
               onActivate={(slot) => setPendingAction({ slot, kind: 'activate' })}
               onDeactivate={(slot) => setPendingAction({ slot, kind: 'deactivate' })}
             />

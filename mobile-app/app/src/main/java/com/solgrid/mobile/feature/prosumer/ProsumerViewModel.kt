@@ -2,7 +2,6 @@ package com.solgrid.mobile.feature.prosumer
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.solgrid.mobile.core.mock.MockData
 import com.solgrid.mobile.core.models.EnergyReservation
 import com.solgrid.mobile.core.models.ProsumerAccountStatus
 import com.solgrid.mobile.core.models.ProsumerProfile
@@ -25,7 +24,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.time.Instant
-import java.time.LocalDateTime
 import java.time.OffsetDateTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -74,31 +72,33 @@ private fun ReservationDto.toEnergyReservation(nodeName: String): EnergyReservat
         createdAt = created.format(displayDateFormatter),
         rejectionReason = rejectionReason,
         qrPayload = null,
+        scheduledAt = scheduledAt,
     )
 }
 
 data class ProsumerUiState(
-    val profile: ProsumerProfile = MockData.prosumer,
+    val profile: ProsumerProfile = ProsumerProfile("", "", "", "", ""),
     val reservations: List<EnergyReservation> = emptyList(),
     val loading: Boolean = true,
     val profileError: String? = null,
     val reservationsLoading: Boolean = false,
     val reservationsError: String? = null,
+    val summary: com.solgrid.mobile.core.network.ReservationDashboardSummaryDto? = null,
 ) {
     val currentAndPending: List<EnergyReservation>
-        get() = reservations.filter { it.status == ReservationStatus.PENDING || it.status == ReservationStatus.APPROVED }
+        get() = reservations.filter { (it.status == ReservationStatus.PENDING || it.status == ReservationStatus.APPROVED) && it.scheduledAt?.let { time -> !Instant.parse(time).isBefore(Instant.now()) } == true }
     val history: List<EnergyReservation>
-        get() = reservations.filter { it.status == ReservationStatus.COMPLETED || it.status == ReservationStatus.CANCELLED }
-    val pendingCount: Int get() = reservations.count { it.status == ReservationStatus.PENDING }
-    val approvedFutureCount: Int get() = reservations.count { it.status == ReservationStatus.APPROVED }
+        get() = reservations.filter { it.status == ReservationStatus.COMPLETED || it.status == ReservationStatus.CANCELLED || it.status == ReservationStatus.REJECTED || it.scheduledAt?.let { time -> Instant.parse(time).isBefore(Instant.now()) } == true }
+    val pendingCount: Long get() = summary?.pendingReservationsCount ?: 0
+    val approvedFutureCount: Long get() = summary?.approvedFutureReservationsCount ?: 0
 }
 
 enum class ReservationAction { CREATED, UPDATED, CANCELLED }
 
 /**
  * Owns Prosumer-side state: profile, reservation list, and the create/update/cancel workflow.
- * All server-authoritative rules (7-day window, 12-hour notice) are enforced by the central API in
- * the real system — this mock layer simulates the same validation so the UI states are demonstrable.
+ * All server-authoritative rules (7-day window, 12-hour notice) are enforced
+ * by the central API. The client displays the returned data and errors.
  */
 class ProsumerViewModel : ViewModel() {
     private val _uiState = MutableStateFlow(ProsumerUiState())
@@ -130,10 +130,24 @@ class ProsumerViewModel : ViewModel() {
     fun loadReservations() {
         viewModelScope.launch {
             _uiState.update { it.copy(reservationsLoading = true, reservationsError = null) }
-            when (val outcome = reservationRepository.getMyReservations()) {
+            when (val outcome = reservationRepository.getAllMine()) {
                 is ReservationListOutcome.Success -> {
-                    val mapped = outcome.response.items.map { dto -> dto.toEnergyReservation(nodeName(dto.stationId)) }
-                    _uiState.update { it.copy(reservations = mapped, reservationsLoading = false) }
+                    val slotsByStation = outcome.response.items.map { it.stationId }.distinct().associateWith { stationId ->
+                        when (val result = nodeRepository.allSlots(stationId)) { is NodeResult.Success -> result.value; is NodeResult.Failure -> emptyList() }
+                    }
+                    val mapped = outcome.response.items.map { dto ->
+                        val slot = slotsByStation[dto.stationId]?.find { it.id == dto.bookingSlotId }
+                        dto.toEnergyReservation(nodeName(dto.stationId)).let { booking ->
+                            if (slot == null) booking else booking.copy(endTime = OffsetDateTime.parse(slot.endTime).atZoneSameInstant(ZoneId.systemDefault()).format(displayTimeFormatter))
+                        }
+                    }
+                    try {
+                        val summary = reservationRepository.getMySummary()
+                        _uiState.update { it.copy(reservations = mapped, summary = summary, reservationsLoading = false) }
+                    } catch (error: Exception) {
+                        if (error is kotlinx.coroutines.CancellationException) throw error
+                        _uiState.update { it.copy(reservations = mapped, summary = null, reservationsLoading = false, reservationsError = error.message ?: "Could not load dashboard counts.") }
+                    }
                 }
                 is ReservationListOutcome.Failure -> {
                     _uiState.update { it.copy(reservationsLoading = false, reservationsError = outcome.message) }
@@ -146,21 +160,11 @@ class ProsumerViewModel : ViewModel() {
         stationNameCache[stationId]?.let { return it }
         return when (val result = nodeRepository.station(stationId)) {
             is NodeResult.Success -> result.value.name.also { stationNameCache[stationId] = it }
-            is NodeResult.Failure -> stationId
+            is NodeResult.Failure -> nodeRepository.cachedStation(stationId)?.name ?: stationId
         }
     }
 
     fun reservationById(id: String): EnergyReservation? = _uiState.value.reservations.find { it.id == id }
-
-    /** Returns an error message, or null if the reservation can be created. Mirrors the API's 7-day rule. */
-    fun validateNewReservationDate(dateTime: LocalDateTime): String? {
-        val now = LocalDateTime.now()
-        return when {
-            dateTime.isBefore(now) -> "Selected time is in the past."
-            dateTime.isAfter(now.plusDays(7)) -> "Reservations must be scheduled within the next 7 days."
-            else -> null
-        }
-    }
 
     fun createReservation(
         stationId: String,
@@ -187,6 +191,7 @@ class ProsumerViewModel : ViewModel() {
                 is ReservationOutcome.Success -> {
                     val reservation = outcome.response.toEnergyReservation(nodeName)
                     _uiState.update { it.copy(reservations = listOf(reservation) + it.reservations) }
+                    loadReservations()
                     onResult(reservation)
                 }
                 is ReservationOutcome.Failure -> onError(outcome.message)
@@ -227,6 +232,7 @@ class ProsumerViewModel : ViewModel() {
                     _uiState.update { state ->
                         state.copy(reservations = state.reservations.map { if (it.id == reservationId) updated else it })
                     }
+                    loadReservations()
                     onResult(updated)
                 }
                 is ReservationOutcome.Failure -> onError(outcome.message)
@@ -245,6 +251,7 @@ class ProsumerViewModel : ViewModel() {
                             }
                         )
                     }
+                    loadReservations()
                     onDone()
                 }
                 is ReservationActionOutcome.Failure -> onError(outcome.message)
@@ -256,7 +263,7 @@ class ProsumerViewModel : ViewModel() {
         viewModelScope.launch {
             when (val outcome = reservationRepository.issueQr(reservationId)) {
                 is ReservationQrOutcome.Success -> {
-                    val payload = "${outcome.response.reservationId}|${outcome.response.verificationToken}"
+                    val payload = com.solgrid.mobile.core.qr.TransactionQr.payload(outcome.response.reservationId, outcome.response.verificationToken)
                     _uiState.update { state ->
                         state.copy(
                             reservations = state.reservations.map {

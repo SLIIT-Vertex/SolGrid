@@ -94,7 +94,8 @@ fun VerificationResultScreen(
 
         Box(modifier = Modifier.weight(1f))
 
-        if (state.lastVerification?.result == TransferVerificationResult.VALID) {
+        state.operationError?.let { Text(it, style = AppType.body, color = colors.error, textAlign = TextAlign.Center, modifier = Modifier.padding(bottom = Spacing.md)) }
+        if (state.lastVerification?.result == TransferVerificationResult.VALID && state.lastVerification?.reservation != null) {
             PrimaryButton(
                 text = "Finalize Energy Transfer",
                 loading = state.finalizing,

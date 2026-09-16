@@ -17,6 +17,10 @@ public interface IProsumerService
 {
     Task<ProsumerResponse> RegisterProsumerAsync(RegisterProsumerRequest request, CancellationToken cancellationToken = default);
 
+    Task<ProsumerResponse> CreateProsumerAsync(RegisterProsumerRequest request, CancellationToken cancellationToken = default);
+
+    Task<ProsumerResponse> UpdateProsumerAsync(string nic, UpdateProsumerRequest request, CancellationToken cancellationToken = default);
+
     Task<ProsumerResponse> GetMyProsumerAsync(CancellationToken cancellationToken = default);
 
     Task<ProsumerResponse> UpdateMyProsumerAsync(UpdateProsumerRequest request, CancellationToken cancellationToken = default);

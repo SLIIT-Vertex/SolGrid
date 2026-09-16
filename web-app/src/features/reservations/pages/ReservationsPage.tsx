@@ -1,4 +1,6 @@
 import { useState } from 'react'
+import { Button } from '@/components/common/Button'
+import { ReservationDialog } from '@/features/reservations/components/ReservationDialog'
 import { ConfirmDialog } from '@/components/common/ConfirmDialog'
 import { EmptyState, ErrorState, LoadingState } from '@/components/common/QueryStates'
 import { Pagination } from '@/components/common/Pagination'
@@ -27,6 +29,7 @@ const tabs: { key: ReservationDashboardTab; label: string }[] = [
 ]
 
 export function ReservationsPage() {
+  const [editor, setEditor] = useState<{ reservation?: Reservation } | null>(null)
   const [tab, setTab] = useState<ReservationDashboardTab>('pending')
   const [filters, setFilters] = useState(defaultReservationFilters)
   const [pendingAction, setPendingAction] = useState<{ reservation: Reservation; action: ReservationAction } | null>(
@@ -87,6 +90,8 @@ export function ReservationsPage() {
         </p>
       </div>
 
+      <div className="mb-4 flex justify-end"><Button onClick={() => setEditor({})}>Create reservation</Button></div>
+      {editor && <ReservationDialog reservation={editor.reservation} onClose={() => setEditor(null)} />}
       <ReservationSummaryCards summary={summary} isLoading={isSummaryLoading} />
 
       <div className="mt-6 rounded-2xl border border-ink-100 bg-white">
@@ -120,7 +125,7 @@ export function ReservationsPage() {
           <EmptyState title="No reservations found" description="Try adjusting your filters." />
         ) : (
           <>
-            <ReservationTable reservations={data.items} onAction={handleAction} />
+            <ReservationTable reservations={data.items} onEdit={(reservation) => setEditor({ reservation })} onAction={handleAction} />
             <Pagination
               pageNumber={data.pageNumber}
               pageSize={data.pageSize}

@@ -6,6 +6,7 @@ export type ProsumerAction = 'activate' | 'deactivate' | 'reactivate'
 
 interface ProsumerTableProps {
   prosumers: Prosumer[]
+  onEdit?: (prosumer: Prosumer) => void
   onAction: (prosumer: Prosumer, action: ProsumerAction) => void
 }
 
@@ -15,7 +16,7 @@ const dateFormatter = new Intl.DateTimeFormat('en-GB', {
   year: 'numeric',
 })
 
-export function ProsumerTable({ prosumers, onAction }: ProsumerTableProps) {
+export function ProsumerTable({ prosumers, onAction, onEdit }: ProsumerTableProps) {
   return (
     <div className="overflow-x-auto">
       <table className="w-full min-w-[760px] text-left text-sm">
@@ -43,6 +44,7 @@ export function ProsumerTable({ prosumers, onAction }: ProsumerTableProps) {
               <td className="px-4 py-3 text-ink-500">{dateFormatter.format(new Date(prosumer.createdAt))}</td>
               <td className="px-4 py-3">
                 <div className="flex justify-end gap-2">
+                  {onEdit && <Button size="sm" variant="secondary" onClick={() => onEdit(prosumer)}>Edit</Button>}
                   {prosumer.status === 'Pending' ? (
                     <Button size="sm" onClick={() => onAction(prosumer, 'activate')}>
                       Activate

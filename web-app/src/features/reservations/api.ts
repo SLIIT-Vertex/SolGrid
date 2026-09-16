@@ -113,3 +113,13 @@ export async function rejectReservation(id: string, input: RejectReservationInpu
 export async function cancelReservation(id: string): Promise<void> {
   await apiClient.patch(`/api/v1/reservations/${id}/cancel`)
 }
+
+export interface ReservationScheduleRequest { stationId: string; bookingSlotId: string; scheduledAt: string }
+export async function createReservation(request: ReservationScheduleRequest & { prosumerId: string }): Promise<Reservation> {
+  const { data } = await apiClient.post<ReservationDto>('/api/v1/reservations', request)
+  return toReservation(data)
+}
+export async function updateReservation(id: string, request: ReservationScheduleRequest): Promise<Reservation> {
+  const { data } = await apiClient.put<ReservationDto>(`/api/v1/reservations/${id}`, request)
+  return toReservation(data)
+}

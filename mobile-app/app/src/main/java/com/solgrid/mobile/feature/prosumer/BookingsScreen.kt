@@ -62,9 +62,12 @@ fun BookingsScreen(viewModel: ProsumerViewModel, onBack: () -> Unit, onBookingCl
             }
         }
 
-        if (filtered.isEmpty()) {
+        androidx.compose.runtime.LaunchedEffect(Unit) { viewModel.loadReservations() }
+        state.reservationsError?.let { androidx.compose.material3.Text(it, color = colors.error); com.solgrid.mobile.core.components.SecondaryButton("Retry", { viewModel.loadReservations() }) }
+        if (state.reservationsLoading) androidx.compose.material3.Text("Loading bookings…")
+        if (filtered.isEmpty() && !state.reservationsLoading && state.reservationsError == null) {
             EmptyState(kind = EmptyKind.SEARCH_RESULTS, modifier = Modifier.padding(top = Spacing.xxxl))
-        } else {
+        } else if (filtered.isNotEmpty()) {
             LazyColumn(contentPadding = PaddingValues(horizontal = Spacing.lg)) {
                 items(filtered, key = { it.id }) { reservation ->
                     ReservationRow(reservation = reservation, onClick = { onBookingClick(reservation.id) })

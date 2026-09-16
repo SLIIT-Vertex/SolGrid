@@ -494,3 +494,5 @@ AGENTS.md
 members.txt
 mobile-app/secrets.properties
 mobile-app/local.properties
+
+mobile-app/env.properties

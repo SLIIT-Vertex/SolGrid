@@ -6,6 +6,7 @@ export type ReservationAction = 'approve' | 'reject' | 'cancel'
 
 interface ReservationTableProps {
   reservations: Reservation[]
+  onEdit?: (reservation: Reservation) => void
   onAction: (reservation: Reservation, action: ReservationAction) => void
 }
 
@@ -17,7 +18,7 @@ const dateTimeFormatter = new Intl.DateTimeFormat('en-GB', {
   minute: '2-digit',
 })
 
-export function ReservationTable({ reservations, onAction }: ReservationTableProps) {
+export function ReservationTable({ reservations, onAction, onEdit }: ReservationTableProps) {
   return (
     <div className="overflow-x-auto">
       <table className="w-full min-w-[820px] text-left text-sm">
@@ -43,6 +44,7 @@ export function ReservationTable({ reservations, onAction }: ReservationTablePro
               <td className="px-4 py-3 text-ink-500">{dateTimeFormatter.format(new Date(reservation.createdAt))}</td>
               <td className="px-4 py-3">
                 <div className="flex justify-end gap-2">
+                  {onEdit && (reservation.status === 'Pending' || reservation.status === 'Approved') && <Button variant="secondary" size="sm" onClick={() => onEdit(reservation)}>Edit</Button>}
                   {reservation.status === 'Pending' ? (
                     <>
                       <Button size="sm" onClick={() => onAction(reservation, 'approve')}>
