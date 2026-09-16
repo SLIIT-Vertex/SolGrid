@@ -44,5 +44,6 @@ object SessionStore {
         userDisplayName = null
         role = null
         database?.clearSession()
+        database?.clearReferences()
     }
 }

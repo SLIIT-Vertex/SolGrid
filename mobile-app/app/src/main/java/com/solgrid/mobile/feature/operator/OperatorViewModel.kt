@@ -2,7 +2,6 @@ package com.solgrid.mobile.feature.operator
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.solgrid.mobile.core.mock.MockData
 import com.solgrid.mobile.core.models.EnergyReservation
 import com.solgrid.mobile.core.models.OperatorProfile
 import com.solgrid.mobile.core.models.QrVerification
@@ -52,11 +51,14 @@ private fun ReservationDto.toEnergyReservation(): EnergyReservation {
 }
 
 data class OperatorUiState(
-    val profile: OperatorProfile = MockData.operator,
-    val queue: List<EnergyReservation> = MockData.operatorQueue,
+    val profile: OperatorProfile = OperatorProfile(com.solgrid.mobile.core.network.SessionStore.userId.orEmpty(), com.solgrid.mobile.core.network.SessionStore.userDisplayName.orEmpty(), "", "All grid nodes"),
+    val queue: List<EnergyReservation> = emptyList(),
+    val queueError: String? = null,
+    val queueLoading: Boolean = false,
     val lastVerification: QrVerification? = null,
     val lastVerificationToken: String? = null,
     val verifying: Boolean = false,
+    val operationError: String? = null,
     val finalizing: Boolean = false
 )
 
@@ -73,27 +75,28 @@ class OperatorViewModel(private val reservationRepository: ReservationRepository
      * per-operator station assignment, so every Backoffice/GridOperator caller sees the same queue. */
     fun loadQueue() {
         viewModelScope.launch {
-            when (val outcome = reservationRepository.getCurrent()) {
+            _uiState.update { it.copy(queueLoading = true, queueError = null, profile = it.profile.copy(operatorId = com.solgrid.mobile.core.network.SessionStore.userId.orEmpty(), fullName = com.solgrid.mobile.core.network.SessionStore.userDisplayName.orEmpty())) }
+            when (val outcome = reservationRepository.getAllCurrent()) {
                 is ReservationListOutcome.Success -> {
-                    _uiState.update { it.copy(queue = outcome.response.items.map { dto -> dto.toEnergyReservation() }) }
+                    _uiState.update { it.copy(queue = outcome.response.items.map { dto -> dto.toEnergyReservation() }, queueLoading = false) }
                 }
-                is ReservationListOutcome.Failure -> Unit
+                is ReservationListOutcome.Failure -> _uiState.update { it.copy(queue = emptyList(), queueError = outcome.message, queueLoading = false) }
             }
         }
     }
 
     fun verifyCode(code: String) {
-        val parts = code.split("|", limit = 2)
-        if (parts.size != 2 || parts[0].isBlank() || parts[1].isBlank()) {
+        val payload = com.solgrid.mobile.core.qr.TransactionQr.parse(code)
+        if (payload == null) {
             _uiState.update {
-                it.copy(lastVerification = QrVerification(null, TransferVerificationResult.NOT_FOUND))
+                it.copy(lastVerification = QrVerification(null, TransferVerificationResult.NOT_FOUND), lastVerificationToken = null, operationError = "Invalid transaction QR payload.")
             }
             return
         }
-        val (reservationId, token) = parts
+        val (reservationId, token) = payload
 
         viewModelScope.launch {
-            _uiState.update { it.copy(verifying = true) }
+            _uiState.update { it.copy(verifying = true, lastVerification = null, lastVerificationToken = null, operationError = null) }
             when (val outcome = reservationRepository.verifyQr(reservationId, token)) {
                 is VerifyQrOutcome.Success -> {
                     val result = if (outcome.response.isValid) TransferVerificationResult.VALID else TransferVerificationResult.EXPIRED
@@ -103,8 +106,9 @@ class OperatorViewModel(private val reservationRepository: ReservationRepository
                     _uiState.update {
                         it.copy(
                             verifying = false,
-                            lastVerification = QrVerification(reservation, result),
-                            lastVerificationToken = token,
+                            lastVerification = QrVerification(reservation, if (reservation == null) TransferVerificationResult.NOT_FOUND else result),
+                            lastVerificationToken = if (reservation != null && outcome.response.isValid) token else null,
+                            operationError = if (reservation == null) "Could not load the booking details. Scan again." else if (!outcome.response.isValid) outcome.response.message else null,
                         )
                     }
                 }
@@ -113,6 +117,8 @@ class OperatorViewModel(private val reservationRepository: ReservationRepository
                         it.copy(
                             verifying = false,
                             lastVerification = QrVerification(null, TransferVerificationResult.NOT_FOUND),
+                            lastVerificationToken = null,
+                            operationError = outcome.message,
                         )
                     }
                 }
@@ -131,7 +137,7 @@ class OperatorViewModel(private val reservationRepository: ReservationRepository
         val reservation = _uiState.value.lastVerification?.reservation ?: return
         val token = _uiState.value.lastVerificationToken ?: return
         viewModelScope.launch {
-            _uiState.update { it.copy(finalizing = true) }
+            _uiState.update { it.copy(finalizing = true, operationError = null) }
             when (val outcome = reservationRepository.complete(reservation.id, token)) {
                 is ReservationOutcome.Success -> {
                     val updated = outcome.response.toEnergyReservation()
@@ -145,11 +151,11 @@ class OperatorViewModel(private val reservationRepository: ReservationRepository
                     onDone()
                 }
                 is ReservationOutcome.Failure -> {
-                    _uiState.update { it.copy(finalizing = false) }
+                    _uiState.update { it.copy(finalizing = false, operationError = outcome.message) }
                 }
             }
         }
     }
 
-    fun clearVerification() = _uiState.update { it.copy(lastVerification = null, lastVerificationToken = null) }
+    fun clearVerification() = _uiState.update { it.copy(lastVerification = null, lastVerificationToken = null, operationError = null) }
 }

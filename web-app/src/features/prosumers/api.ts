@@ -61,3 +61,21 @@ export async function deactivateProsumer(nic: string): Promise<void> {
 export async function reactivateProsumer(nic: string): Promise<void> {
   await apiClient.patch(`/api/v1/prosumers/${nic}/reactivate`)
 }
+
+export interface ProsumerProfileRequest {
+  firstName: string
+  lastName: string
+  email: string
+  phoneNumber: string | null
+}
+
+export async function createProsumer(request: ProsumerProfileRequest & { nic: string; password: string }): Promise<Prosumer> {
+  const { data } = await apiClient.post<ProsumerDto>('/api/v1/prosumers', request)
+  return toProsumer(data)
+}
+
+export async function updateProsumer(nic: string, request: ProsumerProfileRequest): Promise<Prosumer> {
+  const { firstName, lastName, email, phoneNumber } = request
+  const { data } = await apiClient.put<ProsumerDto>(`/api/v1/prosumers/${encodeURIComponent(nic)}`, { firstName, lastName, email, phoneNumber })
+  return toProsumer(data)
+}

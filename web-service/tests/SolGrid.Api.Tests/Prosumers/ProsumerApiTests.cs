@@ -123,6 +123,33 @@ public sealed class ProsumerApiTests
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
     }
 
+    [Fact]
+    public async Task Backoffice_CanCreateAndEditProfile_ThroughAdministrativeRoutes()
+    {
+        // Verify the web management REST contract and immutable account identity.
+        await using var factory = CreateFactory();
+        var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", CreateWebUserJwt(UserRole.Backoffice));
+        var created = await client.PostAsJsonAsync("/api/v1/prosumers", new { Nic = "199012345678", FirstName = "First", LastName = "Name", Email = "created@example.com", Password = "password123" });
+        Assert.Equal(HttpStatusCode.Created, created.StatusCode);
+        var updated = await client.PutAsJsonAsync("/api/v1/prosumers/199012345678", new { FirstName = "Updated", LastName = "Name", Email = "updated@example.com" });
+        Assert.Equal(HttpStatusCode.OK, updated.StatusCode);
+        var body = await updated.Content.ReadAsStringAsync();
+        Assert.Contains("updated@example.com", body);
+        Assert.DoesNotContain("passwordHash", body, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task GridOperator_CannotWriteAdministrativeProsumerRoutes()
+    {
+        // Check HTTP authorization before administrative services execute.
+        await using var factory = CreateFactory();
+        var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", CreateWebUserJwt(UserRole.GridOperator));
+        Assert.Equal(HttpStatusCode.Forbidden, (await client.PostAsJsonAsync("/api/v1/prosumers", new { Nic = "199012345678" })).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await client.PutAsJsonAsync("/api/v1/prosumers/199012345678", new { FirstName = "Updated" })).StatusCode);
+    }
+
     private static WebApplicationFactory<Program> CreateFactory()
     {
         // Create an API test host with Mongo startup initialization disabled.
@@ -145,6 +172,8 @@ public sealed class ProsumerApiTests
                 builder.ConfigureServices(services =>
                 {
                     services.RemoveAll<IReservationService>();
+                    services.RemoveAll<IUserRepository>();
+                    services.AddSingleton<IUserRepository>(new TestUserRepository());
                     services.RemoveAll<IProsumerRepository>();
                     services.AddSingleton<IProsumerRepository>(new TestProsumerRepository());
                 });
@@ -167,6 +196,50 @@ public sealed class ProsumerApiTests
             signingCredentials: new SigningCredentials(signingKey, SecurityAlgorithms.HmacSha256));
 
         return new JwtSecurityTokenHandler().WriteToken(token);
+    }
+
+    private sealed class TestUserRepository : IUserRepository
+    {
+        public Task<User?> GetByIdAsync(string id, CancellationToken cancellationToken = default)
+        {
+            // No web user is seeded in this isolated host.
+            return Task.FromResult<User?>(null);
+        }
+        public Task<User?> GetByEmailAsync(string email, CancellationToken cancellationToken = default)
+        {
+            // No web user is seeded in this isolated host.
+            return Task.FromResult<User?>(null);
+        }
+        public Task<IReadOnlyList<User>> GetAllAsync(CancellationToken cancellationToken = default)
+        {
+            // Return the empty web user store.
+            return Task.FromResult<IReadOnlyList<User>>(Array.Empty<User>());
+        }
+        public Task<PagedResult<User>> GetPagedAsync(UserQuery query, CancellationToken cancellationToken = default)
+        {
+            // Return an empty page for this host.
+            return Task.FromResult(new PagedResult<User> { Items = Array.Empty<User>(), TotalCount = 0, PageNumber = query.PageNumber, PageSize = query.PageSize });
+        }
+        public Task<bool> ExistsByEmailAsync(string email, string? excludingUserId = null, CancellationToken cancellationToken = default)
+        {
+            // Registration must not reach a real MongoDB repository.
+            return Task.FromResult(false);
+        }
+        public Task<bool> EmailExistsAsync(string email, string? excludingUserId = null, CancellationToken cancellationToken = default)
+        {
+            // Match the alternate repository query contract.
+            return Task.FromResult(false);
+        }
+        public Task AddAsync(User user, CancellationToken cancellationToken = default)
+        {
+            // Fail loudly if this prosumer host unexpectedly writes a web user.
+            throw new NotSupportedException();
+        }
+        public Task UpdateAsync(User user, CancellationToken cancellationToken = default)
+        {
+            // Fail loudly if this prosumer host unexpectedly writes a web user.
+            throw new NotSupportedException();
+        }
     }
 
     private sealed class TestProsumerRepository : IProsumerRepository

@@ -8,12 +8,10 @@ import retrofit2.Retrofit
 import retrofit2.converter.kotlinx.serialization.asConverterFactory
 import java.util.concurrent.TimeUnit
 
-/**
- * 10.0.2.2 is the Android emulator's alias for the host machine's localhost, where the SolGrid
- * backend runs on port 5080 (see web-service/.env BACKEND_PORT). Point this at a LAN IP instead
- * when running on a physical device.
+/** Backend URL is configured with Gradle's API_BASE_URL property and must end with /.
+ * The physical-device default targets the current LAN host; use 10.0.2.2 for an emulator.
  */
-private const val BASE_URL = "http://10.0.2.2:5080/"
+private const val BASE_URL = com.solgrid.mobile.BuildConfig.API_BASE_URL
 
 object NetworkModule {
     private val json = Json { ignoreUnknownKeys = true }

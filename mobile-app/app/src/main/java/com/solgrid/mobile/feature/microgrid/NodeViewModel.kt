@@ -16,7 +16,8 @@ data class NodeState(
     val bookings: List<ReservationDto> = emptyList(), val loading: Boolean = false,
     val error: String? = null, val nodePage: Int = 1, val nodePageSize: Int = 20,
     val slotTotalCount: Long = 0, val bookingTotalCount: Long = 0,
-    val searchAreaLabel: String? = null,
+    val searchLatitude: Double? = null, val searchLongitude: Double? = null,
+    val searchAreaLabel: String? = null, val changingSlot: String? = null,
 )
 
 class NodeViewModel(private val repository: NodeRepository = NodeRepository()) : ViewModel() {
@@ -31,7 +32,7 @@ class NodeViewModel(private val repository: NodeRepository = NodeRepository()) :
         }
     }
     fun loadNearby(latitude: Double, longitude: Double, areaLabel: String? = null) = viewModelScope.launch {
-        _state.update { it.copy(loading = true, error = null, searchAreaLabel = areaLabel) }
+        _state.update { it.copy(loading = true, error = null, searchAreaLabel = areaLabel, searchLatitude = latitude, searchLongitude = longitude) }
         when (val result = repository.nearby(latitude, longitude)) {
             is NodeResult.Success -> _state.update { it.copy(nodes = result.value, loading = false) }
             is NodeResult.Failure -> _state.update { it.copy(loading = false, error = result.message) }
@@ -43,8 +44,30 @@ class NodeViewModel(private val repository: NodeRepository = NodeRepository()) :
             is NodeResult.Success -> _state.update { it.copy(selected = result.value, loading = false) }
             is NodeResult.Failure -> _state.update { it.copy(selected = null, loading = false, error = result.message) }
         }
-        when (val result = repository.slots(id, 1)) { is NodeResult.Success -> _state.update { it.copy(slots = result.value.items, slotTotalCount = result.value.totalCount) }; is NodeResult.Failure -> Unit }
+        val slots = mutableListOf<BookingSlotDto>()
+        var page = 1
+        while (true) {
+            when (val result = repository.slots(id, page)) {
+                is NodeResult.Success -> {
+                    slots.addAll(result.value.items)
+                    if (slots.size >= result.value.totalCount || result.value.items.isEmpty()) {
+                        _state.update { it.copy(slots = slots, slotTotalCount = result.value.totalCount) }
+                        break
+                    }
+                }
+                is NodeResult.Failure -> { _state.update { it.copy(slots = emptyList(), error = result.message) }; break }
+            }
+            page++
+        }
     }
-    fun loadBookings(id: String) = viewModelScope.launch { when (val result = repository.bookings(id, 1)) { is NodeResult.Success -> _state.update { it.copy(bookings = result.value.items, bookingTotalCount = result.value.totalCount) }; is NodeResult.Failure -> _state.update { it.copy(error = result.message) } } }
+    fun loadBookings(id: String) = viewModelScope.launch { when (val result = repository.allBookings(id)) { is NodeResult.Success -> _state.update { it.copy(bookings = result.value, bookingTotalCount = result.value.size.toLong()) }; is NodeResult.Failure -> _state.update { it.copy(error = result.message) } } }
+    fun setSlotAvailability(nodeId: String, slotId: String, active: Boolean) = viewModelScope.launch {
+        _state.update { it.copy(changingSlot = slotId, error = null) }
+        when (val result = repository.setSlotAvailability(slotId, active)) {
+            is NodeResult.Success -> { loadDetail(nodeId).join(); loadOperatorNodes().join() }
+            is NodeResult.Failure -> _state.update { it.copy(error = result.message) }
+        }
+        _state.update { it.copy(changingSlot = null) }
+    }
     fun clear() { _state.value = NodeState() }
 }

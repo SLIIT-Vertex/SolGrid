@@ -54,3 +54,30 @@ make docker-test-mongo-up
 make test SOLGRID_MONGO_TEST_CONNECTION_STRING=mongodb://localhost:27018
 make docker-test-mongo-down
 ```
+
+Android development uses the same root `.env`. Set:
+
+```dotenv
+MOBILE_API_BASE_URL=http://192.168.1.2:5080/
+MOBILE_MAPS_API_KEY=your_android_maps_key
+```
+
+Use your computer's current LAN IP for a physical phone on the same network, or `http://10.0.2.2:5080/` for the Android emulator. The URL must end with `/`. For a local backend accessible from the phone, run `make run ASPNETCORE_ENVIRONMENT=Development ASPNETCORE_URLS=http://0.0.0.0:5080` after `make secrets-set`, or use `make docker-up`.
+
+```text
+make mobile-env
+make mobile-build
+make mobile-install
+make mobile-test
+make mobile-clean
+```
+
+`mobile-env` creates ignored `mobile-app/env.properties` containing only the Android API URL and Maps key. Build, install and unit-test commands refresh this file automatically. Android Studio reads it too; run `make mobile-env` after changing `.env` before building from the IDE. Backend passwords and JWT signing secrets are not copied into the Android configuration. `mobile-install` builds and installs the debug APK on connected devices using Gradle. The APK is at `mobile-app/app/build/outputs/apk/debug/app-debug.apk`.
+
+Android commands require the Android SDK and JDK supported by the project, with SDK location configured in Android Studio or ignored `mobile-app/local.properties`. Settings are embedded at build time; rebuild and reinstall after changing them. Explicit Gradle `-PAPI_BASE_URL` / `-PMAPS_API_KEY` overrides remain available. To override the root setting through Make:
+
+```text
+make mobile-build MOBILE_API_BASE_URL=http://10.0.2.2:5080/
+```
+
+`env-init` preserves existing `.env` files. For older files, add the two `MOBILE_` variables manually. A missing URL defaults to the emulator address; a missing Maps key leaves the map unconfigured.

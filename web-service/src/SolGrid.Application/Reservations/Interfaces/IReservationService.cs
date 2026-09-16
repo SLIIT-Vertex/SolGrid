@@ -32,6 +32,8 @@ public interface IReservationService
         ReservationQuery query,
         CancellationToken cancellationToken = default);
 
+    Task<ReservationDashboardSummaryResponse> GetMyDashboardSummaryAsync(CancellationToken cancellationToken = default);
+
     Task<ReservationDashboardSummaryResponse> GetDashboardSummaryAsync(CancellationToken cancellationToken = default);
 
     Task<ReservationResponse> ApproveReservationAsync(string id, ApproveReservationRequest request, CancellationToken cancellationToken = default);

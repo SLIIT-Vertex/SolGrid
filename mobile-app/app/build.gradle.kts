@@ -1,10 +1,16 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
 }
 
-val mapsApiKey = providers.gradleProperty("MAPS_API_KEY").orElse("").get()
+val mobileEnv = Properties().apply {
+    val contents = providers.fileContents(rootProject.layout.projectDirectory.file("env.properties")).asText.orElse("").get()
+    contents.reader().use { load(it) }
+}
+val mapsApiKey = providers.gradleProperty("MAPS_API_KEY").orElse(mobileEnv.getProperty("MAPS_API_KEY", "")).get()
 
 android {
     namespace = "com.solgrid.mobile"
@@ -16,6 +22,10 @@ android {
 
     defaultConfig {
         applicationId = "com.solgrid.mobile"
+        val apiBaseUrl = providers.gradleProperty("API_BASE_URL").orElse(mobileEnv.getProperty("API_BASE_URL", "http://10.0.2.2:5080/")).get()
+        require(apiBaseUrl.startsWith("http://") || apiBaseUrl.startsWith("https://")) { "API_BASE_URL must be an HTTP(S) URL" }
+        require(apiBaseUrl.endsWith("/")) { "API_BASE_URL must end with /" }
+        buildConfigField("String", "API_BASE_URL", "\"$apiBaseUrl\"")
         minSdk = 26
         targetSdk = 36
         versionCode = 1
@@ -38,6 +48,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
     packaging {
         resources {
@@ -49,6 +60,8 @@ android {
 kotlin { compilerOptions.jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17) }
 
 dependencies {
+    implementation(libs.zxing.core)
+    implementation(libs.zxing.embedded)
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.lifecycle.viewmodel.compose)

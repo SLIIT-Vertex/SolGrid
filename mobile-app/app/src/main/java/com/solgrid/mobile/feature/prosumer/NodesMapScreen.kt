@@ -131,6 +131,15 @@ fun NodesMapScreen(viewModel: NodeViewModel, onBack: () -> Unit, onNodeClick: (S
                 }
             }
         )
+        val camera = rememberCameraPositionState { position = CameraPosition.fromLatLngZoom(LatLng(6.9271, 79.8612), 12f) }
+        LaunchedEffect(state.searchLatitude, state.searchLongitude) {
+            val latitude = state.searchLatitude
+            val longitude = state.searchLongitude
+            if (latitude != null && longitude != null) camera.position = CameraPosition.fromLatLngZoom(LatLng(latitude, longitude), 12f)
+        }
+        GoogleMap(Modifier.fillMaxWidth().height(260.dp).padding(horizontal = Spacing.lg).clip(RoundedCornerShape(Radius.lg)), cameraPositionState = camera) {
+            state.nodes.forEach { node -> Marker(MarkerState(LatLng(node.location.latitude, node.location.longitude)), title = node.name, snippet = "${node.availableSlotCount} slots available", onClick = { onNodeClick(node.id); true }) }
+        }
         when {
             state.error != null -> ErrorState(ErrorKind.SERVER_ERROR, onRetry = { requestLocation() })
             state.nodes.isEmpty() && !state.loading -> StatePlaceholder(
@@ -141,12 +150,6 @@ fun NodesMapScreen(viewModel: NodeViewModel, onBack: () -> Unit, onNodeClick: (S
                 onAction = { launchAreaSearch() }
             )
             else -> {
-                if (state.nodes.isNotEmpty()) {
-                    val camera = rememberCameraPositionState { position = CameraPosition.fromLatLngZoom(LatLng(state.nodes.first().location.latitude, state.nodes.first().location.longitude), 12f) }
-                    GoogleMap(Modifier.fillMaxWidth().height(260.dp).padding(horizontal = Spacing.lg).clip(RoundedCornerShape(Radius.lg)), cameraPositionState = camera) {
-                        state.nodes.forEach { node -> Marker(MarkerState(LatLng(node.location.latitude, node.location.longitude)), title = node.name, snippet = "${node.availableSlotCount} slots available", onClick = { onNodeClick(node.id); true }) }
-                    }
-                }
                 Row(Modifier.fillMaxWidth().padding(horizontal = Spacing.lg, vertical = Spacing.sm)) {
                     Text(
                         state.searchAreaLabel?.let { "Results near $it" } ?: "Results",

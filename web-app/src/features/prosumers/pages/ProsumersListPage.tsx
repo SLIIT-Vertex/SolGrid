@@ -1,4 +1,6 @@
 import { useState } from 'react'
+import { Button } from '@/components/common/Button'
+import { ProsumerDialog } from '@/features/prosumers/components/ProsumerDialog'
 import { ConfirmDialog } from '@/components/common/ConfirmDialog'
 import { EmptyState, ErrorState, LoadingState } from '@/components/common/QueryStates'
 import { Pagination } from '@/components/common/Pagination'
@@ -26,6 +28,7 @@ const actionCopy: Record<
 }
 
 export function ProsumersListPage() {
+  const [editor, setEditor] = useState<{ prosumer?: Prosumer } | null>(null)
   const [filters, setFilters] = useState(defaultProsumerFilters)
   const [pendingAction, setPendingAction] = useState<{ prosumer: Prosumer; action: ProsumerAction } | null>(
     null,
@@ -66,6 +69,8 @@ export function ProsumersListPage() {
         </p>
       </div>
 
+      <div className="mb-4 flex justify-end"><Button onClick={() => setEditor({})}>Create prosumer</Button></div>
+      {editor && <ProsumerDialog prosumer={editor.prosumer} onClose={() => setEditor(null)} />}
       <div className="rounded-2xl border border-ink-100 bg-white">
         <div className="border-b border-ink-100 p-4">
           <ProsumerFilters filters={filters} onChange={setFilters} />
@@ -84,6 +89,7 @@ export function ProsumersListPage() {
           <>
             <ProsumerTable
               prosumers={data.items}
+              onEdit={(prosumer) => setEditor({ prosumer })}
               onAction={(prosumer, action) => setPendingAction({ prosumer, action })}
             />
             <Pagination
