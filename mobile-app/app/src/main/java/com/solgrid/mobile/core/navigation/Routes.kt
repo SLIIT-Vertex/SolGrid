@@ -14,6 +14,8 @@ object Routes {
     fun nodeDetail(nodeId: String) = "node_detail/$nodeId"
     const val CREATE_RESERVATION = "create_reservation/{nodeId}"
     fun createReservation(nodeId: String) = "create_reservation/$nodeId"
+    const val BOOKING_DETAIL = "booking_detail/{reservationId}"
+    fun bookingDetail(reservationId: String) = "booking_detail/$reservationId"
     const val EDIT_RESERVATION = "edit_reservation/{reservationId}"
     fun editReservation(reservationId: String) = "edit_reservation/$reservationId"
     const val RESERVATION_SUMMARY = "reservation_summary/{reservationId}/{action}"

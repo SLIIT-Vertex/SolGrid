@@ -149,12 +149,21 @@ fun NodeDetailScreen(viewModel: NodeViewModel, nodeId: String, onBack: () -> Uni
                     }
                 }
 
+                val canBook = node.status == 1 && node.availableSlotCount > 0
                 PrimaryButton(
                     text = "Book a slot",
-                    enabled = node.status == 1 && node.availableSlotCount > 0,
+                    enabled = canBook,
                     onClick = { onBookSlot(node.id) },
-                    modifier = Modifier.fillMaxWidth().padding(top = Spacing.xl, bottom = Spacing.xxxl)
+                    modifier = Modifier.fillMaxWidth().padding(top = Spacing.xl, bottom = if (canBook) Spacing.xxxl else Spacing.sm)
                 )
+                if (!canBook) {
+                    Text(
+                        if (node.status != 1) "This node is currently inactive." else "All slots here are reserved right now. Check back soon.",
+                        style = AppType.caption,
+                        color = colors.textTertiary,
+                        modifier = Modifier.fillMaxWidth().padding(bottom = Spacing.xxxl)
+                    )
+                }
             }
         }
     }

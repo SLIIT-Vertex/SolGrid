@@ -29,7 +29,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
-import com.solgrid.mobile.core.components.BadgeTone
 import com.solgrid.mobile.core.components.EmptyKind
 import com.solgrid.mobile.core.components.EmptyState
 import com.solgrid.mobile.core.components.HeroStatCard
@@ -44,7 +43,8 @@ import com.solgrid.mobile.core.design.Radius
 import com.solgrid.mobile.core.design.SolGridTheme
 import com.solgrid.mobile.core.design.Spacing
 import com.solgrid.mobile.core.models.EnergyReservation
-import com.solgrid.mobile.core.models.ReservationStatus
+import com.solgrid.mobile.feature.reservations.statusLabel
+import com.solgrid.mobile.feature.reservations.statusTone
 
 @Composable
 fun DashboardScreen(
@@ -196,20 +196,4 @@ fun ReservationRow(reservation: EnergyReservation, onClick: () -> Unit) {
         }
         StatusBadge(text = statusLabel(reservation.status), tone = statusTone(reservation.status))
     }
-}
-
-fun statusLabel(status: ReservationStatus): String = when (status) {
-    ReservationStatus.PENDING -> "Pending"
-    ReservationStatus.APPROVED -> "Approved"
-    ReservationStatus.REJECTED -> "Rejected"
-    ReservationStatus.CANCELLED -> "Cancelled"
-    ReservationStatus.COMPLETED -> "Completed"
-}
-
-fun statusTone(status: ReservationStatus): BadgeTone = when (status) {
-    ReservationStatus.PENDING -> BadgeTone.WARNING
-    ReservationStatus.APPROVED -> BadgeTone.SUCCESS
-    ReservationStatus.REJECTED -> BadgeTone.ERROR
-    ReservationStatus.CANCELLED -> BadgeTone.ERROR
-    ReservationStatus.COMPLETED -> BadgeTone.NEUTRAL
 }
