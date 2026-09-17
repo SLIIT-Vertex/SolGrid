@@ -13,6 +13,7 @@ import { createReservation, updateReservation } from '@/features/reservations/ap
 import type { Reservation } from '@/features/reservations/types'
 import { reservationsKeys } from '@/features/reservations/queryKeys'
 import { getErrorMessage } from '@/lib/problemDetails'
+import { PROSUMER_NIC_MAX_LENGTH, sanitizeNicInput } from '@/features/prosumers/validation'
 
 async function allPages<T>(load: (page: number) => Promise<{ items: T[]; totalCount: number }>) {
   const items: T[] = []
@@ -51,7 +52,7 @@ export function ReservationDialog({ reservation, onClose }: { reservation?: Rese
   const referenceError = stations.error ?? slots.error
   return <Dialog open title={reservation ? 'Edit reservation' : 'Create reservation'} onClose={() => { if (!save.isPending) onClose() }} size="lg">
     <form onSubmit={submit} className="grid gap-4">
-      <TextField name="prosumerNic" label="Prosumer NIC" required readOnly={!!reservation} value={prosumerId} onChange={(event) => setProsumerId(event.target.value)} />
+      <TextField name="prosumerNic" label="Prosumer NIC" required readOnly={!!reservation} value={prosumerId} maxLength={PROSUMER_NIC_MAX_LENGTH} sanitizeValue={sanitizeNicInput} onChange={(event) => setProsumerId(event.target.value)} />
       <SelectField name="station" label="Grid node" required value={stationId} onChange={(event) => { setStationId(event.target.value); setSlotId('') }}><option value="">Select a node</option>{stations.data?.map((station) => <option key={station.id} value={station.id}>{station.name}</option>)}</SelectField>
       <SelectField name="slot" label="Battery slot" required value={bookingSlotId} onChange={(event) => { setSlotId(event.target.value); const slot = availableSlots.find((item) => item.id === event.target.value); if (slot) setScheduledAt(localDate(slot.startTime)) }}><option value="">Select a slot</option>{availableSlots.map((slot) => <option key={slot.id} value={slot.id}>#{slot.slotNumber} · {slot.batteryCapacityKwh} kWh · {new Date(slot.startTime).toLocaleString()} – {new Date(slot.endTime).toLocaleString()}</option>)}</SelectField>
       <TextField name="scheduledAt" label="Scheduled time" type="datetime-local" required value={scheduledAt} onChange={(event) => setScheduledAt(event.target.value)} />

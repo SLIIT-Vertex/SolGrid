@@ -221,10 +221,18 @@ public sealed class ProsumerService : IProsumerService
         {
             errors.Add("First name is required.");
         }
+        else if (request.FirstName.Trim().Length > UserRequestValidationRules.NameMaximumLength)
+        {
+            errors.Add($"First name must be no more than {UserRequestValidationRules.NameMaximumLength} characters.");
+        }
 
         if (!UserRequestValidationRules.HasValue(request.LastName))
         {
             errors.Add("Last name is required.");
+        }
+        else if (request.LastName.Trim().Length > UserRequestValidationRules.NameMaximumLength)
+        {
+            errors.Add($"Last name must be no more than {UserRequestValidationRules.NameMaximumLength} characters.");
         }
 
         if (!ProsumerRequestValidationRules.HasEmailShape(request.Email))
@@ -234,12 +242,20 @@ public sealed class ProsumerService : IProsumerService
 
         if (!ProsumerRequestValidationRules.HasPhoneNumberShape(request.PhoneNumber))
         {
-            errors.Add("Phone number is not valid.");
+            errors.Add("Phone number must contain 10 digits and begin with 0.");
         }
 
         if (!UserRequestValidationRules.HasValue(request.Password))
         {
             errors.Add("Password is required.");
+        }
+        else if (request.Password.Length < UserRequestValidationRules.PasswordMinimumLength)
+        {
+            errors.Add($"Password must be at least {UserRequestValidationRules.PasswordMinimumLength} characters.");
+        }
+        else if (request.Password.Length > UserRequestValidationRules.PasswordMaximumLength)
+        {
+            errors.Add($"Password must be no more than {UserRequestValidationRules.PasswordMaximumLength} characters.");
         }
 
         if (errors.Count > 0)
@@ -253,9 +269,11 @@ public sealed class ProsumerService : IProsumerService
         // Validate the explicit editable fields accepted by own-profile updates.
         var errors = new List<string>();
         if (!UserRequestValidationRules.HasValue(request.FirstName)) errors.Add("First name is required.");
+        else if (request.FirstName.Trim().Length > UserRequestValidationRules.NameMaximumLength) errors.Add($"First name must be no more than {UserRequestValidationRules.NameMaximumLength} characters.");
         if (!UserRequestValidationRules.HasValue(request.LastName)) errors.Add("Last name is required.");
+        else if (request.LastName.Trim().Length > UserRequestValidationRules.NameMaximumLength) errors.Add($"Last name must be no more than {UserRequestValidationRules.NameMaximumLength} characters.");
         if (!ProsumerRequestValidationRules.HasEmailShape(request.Email)) errors.Add("A valid email is required.");
-        if (!ProsumerRequestValidationRules.HasPhoneNumberShape(request.PhoneNumber)) errors.Add("Phone number is not valid.");
+        if (!ProsumerRequestValidationRules.HasPhoneNumberShape(request.PhoneNumber)) errors.Add("Phone number must contain 10 digits and begin with 0.");
         if (errors.Count > 0) throw new ValidationException(errors);
     }
 

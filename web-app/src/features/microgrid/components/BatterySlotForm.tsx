@@ -1,6 +1,7 @@
 import { useFieldArray, useFormContext } from 'react-hook-form'
 import { Button } from '@/components/common/Button'
 import { TextField } from '@/components/common/TextField'
+import { digitsOnly, unsignedDecimal } from '@/lib/inputConstraints'
 import { FormError } from '@/features/microgrid/components/FormError'
 import type { MicrogridNodeFormValues } from '@/features/microgrid/types'
 
@@ -36,6 +37,7 @@ export function BatterySlotForm() {
                   step="1"
                   min="1"
                   inputMode="numeric"
+                  sanitizeValue={(value) => digitsOnly(value, 10)}
                   hint="Must be unique on this node."
                   error={errors.slots?.[index]?.slotNumber?.message}
                   {...register(`slots.${index}.slotNumber`, {
@@ -48,6 +50,7 @@ export function BatterySlotForm() {
                   step="any"
                   min="0"
                   inputMode="decimal"
+                  sanitizeValue={unsignedDecimal}
                   error={errors.slots?.[index]?.batteryCapacityKwh?.message}
                   {...register(`slots.${index}.batteryCapacityKwh`, {
                     required: 'Battery storage slot capacity in kWh must be greater than zero.',

@@ -1,7 +1,10 @@
 import { useEffect, useState } from 'react'
 import { TextField } from '@/components/common/TextField'
 import { SelectField } from '@/components/common/SelectField'
+import { Button } from '@/components/common/Button'
 import type { UserFilters as UserFiltersState } from '@/features/users/types'
+import { defaultUserFilters } from '@/features/users/types'
+import { USER_SEARCH_MAX_LENGTH } from '@/features/users/validation'
 
 interface UserFiltersProps {
   filters: UserFiltersState
@@ -18,8 +21,14 @@ export function UserFilters({ filters, onChange }: UserFiltersProps) {
       )
     }, 350)
     return () => clearTimeout(handle)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchDraft])
+  }, [searchDraft, onChange])
+
+  const hasActiveFilters = Boolean(filters.searchText || filters.role || filters.status)
+
+  const clearFilters = () => {
+    setSearchDraft('')
+    onChange(() => ({ ...defaultUserFilters }))
+  }
 
   return (
     <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
@@ -27,6 +36,7 @@ export function UserFilters({ filters, onChange }: UserFiltersProps) {
         <TextField
           label="Search"
           placeholder="Search by name or email"
+          maxLength={USER_SEARCH_MAX_LENGTH}
           value={searchDraft}
           onChange={(event) => setSearchDraft(event.target.value)}
         />
@@ -65,6 +75,16 @@ export function UserFilters({ filters, onChange }: UserFiltersProps) {
           <option value="Inactive">Inactive</option>
         </SelectField>
       </div>
+      {hasActiveFilters ? (
+        <Button
+          type="button"
+          variant="ghost"
+          onClick={clearFilters}
+          className="sm:self-end"
+        >
+          Clear filters
+        </Button>
+      ) : null}
     </div>
   )
 }

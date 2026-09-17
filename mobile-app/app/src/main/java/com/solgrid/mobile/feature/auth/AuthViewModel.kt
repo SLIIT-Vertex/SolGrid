@@ -30,7 +30,48 @@ data class LoginUiState(
     val requestState: AuthRequestState = AuthRequestState.Idle
 )
 
+/**
+ * Registration is asked for one short section at a time rather than as a single long form, so the
+ * user answers a few related questions per screen and each section is validated before the next
+ * one opens. [fields] is the slice of [RegisterUiState.fieldErrors] a section owns.
+ */
+enum class RegisterStep(
+    val label: String,
+    val title: String,
+    val subtitle: String
+) {
+    IDENTITY(
+        label = "Identity",
+        title = "Let's start with you",
+        subtitle = "Your NIC is used as your unique account identity across the system."
+    ),
+    CONTACT(
+        label = "Contact",
+        title = "How do we reach you?",
+        subtitle = "You'll sign in with this email. We use your phone for booking updates."
+    ),
+    SECURITY(
+        label = "Security",
+        title = "Secure your account",
+        subtitle = "Pick a password that meets every requirement below."
+    ),
+    REVIEW(
+        label = "Review",
+        title = "Review your details",
+        subtitle = "Check everything is right, then create your account."
+    );
+
+    val fields: Set<String>
+        get() = when (this) {
+            IDENTITY -> setOf("nic", "fullName")
+            CONTACT -> setOf("email", "phone")
+            SECURITY -> setOf("password", "confirmPassword")
+            REVIEW -> setOf("terms")
+        }
+}
+
 data class RegisterUiState(
+    val step: RegisterStep = RegisterStep.IDENTITY,
     val nic: String = "",
     val fullName: String = "",
     val email: String = "",
@@ -47,6 +88,12 @@ data class RegisterUiState(
  * (email + password). Both call the real SolGrid Web API.
  */
 private const val USER_ROLE_GRID_OPERATOR = 2
+const val PROSUMER_NIC_MAX_LENGTH = 12
+const val PROSUMER_NAME_MAX_LENGTH = 100
+const val PROSUMER_FULL_NAME_MAX_LENGTH = PROSUMER_NAME_MAX_LENGTH * 2 + 1
+const val PROSUMER_EMAIL_MAX_LENGTH = 254
+const val PROSUMER_PHONE_MAX_LENGTH = 10
+const val PROSUMER_PASSWORD_MAX_LENGTH = 128
 
 class AuthViewModel : ViewModel() {
 
@@ -56,8 +103,8 @@ class AuthViewModel : ViewModel() {
     private val _register = MutableStateFlow(RegisterUiState())
     val register: StateFlow<RegisterUiState> = _register
 
-    fun onIdentifierChange(value: String) = _login.update { it.copy(identifier = value, identifierError = null, infoMessage = null) }
-    fun onPasswordChange(value: String) = _login.update { it.copy(password = value, passwordError = null, infoMessage = null) }
+    fun onIdentifierChange(value: String) = _login.update { it.copy(identifier = value.take(PROSUMER_EMAIL_MAX_LENGTH), identifierError = null, infoMessage = null) }
+    fun onPasswordChange(value: String) = _login.update { it.copy(password = value.take(PROSUMER_PASSWORD_MAX_LENGTH), passwordError = null, infoMessage = null) }
 
     /** Call on logout so a previous session's typed credentials don't linger for the next sign-in. */
     fun resetLoginForm() {
@@ -142,7 +189,16 @@ class AuthViewModel : ViewModel() {
                 onSuccess(AppRole.PROSUMER)
             }
             is ProsumerLoginOutcome.Failure -> {
-                _login.update { it.copy(requestState = AuthRequestState.Error("Incorrect email or password.")) }
+                // 401 stays deliberately vague so the form doesn't reveal which emails are
+                // registered. Anything else — most often 403 for an account the Backoffice
+                // hasn't activated yet — has a real reason the user can act on, so don't
+                // flatten it into "wrong password" and leave them retrying valid credentials.
+                val message = when (prosumerOutcome.statusCode) {
+                    401 -> "Incorrect email or password."
+                    403 -> "Your account isn't active yet. A Backoffice officer must activate it before you can sign in."
+                    else -> prosumerOutcome.message
+                }
+                _login.update { it.copy(requestState = AuthRequestState.Error(message)) }
             }
         }
     }
@@ -150,34 +206,70 @@ class AuthViewModel : ViewModel() {
     fun onRegisterField(field: String, value: String) {
         _register.update {
             val updated = when (field) {
-                "nic" -> it.copy(nic = value)
-                "fullName" -> it.copy(fullName = value)
-                "email" -> it.copy(email = value)
-                "phone" -> it.copy(phone = value)
-                "password" -> it.copy(password = value)
-                "confirmPassword" -> it.copy(confirmPassword = value)
+                "nic" -> it.copy(nic = sanitizeNicInput(value))
+                "fullName" -> it.copy(fullName = value.take(PROSUMER_FULL_NAME_MAX_LENGTH))
+                "email" -> it.copy(email = value.take(PROSUMER_EMAIL_MAX_LENGTH))
+                "phone" -> it.copy(phone = sanitizePhoneInput(value))
+                "password" -> it.copy(password = value.take(PROSUMER_PASSWORD_MAX_LENGTH))
+                "confirmPassword" -> it.copy(confirmPassword = value.take(PROSUMER_PASSWORD_MAX_LENGTH))
                 else -> it
             }
             updated.copy(fieldErrors = updated.fieldErrors - field)
         }
     }
 
-    fun onToggleTerms() = _register.update { it.copy(agreedToTerms = !it.agreedToTerms) }
+    fun onToggleTerms() = _register.update { it.copy(agreedToTerms = !it.agreedToTerms, fieldErrors = it.fieldErrors - "terms") }
+
+    /** Validate only the section on screen and open the next one when it is clean. */
+    fun onRegisterContinue() {
+        val state = _register.value
+        val errors = registerErrors(state).filterKeys { it in state.step.fields }
+        if (errors.isNotEmpty()) {
+            _register.update { it.copy(fieldErrors = errors) }
+            return
+        }
+        val next = RegisterStep.entries.getOrNull(state.step.ordinal + 1) ?: return
+        goToRegisterStep(next)
+    }
+
+    /**
+     * Step back one section. Returns false on the first section, where "back" means leaving
+     * registration altogether — the caller decides what that does.
+     */
+    fun onRegisterStepBack(): Boolean {
+        val previous = RegisterStep.entries.getOrNull(_register.value.step.ordinal - 1) ?: return false
+        goToRegisterStep(previous)
+        return true
+    }
+
+    /** Jump to an already-completed section (stepper header, Review's Edit links). Moving forward
+     *  this way is ignored so a section can never be skipped past its validation. */
+    fun onRegisterStepSelected(step: RegisterStep) {
+        if (step.ordinal < _register.value.step.ordinal) goToRegisterStep(step)
+    }
+
+    private fun goToRegisterStep(step: RegisterStep) {
+        _register.update {
+            it.copy(
+                step = step,
+                fieldErrors = emptyMap(),
+                // A failed submit's banner belongs to that attempt, not to the section the user
+                // moves to next.
+                requestState = if (it.requestState is AuthRequestState.Error) AuthRequestState.Idle else it.requestState
+            )
+        }
+    }
 
     fun submitRegister(onSuccess: () -> Unit) {
         val state = _register.value
-        val errors = mutableMapOf<String, String>()
-        if (!hasSupportedNicFormat(state.nic)) {
-            errors["nic"] = "Enter a valid NIC (12 digits, or 9 digits + V/X)"
-        }
-        if (state.fullName.isBlank()) errors["fullName"] = "Full name is required"
-        if (!hasEmailShape(state.email)) errors["email"] = "Enter a valid email address"
-        if (!hasPhoneShape(state.phone)) errors["phone"] = "Enter a valid phone number"
-        if (!isPasswordStrong(state.password)) errors["password"] = "Password does not meet requirements"
-        if (state.confirmPassword != state.password) errors["confirmPassword"] = "Passwords do not match"
-        if (!state.agreedToTerms) errors["terms"] = "You must accept the Terms of Service"
+        val errors = registerErrors(state)
         if (errors.isNotEmpty()) {
-            _register.update { it.copy(fieldErrors = errors) }
+            // Each section is gated, so this is a backstop: send the user to the earliest section
+            // that still has a problem rather than failing silently on Review.
+            val firstUnfinished = RegisterStep.entries.first { step -> step.fields.any { it in errors } }
+            _register.update {
+                it.copy(step = firstUnfinished, fieldErrors = errors.filterKeys { key -> key in firstUnfinished.fields })
+            }
             return
         }
         viewModelScope.launch {
@@ -215,6 +307,25 @@ class AuthViewModel : ViewModel() {
     }
 }
 
+/**
+ * One source of truth for registration validation. Step gating filters it down to the fields the
+ * section on screen owns, and the final submit runs it whole, so advancing a section can never let
+ * through input the submit would reject.
+ */
+private fun registerErrors(state: RegisterUiState): Map<String, String> {
+    val errors = mutableMapOf<String, String>()
+    if (!hasSupportedNicFormat(state.nic)) {
+        errors["nic"] = "Enter a valid NIC (12 digits, or 9 digits + V/X)"
+    }
+    validateFullName(state.fullName)?.let { errors["fullName"] = it }
+    if (!hasEmailShape(state.email)) errors["email"] = "Enter a valid email address"
+    if (!hasPhoneShape(state.phone)) errors["phone"] = "Enter 10 digits beginning with 0"
+    if (!isPasswordStrong(state.password)) errors["password"] = "Password does not meet requirements"
+    if (state.confirmPassword != state.password) errors["confirmPassword"] = "Passwords do not match"
+    if (!state.agreedToTerms) errors["terms"] = "You must accept the Terms of Service"
+    return errors
+}
+
 /** Mirrors SolGrid.Application.Prosumers.Validation.ProsumerRequestValidationRules.HasSupportedSriLankanNicFormat. */
 fun hasSupportedNicFormat(nic: String): Boolean {
     val trimmed = nic.trim()
@@ -225,18 +336,39 @@ fun hasSupportedNicFormat(nic: String): Boolean {
     return isLegacy || isModern
 }
 
+fun sanitizeNicInput(value: String): String {
+    val allowed = value.uppercase().filter { it.isDigit() || it == 'V' || it == 'X' }
+    val letterIndex = allowed.indexOfFirst { it == 'V' || it == 'X' }
+    if (letterIndex == -1) return allowed.take(PROSUMER_NIC_MAX_LENGTH)
+
+    val digits = allowed.take(letterIndex).filter(Char::isDigit).take(9)
+    return if (digits.length == 9) digits + allowed[letterIndex] else digits
+}
+
 /** Mirrors SolGrid.Application.Users.Validation.UserRequestValidationRules.HasEmailShape (minimal shape check). */
 fun hasEmailShape(email: String): Boolean {
     val trimmed = email.trim()
     val atIndex = trimmed.indexOf('@')
-    return atIndex > 0 && trimmed.indexOf('.', atIndex) > atIndex + 1 && trimmed.last() != '.'
+    return trimmed.length <= PROSUMER_EMAIL_MAX_LENGTH && trimmed.none(Char::isWhitespace) &&
+        atIndex > 0 && trimmed.indexOf('.', atIndex) > atIndex + 1 && trimmed.last() != '.'
 }
 
 /** Mirrors SolGrid.Application.Prosumers.Validation.ProsumerRequestValidationRules.HasPhoneNumberShape. */
 fun hasPhoneShape(phone: String): Boolean {
     if (phone.isBlank()) return false
     val trimmed = phone.trim()
-    return trimmed.length in 7..20 && trimmed.all { it.isDigit() || it in " +-()" }
+    return trimmed.length == PROSUMER_PHONE_MAX_LENGTH && trimmed.first() == '0' && trimmed.all(Char::isDigit)
+}
+
+fun sanitizePhoneInput(value: String): String = value.filter(Char::isDigit).take(PROSUMER_PHONE_MAX_LENGTH)
+
+fun validateFullName(fullName: String): String? {
+    if (fullName.isBlank()) return "Full name is required"
+    val (firstName, lastName) = splitFullName(fullName)
+    if (firstName.length > PROSUMER_NAME_MAX_LENGTH || lastName.length > PROSUMER_NAME_MAX_LENGTH) {
+        return "First and last names must each be no more than $PROSUMER_NAME_MAX_LENGTH characters"
+    }
+    return null
 }
 
 private fun splitFullName(fullName: String): Pair<String, String> {
@@ -250,7 +382,7 @@ private fun splitFullName(fullName: String): Pair<String, String> {
 }
 
 fun isPasswordStrong(password: String): Boolean =
-    password.length >= 8 &&
+    password.length in 8..PROSUMER_PASSWORD_MAX_LENGTH &&
         password.any { it.isUpperCase() } &&
         password.any { it.isLowerCase() } &&
         password.any { it.isDigit() } &&
@@ -260,6 +392,7 @@ data class PasswordRequirement(val label: String, val met: Boolean)
 
 fun passwordRequirements(password: String): List<PasswordRequirement> = listOf(
     PasswordRequirement("At least 8 characters", password.length >= 8),
+    PasswordRequirement("No more than $PROSUMER_PASSWORD_MAX_LENGTH characters", password.length <= PROSUMER_PASSWORD_MAX_LENGTH),
     PasswordRequirement("Uppercase letter", password.any { it.isUpperCase() }),
     PasswordRequirement("Lowercase letter", password.any { it.isLowerCase() }),
     PasswordRequirement("Number", password.any { it.isDigit() }),

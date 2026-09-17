@@ -7,6 +7,7 @@ import { FormError } from '@/features/microgrid/components/FormError'
 import { MicrogridSection } from '@/features/microgrid/components/MicrogridSection'
 import { ScheduleEditor } from '@/features/microgrid/components/ScheduleEditor'
 import { MAX_CODE_LENGTH, MAX_NAME_LENGTH, defaultCreateNodeValues } from '@/features/microgrid/types'
+import { unsignedDecimal } from '@/lib/inputConstraints'
 import type {
   CreateSolarStationRequest,
   MicrogridNodeFormValues,
@@ -115,6 +116,7 @@ export function NodeForm(props: NodeFormProps) {
             step="any"
             min="0"
             inputMode="decimal"
+            sanitizeValue={unsignedDecimal}
             error={errors.capacityKw?.message}
             {...register('capacityKw', {
               validate: (value) =>

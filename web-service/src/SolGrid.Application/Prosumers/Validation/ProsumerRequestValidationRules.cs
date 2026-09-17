@@ -12,6 +12,8 @@ namespace SolGrid.Application.Prosumers.Validation;
 
 public static class ProsumerRequestValidationRules
 {
+    public const int PhoneNumberLength = 10;
+
     public static bool HasNicValue(string nic)
     {
         // Require a NIC value without imposing an undocumented national-format policy.
@@ -48,8 +50,8 @@ public static class ProsumerRequestValidationRules
         }
 
         var normalizedPhoneNumber = phoneNumber.Trim();
-        return normalizedPhoneNumber.Length is >= 7 and <= 20
-            && normalizedPhoneNumber.All(character => char.IsDigit(character)
-                || character is ' ' or '+' or '-' or '(' or ')');
+        return normalizedPhoneNumber.Length == PhoneNumberLength
+            && normalizedPhoneNumber[0] == '0'
+            && normalizedPhoneNumber.All(char.IsDigit);
     }
 }

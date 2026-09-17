@@ -212,6 +212,22 @@ public sealed class AuthApiAuthorizationTests
     }
 
     [Fact]
+    public async Task UserAdministration_DeactivatingCurrentUser_ReturnsForbiddenProblem()
+    {
+        // Verify self-lockout protection is enforced at the HTTP boundary as well as in the UI.
+        await using var factory = CreateFactory();
+        var client = factory.CreateClient();
+        var token = await LoginAsync(client, "backoffice@example.com", "backoffice-password");
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        var response = await client.PatchAsync("/api/v1/users/backoffice-id/deactivate", content: null);
+        var body = await response.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        Assert.Contains("You cannot deactivate your own account.", body, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task UserAdministration_WithBackofficeJwtAndMissingUser_ReturnsNotFoundProblem()
     {
         // Verify missing users return a consistent 404 ProblemDetails response.

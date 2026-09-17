@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef } from 'react'
+import { useEffect, useId, useLayoutEffect, useRef } from 'react'
 import type { ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { cn } from '@/lib/cn'
@@ -33,8 +33,13 @@ export function Dialog({
   size = 'md',
 }: DialogProps) {
   const panelRef = useRef<HTMLDivElement>(null)
+  const onCloseRef = useRef(onClose)
   const titleId = useId()
   const descriptionId = useId()
+
+  useLayoutEffect(() => {
+    onCloseRef.current = onClose
+  }, [onClose])
 
   useEffect(() => {
     if (!open) return
@@ -46,12 +51,16 @@ export function Dialog({
     const focusables = () =>
       panel ? Array.from(panel.querySelectorAll<HTMLElement>(FOCUSABLE)) : []
 
-    const first = focusables()[0]
-    ;(first ?? panel)?.focus()
+    // Only claim focus when it sits outside the dialog, so the effect can never pull
+    // focus away from a field the user is already typing in.
+    if (!panel || !panel.contains(previous)) {
+      const first = focusables()[0]
+      ;(first ?? panel)?.focus()
+    }
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
-        onClose()
+        onCloseRef.current()
         return
       }
 
@@ -78,9 +87,10 @@ export function Dialog({
     return () => {
       document.removeEventListener('keydown', handleKeyDown)
       document.body.style.overflow = previousOverflow
-      previous?.focus()
+      // Return focus to the opener only if it is still trapped inside the closing dialog.
+      if (!panel || panel.contains(document.activeElement)) previous?.focus()
     }
-  }, [open, onClose])
+  }, [open])
 
   if (!open) return null
 

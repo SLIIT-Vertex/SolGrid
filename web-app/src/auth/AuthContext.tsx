@@ -9,6 +9,7 @@ interface AuthContextValue {
   isAuthenticated: boolean
   login: (request: LoginRequest) => Promise<AuthSession>
   logout: () => void
+  updateSessionProfile: (profile: Pick<AuthSession, 'userId' | 'firstName' | 'lastName' | 'email'>) => void
 }
 
 // eslint-disable-next-line react-refresh/only-export-components
@@ -29,14 +30,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setSession(null)
   }, [])
 
+  const updateSessionProfile = useCallback(
+    (profile: Pick<AuthSession, 'userId' | 'firstName' | 'lastName' | 'email'>) => {
+      setSession((current) => {
+        if (!current || current.userId !== profile.userId) return current
+        const updatedSession = { ...current, ...profile }
+        storeSession(updatedSession)
+        return updatedSession
+      })
+    },
+    [],
+  )
+
   const value = useMemo<AuthContextValue>(
     () => ({
       session,
       isAuthenticated: session !== null,
       login,
       logout,
+      updateSessionProfile,
     }),
-    [session, login, logout],
+    [session, login, logout, updateSessionProfile],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

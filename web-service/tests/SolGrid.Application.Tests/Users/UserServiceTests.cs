@@ -11,6 +11,7 @@ using SolGrid.Application.Auth.Requests;
 using SolGrid.Application.Auth.Responses;
 using SolGrid.Application.Auth.Services;
 using SolGrid.Application.Common.Exceptions;
+using SolGrid.Application.Common.Identity;
 using SolGrid.Application.Common.Models;
 using SolGrid.Application.Users.Interfaces;
 using SolGrid.Application.Users.Requests;
@@ -203,10 +204,91 @@ public sealed class UserServiceTests
         Assert.Equal("token-user-id-GridOperator", response.AccessToken);
     }
 
-    private static UserService CreateUserService(InMemoryUserRepository? repository = null)
+    [Fact]
+    public async Task DeactivateUserAsync_ForCurrentUser_ThrowsForbidden()
+    {
+        // Verify an administrator cannot accidentally remove their own access.
+        var user = CreateUser("current-user-id", "admin@example.com", "password", UserRole.Backoffice);
+        var service = CreateUserService(
+            new InMemoryUserRepository(user),
+            new FakeCurrentUserContext("current-user-id"));
+
+        var exception = await Assert.ThrowsAsync<ForbiddenException>(
+            () => service.DeactivateUserAsync("current-user-id"));
+
+        Assert.Equal("You cannot deactivate your own account.", exception.Message);
+        Assert.Equal(AccountStatus.Active, user.Status);
+    }
+
+    [Fact]
+    public async Task UpdateUserAsync_ChangingCurrentUserRole_ThrowsForbidden()
+    {
+        // Verify a Backoffice administrator cannot remove their own administrative role.
+        var user = CreateUser("current-user-id", "admin@example.com", "password", UserRole.Backoffice);
+        var service = CreateUserService(
+            new InMemoryUserRepository(user),
+            new FakeCurrentUserContext("current-user-id"));
+
+        await Assert.ThrowsAsync<ForbiddenException>(() => service.UpdateUserAsync(
+            "current-user-id",
+            new UpdateUserRequest
+            {
+                FirstName = "Current",
+                LastName = "Admin",
+                Email = "admin@example.com",
+                Role = UserRole.GridOperator
+            }));
+
+        Assert.Equal(UserRole.Backoffice, user.Role);
+    }
+
+    [Theory]
+    [InlineData("short")]
+    [InlineData("1234567")]
+    public async Task CreateUserAsync_WithShortPassword_ThrowsValidation(string password)
+    {
+        // Keep API password validation aligned with the web form.
+        var service = CreateUserService();
+
+        await Assert.ThrowsAsync<ValidationException>(() => service.CreateUserAsync(new CreateUserRequest
+        {
+            FirstName = "New",
+            LastName = "User",
+            Email = "new.user@example.com",
+            Password = password,
+            Role = UserRole.GridOperator
+        }));
+    }
+
+    [Theory]
+    [InlineData("missing-domain")]
+    [InlineData("missing-dot@example")]
+    [InlineData("@example.com")]
+    [InlineData("person @example.com")]
+    public async Task CreateUserAsync_WithInvalidEmail_ThrowsValidation(string email)
+    {
+        // Reject malformed account addresses before querying persistence.
+        var service = CreateUserService();
+
+        await Assert.ThrowsAsync<ValidationException>(() => service.CreateUserAsync(new CreateUserRequest
+        {
+            FirstName = "Invalid",
+            LastName = "Email",
+            Email = email,
+            Password = "password123",
+            Role = UserRole.GridOperator
+        }));
+    }
+
+    private static UserService CreateUserService(
+        InMemoryUserRepository? repository = null,
+        ICurrentUserContext? currentUserContext = null)
     {
         // Create UserService with deterministic test dependencies.
-        return new UserService(repository ?? new InMemoryUserRepository(), new FakePasswordHasher());
+        return new UserService(
+            repository ?? new InMemoryUserRepository(),
+            new FakePasswordHasher(),
+            currentUserContext ?? new FakeCurrentUserContext("admin-id"));
     }
 
     private static AuthService CreateAuthService(InMemoryUserRepository repository)
@@ -254,6 +336,20 @@ public sealed class UserServiceTests
                 ExpiresAt = DateTimeOffset.UtcNow.AddMinutes(30)
             };
         }
+    }
+
+    private sealed class FakeCurrentUserContext : ICurrentUserContext
+    {
+        public FakeCurrentUserContext(string userId)
+        {
+            UserId = userId;
+        }
+
+        public bool IsAuthenticated => true;
+
+        public string? UserId { get; }
+
+        public UserRole? Role => UserRole.Backoffice;
     }
 
     private sealed class InMemoryUserRepository : IUserRepository

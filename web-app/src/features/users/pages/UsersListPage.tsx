@@ -1,4 +1,6 @@
 import { useState } from 'react'
+import { useAuth } from '@/auth/useAuth'
+import { Button } from '@/components/common/Button'
 import { ConfirmDialog } from '@/components/common/ConfirmDialog'
 import { EmptyState, ErrorState, LoadingState } from '@/components/common/QueryStates'
 import { Pagination } from '@/components/common/Pagination'
@@ -23,11 +25,18 @@ export function UsersListPage() {
   const deactivateUser = useDeactivateUser()
   const reactivateUser = useReactivateUser()
   const { showToast } = useToast()
+  const { session } = useAuth()
 
   const isMutating = deactivateUser.isPending || reactivateUser.isPending
 
   const handleConfirm = async () => {
     if (!pendingAction) return
+    const shouldMoveToPreviousPage =
+      filters.pageNumber > 1 &&
+      data?.items.length === 1 &&
+      ((pendingAction.kind === 'deactivate' && filters.status === 'Active') ||
+        (pendingAction.kind === 'reactivate' && filters.status === 'Inactive'))
+
     try {
       if (pendingAction.kind === 'deactivate') {
         await deactivateUser.mutateAsync(pendingAction.user.id)
@@ -36,6 +45,9 @@ export function UsersListPage() {
         await reactivateUser.mutateAsync(pendingAction.user.id)
         showToast(`${pendingAction.user.firstName} ${pendingAction.user.lastName} was reactivated.`)
       }
+      if (shouldMoveToPreviousPage) {
+        setFilters((current) => ({ ...current, pageNumber: current.pageNumber - 1 }))
+      }
       setPendingAction(null)
     } catch (error) {
       showToast(getErrorMessage(error), 'error')
@@ -43,18 +55,14 @@ export function UsersListPage() {
   }
 
   return (
-    <div className="mx-auto max-w-5xl">
-      <div className="mb-6 flex items-center justify-between">
+    <div className="mx-auto max-w-6xl">
+      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-sm text-ink-500">
           Manage Backoffice and Grid Operator accounts that can sign in to SolGrid.
         </p>
-        <button
-          type="button"
-          onClick={() => setIsCreateOpen(true)}
-          className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-brand-600 px-4 text-sm font-medium text-white transition-colors hover:bg-brand-700"
-        >
+        <Button type="button" onClick={() => setIsCreateOpen(true)} className="self-start sm:self-auto">
           New user
-        </button>
+        </Button>
       </div>
 
       <div className="rounded-2xl border border-ink-100 bg-white">
@@ -75,6 +83,7 @@ export function UsersListPage() {
           <>
             <UserTable
               users={data.items}
+              currentUserId={session?.userId}
               onDeactivate={(user) => setPendingAction({ user, kind: 'deactivate' })}
               onReactivate={(user) => setPendingAction({ user, kind: 'reactivate' })}
             />
