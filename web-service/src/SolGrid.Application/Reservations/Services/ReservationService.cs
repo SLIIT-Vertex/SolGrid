@@ -116,8 +116,18 @@ public sealed class ReservationService : IReservationService
             throw new ConflictException("Booking slot already has an active reservation.");
         }
 
+        var wasApproved = reservation.Status == ReservationStatus.Approved;
+        var previousBookingSlotId = reservation.BookingSlotId;
+
         reservation.Reschedule(stationId, bookingSlotId, scheduledAtUtc, nowUtc);
         await reservationRepository.UpdateAsync(reservation, cancellationToken).ConfigureAwait(false);
+
+        if (wasApproved && !string.Equals(previousBookingSlotId, bookingSlotId, StringComparison.Ordinal))
+        {
+            await bookingSlotReadService.ReleaseAsync(previousBookingSlotId, cancellationToken).ConfigureAwait(false);
+            await bookingSlotReadService.ReserveAsync(bookingSlotId, cancellationToken).ConfigureAwait(false);
+        }
+
         return ReservationResponseMapper.ToResponse(reservation);
     }
 
@@ -133,8 +143,14 @@ public sealed class ReservationService : IReservationService
         var nowUtc = timeProvider.GetUtcNow();
         EnsureChangeNotice(reservation, nowUtc, "Reservation cancellations require at least 12 hours notice.");
 
+        var wasApproved = reservation.Status == ReservationStatus.Approved;
         reservation.Cancel(nowUtc);
         await reservationRepository.UpdateAsync(reservation, cancellationToken).ConfigureAwait(false);
+
+        if (wasApproved)
+        {
+            await bookingSlotReadService.ReleaseAsync(reservation.BookingSlotId, cancellationToken).ConfigureAwait(false);
+        }
     }
 
     public async Task<ReservationResponse> GetReservationByIdAsync(
@@ -260,6 +276,7 @@ public sealed class ReservationService : IReservationService
         }
 
         await reservationRepository.UpdateAsync(reservation, cancellationToken).ConfigureAwait(false);
+        await bookingSlotReadService.ReserveAsync(reservation.BookingSlotId, cancellationToken).ConfigureAwait(false);
         return ReservationResponseMapper.ToResponse(reservation);
     }
 
@@ -336,6 +353,7 @@ public sealed class ReservationService : IReservationService
 
         reservation.MarkQrVerified(timeProvider.GetUtcNow());
         await reservationRepository.UpdateAsync(reservation, cancellationToken).ConfigureAwait(false);
+        await bookingSlotReadService.OccupyAsync(reservation.BookingSlotId, cancellationToken).ConfigureAwait(false);
 
         return new VerifyReservationQrResponse
         {
@@ -373,6 +391,7 @@ public sealed class ReservationService : IReservationService
         }
 
         await reservationRepository.UpdateAsync(reservation, cancellationToken).ConfigureAwait(false);
+        await bookingSlotReadService.ReleaseAsync(reservation.BookingSlotId, cancellationToken).ConfigureAwait(false);
         return ReservationResponseMapper.ToResponse(reservation);
     }
 

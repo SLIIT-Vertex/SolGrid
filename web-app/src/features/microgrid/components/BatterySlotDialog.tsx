@@ -101,6 +101,9 @@ function BatterySlotDialogForm({
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <TextField
             label="Slot number"
+            type="number"
+            step="1"
+            min="1"
             inputMode="numeric"
             readOnly={isEdit}
             hint={isEdit ? 'Slot number cannot be changed after the slot is created.' : 'Must be unique on this node.'}
@@ -111,6 +114,9 @@ function BatterySlotDialogForm({
           />
           <TextField
             label="Storage capacity (kWh)"
+            type="number"
+            step="any"
+            min="0"
             inputMode="decimal"
             error={errors.batteryCapacityKwh?.message}
             {...register('batteryCapacityKwh', {

@@ -255,7 +255,7 @@ public sealed class BookingSlotServiceTests
         var slots = new InMemoryBookingSlotRepository();
         var service = CreateService(new InMemorySolarStationRepository(station), slots);
         var created = await service.CreateBookingSlotAsync(station.Id, CreateRequest());
-        var readService = new ReservationBookingSlotReadService(slots);
+        var readService = new ReservationBookingSlotReadService(slots, new FixedTimeProvider(DateTimeOffset.UtcNow));
 
         var available = await readService.GetByIdAsync(created.Id);
         await service.DeactivateBookingSlotAsync(created.Id);

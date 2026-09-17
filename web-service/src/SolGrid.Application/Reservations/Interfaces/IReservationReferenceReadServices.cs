@@ -21,6 +21,15 @@ public interface IReservationStationReadService
 public interface IReservationBookingSlotReadService
 {
     Task<ReservationBookingSlotSnapshot?> GetByIdAsync(string bookingSlotId, CancellationToken cancellationToken = default);
+
+    // Hold the slot once its reservation is approved, so it stops appearing bookable to others.
+    Task ReserveAsync(string bookingSlotId, CancellationToken cancellationToken = default);
+
+    // Mark the slot physically in use once the prosumer's arrival QR is verified.
+    Task OccupyAsync(string bookingSlotId, CancellationToken cancellationToken = default);
+
+    // Return the slot to the bookable pool once its reservation ends (rejected, cancelled, or completed).
+    Task ReleaseAsync(string bookingSlotId, CancellationToken cancellationToken = default);
 }
 
 public sealed class ReservationProsumerSnapshot

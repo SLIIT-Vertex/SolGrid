@@ -151,7 +151,7 @@ public sealed class ReservationComponentIntegrationTests
             reservations,
             new ReservationProsumerReadService(prosumers),
             new ReservationStationReadService(stations),
-            new ReservationBookingSlotReadService(slots),
+            new ReservationBookingSlotReadService(slots, new FixedTimeProvider(CurrentTime)),
             new TestQrTokenService(),
             new TestCurrentUserContext(prosumer.Nic, callerRole),
             new FixedTimeProvider(CurrentTime));
