@@ -40,7 +40,9 @@ public sealed class ReservationProsumerReadService : IReservationProsumerReadSer
             : new ReservationProsumerSnapshot
             {
                 Id = prosumer.Nic,
-                IsActive = prosumer.IsActive
+                IsActive = prosumer.IsActive,
+                Nic = prosumer.Nic,
+                FullName = $"{prosumer.FirstName} {prosumer.LastName}".Trim()
             };
     }
 }

@@ -33,6 +33,8 @@ object Routes {
     const val OPERATOR_NODES = "operator_nodes"
     const val OPERATOR_NODE_DETAIL = "operator_node/{nodeId}"
     fun operatorNodeDetail(nodeId: String) = "operator_node/$nodeId"
+    const val OPERATOR_BOOKING_DETAIL = "operator_booking/{reservationId}"
+    fun operatorBookingDetail(reservationId: String) = "operator_booking/$reservationId"
     const val OPERATOR_SCANNER = "operator_scanner"
     const val OPERATOR_VERIFICATION_RESULT = "operator_verification_result/{code}"
     fun operatorVerificationResult(code: String) = "operator_verification_result/$code"

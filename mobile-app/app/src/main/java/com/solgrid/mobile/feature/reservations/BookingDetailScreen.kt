@@ -1,7 +1,6 @@
 package com.solgrid.mobile.feature.reservations
 import com.solgrid.mobile.feature.prosumer.ProsumerViewModel
 
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -136,6 +135,11 @@ fun BookingDetailScreen(
         ) {
             StatusHero(status = reservation.status, modifier = Modifier.padding(top = Spacing.md))
 
+            // Approved bookings surface the transaction QR first — it's the thing the prosumer needs at the station.
+            if (reservation.status == ReservationStatus.APPROVED) {
+                QrPanel(viewModel = viewModel, reservationId = reservationId)
+            }
+
             DetailCard(title = "Reservation") {
                 DetailRow(label = "Station", value = reservation.nodeName, icon = Icons.Outlined.EvStation)
                 ThinDivider()
@@ -149,7 +153,7 @@ fun BookingDetailScreen(
             }
 
             DetailCard(title = "Reference") {
-                DetailRow(label = "Booking ID", value = reservation.id, icon = Icons.Outlined.ConfirmationNumber)
+                DetailRow(label = "Booking reference", value = reservation.reference, icon = Icons.Outlined.ConfirmationNumber)
                 ThinDivider()
                 DetailRow(label = "Requested on", value = reservation.createdAt)
             }
@@ -162,14 +166,12 @@ fun BookingDetailScreen(
                 )
             }
 
-            when (reservation.status) {
-                ReservationStatus.APPROVED -> QrPanel(viewModel = viewModel, reservationId = reservationId)
-                ReservationStatus.PENDING -> NoteCard(
+            if (reservation.status == ReservationStatus.PENDING) {
+                NoteCard(
                     text = "Your transaction QR unlocks here as soon as a Grid Operator approves this request.",
                     tone = colors.warning,
                     surface = colors.warningSurface
                 )
-                else -> Unit
             }
 
             if (windowError != null && (reservation.status == ReservationStatus.PENDING || reservation.status == ReservationStatus.APPROVED)) {
@@ -252,14 +254,14 @@ private fun StatusHero(status: ReservationStatus, modifier: Modifier = Modifier)
     }
 }
 
-/** Inline secure transaction QR — issued fresh from the server, expandable to keep the page tidy. */
+/** Inline secure transaction QR — issued fresh from the server and shown by default for approved
+ * bookings. The encoded token is short-lived (server-enforced), so it can be refreshed on expiry. */
 @Composable
 private fun QrPanel(viewModel: ProsumerViewModel, reservationId: String) {
     val colors = SolGridTheme.colors
-    var revealed by remember(reservationId) { mutableStateOf(false) }
     var payload by remember(reservationId) { mutableStateOf<String?>(null) }
     var expiresAt by remember(reservationId) { mutableStateOf<String?>(null) }
-    var loading by remember(reservationId) { mutableStateOf(false) }
+    var loading by remember(reservationId) { mutableStateOf(true) }
     var error by remember(reservationId) { mutableStateOf<String?>(null) }
     var expired by remember(reservationId) { mutableStateOf(false) }
 
@@ -269,6 +271,8 @@ private fun QrPanel(viewModel: ProsumerViewModel, reservationId: String) {
             loading = false; payload = value; expiresAt = expiry
         }
     }
+    // Load the QR automatically as soon as the approved booking opens.
+    LaunchedEffect(reservationId) { requestQr() }
     LaunchedEffect(expiresAt) {
         val expiry = expiresAt ?: return@LaunchedEffect
         val ms = java.time.Duration.between(java.time.Instant.now(), OffsetDateTime.parse(expiry).toInstant()).toMillis()
@@ -294,38 +298,27 @@ private fun QrPanel(viewModel: ProsumerViewModel, reservationId: String) {
             }
             Column(modifier = Modifier.weight(1f)) {
                 Text("Transaction QR", style = AppType.bodyStrong, color = colors.textPrimary)
-                Text("Present this at the station to start the transfer.", style = AppType.caption, color = colors.textSecondary)
+                Text("Show this to the Grid Operator to start the transfer.", style = AppType.caption, color = colors.textSecondary)
             }
             StatusBadge(text = "Approved", tone = BadgeTone.SUCCESS)
         }
 
-        if (!revealed) {
-            SecondaryButton(
-                text = "Show transaction QR",
-                onClick = { revealed = true; requestQr() },
-                modifier = Modifier.fillMaxWidth().padding(top = Spacing.md)
-            )
-        }
-
-        AnimatedVisibility(visible = revealed) {
-            Column(modifier = Modifier.fillMaxWidth().padding(top = Spacing.lg), horizontalAlignment = Alignment.CenterHorizontally) {
-                when {
-                    loading -> Box(modifier = Modifier.size(220.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = colors.accent) }
-                    error != null -> {
-                        Text(error!!, style = AppType.body, color = colors.error, textAlign = TextAlign.Center)
-                        SecondaryButton("Try again", { requestQr() }, modifier = Modifier.padding(top = Spacing.md))
-                    }
-                    expired -> {
-                        Text("This code expired. Generate a fresh one before presenting it.", style = AppType.body, color = colors.error, textAlign = TextAlign.Center)
-                        SecondaryButton("Generate new QR", { requestQr() }, modifier = Modifier.padding(top = Spacing.md))
-                    }
-                    payload != null -> {
-                        QrCodeVisual(payload = payload!!)
-                        expiresAt?.let {
-                            val time = OffsetDateTime.parse(it).atZoneSameInstant(ZoneId.systemDefault()).format(DateTimeFormatter.ofPattern("MMM d, HH:mm"))
-                            Text("Valid until $time", style = AppType.caption, color = colors.textTertiary, modifier = Modifier.padding(top = Spacing.md))
-                        }
-                        SecondaryButton("Generate new QR", { requestQr() }, modifier = Modifier.padding(top = Spacing.md))
+        Column(modifier = Modifier.fillMaxWidth().padding(top = Spacing.lg), horizontalAlignment = Alignment.CenterHorizontally) {
+            when {
+                loading -> Box(modifier = Modifier.size(220.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = colors.accent) }
+                error != null -> {
+                    Text(error!!, style = AppType.body, color = colors.error, textAlign = TextAlign.Center)
+                    SecondaryButton("Try again", { requestQr() }, modifier = Modifier.padding(top = Spacing.md))
+                }
+                expired -> {
+                    Text("For your security this code refreshes periodically. Tap to get a new one.", style = AppType.body, color = colors.textSecondary, textAlign = TextAlign.Center)
+                    SecondaryButton("Refresh QR", { requestQr() }, modifier = Modifier.padding(top = Spacing.md))
+                }
+                payload != null -> {
+                    QrCodeVisual(payload = payload!!)
+                    expiresAt?.let {
+                        val time = OffsetDateTime.parse(it).atZoneSameInstant(ZoneId.systemDefault()).format(DateTimeFormatter.ofPattern("MMM d, HH:mm"))
+                        Text("Valid until $time", style = AppType.caption, color = colors.textTertiary, modifier = Modifier.padding(top = Spacing.md))
                     }
                 }
             }

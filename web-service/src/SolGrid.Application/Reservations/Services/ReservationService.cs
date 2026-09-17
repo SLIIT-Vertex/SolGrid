@@ -157,11 +157,13 @@ public sealed class ReservationService : IReservationService
         string id,
         CancellationToken cancellationToken = default)
     {
-        // Return a reservation when the authenticated caller can access it.
+        // Return a reservation when the authenticated caller can access it, including the prosumer's
+        // NIC and name so a Grid Operator can confirm identity at handover.
         ValidateId(id, "Reservation id is required.");
         var reservation = await GetRequiredReservationAsync(id, cancellationToken).ConfigureAwait(false);
         EnsureCanAccessReservation(reservation);
-        return ReservationResponseMapper.ToResponse(reservation);
+        var prosumer = await prosumerReadService.GetByIdAsync(reservation.ProsumerId, cancellationToken).ConfigureAwait(false);
+        return ReservationResponseMapper.ToResponse(reservation, prosumer?.Nic, prosumer?.FullName);
     }
 
     public async Task<PagedResult<ReservationResponse>> GetReservationsAsync(
@@ -700,7 +702,7 @@ public sealed class ReservationService : IReservationService
         // Map a reservation page without exposing persistence or QR token hash details.
         return new PagedResult<ReservationResponse>
         {
-            Items = reservations.Items.Select(ReservationResponseMapper.ToResponse).ToArray(),
+            Items = reservations.Items.Select(reservation => ReservationResponseMapper.ToResponse(reservation)).ToArray(),
             TotalCount = reservations.TotalCount,
             PageNumber = reservations.PageNumber,
             PageSize = reservations.PageSize

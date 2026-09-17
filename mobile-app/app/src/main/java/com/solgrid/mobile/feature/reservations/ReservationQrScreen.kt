@@ -143,7 +143,7 @@ fun ReservationQrScreen(viewModel: ProsumerViewModel, reservationId: String, onB
                     .background(colors.surface)
                     .padding(Spacing.lg)
             ) {
-                InfoRow(label = "Reservation ID", value = reservation.id)
+                InfoRow(label = "Booking reference", value = reservation.reference)
                 InfoRow(label = "Station", value = reservation.nodeName)
                 InfoRow(label = "Date", value = reservation.date)
                 InfoRow(label = "Time", value = reservation.startTime)

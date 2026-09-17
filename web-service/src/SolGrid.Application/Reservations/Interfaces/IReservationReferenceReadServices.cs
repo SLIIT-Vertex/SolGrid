@@ -37,6 +37,10 @@ public sealed class ReservationProsumerSnapshot
     public string Id { get; init; } = string.Empty;
 
     public bool IsActive { get; init; }
+
+    public string Nic { get; init; } = string.Empty;
+
+    public string FullName { get; init; } = string.Empty;
 }
 
 public sealed class ReservationStationSnapshot

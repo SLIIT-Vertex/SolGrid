@@ -60,7 +60,7 @@ private fun ReservationDto.toEnergyReservation(nodeName: String): EnergyReservat
     val created = OffsetDateTime.parse(createdAt).atZoneSameInstant(ZoneId.systemDefault())
     return EnergyReservation(
         id = id,
-        prosumerNic = prosumerId,
+        prosumerNic = prosumerNic ?: prosumerId,
         nodeId = stationId,
         nodeName = nodeName,
         bookingSlotId = bookingSlotId,
@@ -73,6 +73,8 @@ private fun ReservationDto.toEnergyReservation(nodeName: String): EnergyReservat
         rejectionReason = rejectionReason,
         qrPayload = null,
         scheduledAt = scheduledAt,
+        referenceCode = referenceCode,
+        prosumerName = prosumerName,
     )
 }
 

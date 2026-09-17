@@ -29,6 +29,7 @@ import com.solgrid.mobile.feature.auth.SplashScreen
 import com.solgrid.mobile.core.models.AppRole
 import com.solgrid.mobile.core.network.SessionExpiryNotifier
 import com.solgrid.mobile.core.network.SessionStore
+import com.solgrid.mobile.feature.operator.OperatorBookingDetailScreen
 import com.solgrid.mobile.feature.operator.OperatorHomeScreen
 import com.solgrid.mobile.feature.operator.OperatorViewModel
 import com.solgrid.mobile.feature.operator.ScannerScreen
@@ -309,7 +310,7 @@ fun AppNavGraph(onThemeModeChange: (AppThemeMode) -> Unit) {
                     OperatorHomeScreen(
                         viewModel = operatorViewModel,
                         onScanClick = { navController.navigate(Routes.OPERATOR_SCANNER) },
-                        onBookingClick = { },
+                        onBookingClick = { id -> navController.navigate(Routes.operatorBookingDetail(id)) },
                         onNodesClick = { navController.navigate(Routes.OPERATOR_NODES) },
                         onLogout = {
                             SessionStore.clear()
@@ -321,6 +322,13 @@ fun AppNavGraph(onThemeModeChange: (AppThemeMode) -> Unit) {
                 }
                 composable(Routes.OPERATOR_NODES) {
                     OperatorNodesScreen(nodeViewModel, onBack = { navController.popBackStack() }, onNodeClick = { id -> navController.navigate(Routes.operatorNodeDetail(id)) })
+                }
+                composable(Routes.OPERATOR_BOOKING_DETAIL, arguments = listOf(navArgument("reservationId") { type = NavType.StringType })) { entry ->
+                    OperatorBookingDetailScreen(
+                        viewModel = operatorViewModel,
+                        reservationId = entry.arguments?.getString("reservationId").orEmpty(),
+                        onBack = { navController.popBackStack() }
+                    )
                 }
                 composable(Routes.OPERATOR_NODE_DETAIL, arguments = listOf(navArgument("nodeId") { type = NavType.StringType })) { entry ->
                     OperatorNodeDetailScreen(nodeViewModel, entry.arguments?.getString("nodeId").orEmpty(), onBack = { navController.popBackStack() })

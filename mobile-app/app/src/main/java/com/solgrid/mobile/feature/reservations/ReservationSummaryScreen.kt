@@ -104,7 +104,7 @@ fun ReservationSummaryScreen(
                     Text(booking.date, style = AppType.body, color = colors.textPrimary, modifier = Modifier.padding(top = Spacing.sm))
                     Text(booking.startTime, style = AppType.bodyStrong, color = colors.textPrimary)
                     Text("Booking reference", style = AppType.caption, color = colors.textSecondary, modifier = Modifier.padding(top = Spacing.md))
-                    Text(booking.id, style = AppType.supporting, color = colors.textPrimary)
+                    Text(booking.reference, style = AppType.supporting, color = colors.textPrimary)
                 }
                 if (booking.status == ReservationStatus.PENDING && action != SummaryAction.CANCELLED) {
                     SecondaryButton(text = if (state.reservationsLoading) "Checking approval…" else "Check approval status", onClick = { viewModel.loadReservations() }, enabled = !state.reservationsLoading, modifier = Modifier.fillMaxWidth().padding(top = Spacing.lg))
