@@ -115,15 +115,18 @@ fun CreateReservationScreen(
                     }
                 }
                 node?.let {
+                    // Count from the slots actually shown so the stat matches the list below
+                    // (a reserved/occupied slot is not "open"), rather than a stale station total.
+                    val openCount = slots.count { slot -> slot.isAvailable }
                     Row(
                         modifier = Modifier.fillMaxWidth().padding(top = Spacing.md),
                         horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
                     ) {
                         StatTile(value = "${it.capacityKw} kW", label = "Capacity", modifier = Modifier.weight(1f))
                         StatTile(
-                            value = "${it.availableSlotCount}/${it.totalSlotCount}",
+                            value = "$openCount/${slots.size}",
                             label = "Slots open",
-                            highlighted = it.availableSlotCount > 0,
+                            highlighted = openCount > 0,
                             modifier = Modifier.weight(1f)
                         )
                     }

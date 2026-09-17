@@ -271,8 +271,12 @@ private fun QrPanel(viewModel: ProsumerViewModel, reservationId: String) {
             loading = false; payload = value; expiresAt = expiry
         }
     }
-    // Load the QR automatically as soon as the approved booking opens.
-    LaunchedEffect(reservationId) { requestQr() }
+    // Reuse the previously issued QR (from SQLite) if it's still valid; only mint a new one when
+    // there isn't a usable cached code. The user can always force a fresh one with "Regenerate".
+    LaunchedEffect(reservationId) {
+        val cached = viewModel.cachedQr(reservationId)
+        if (cached != null) { payload = cached.first; expiresAt = cached.second; loading = false } else requestQr()
+    }
     LaunchedEffect(expiresAt) {
         val expiry = expiresAt ?: return@LaunchedEffect
         val ms = java.time.Duration.between(java.time.Instant.now(), OffsetDateTime.parse(expiry).toInstant()).toMillis()
@@ -311,8 +315,8 @@ private fun QrPanel(viewModel: ProsumerViewModel, reservationId: String) {
                     SecondaryButton("Try again", { requestQr() }, modifier = Modifier.padding(top = Spacing.md))
                 }
                 expired -> {
-                    Text("For your security this code refreshes periodically. Tap to get a new one.", style = AppType.body, color = colors.textSecondary, textAlign = TextAlign.Center)
-                    SecondaryButton("Refresh QR", { requestQr() }, modifier = Modifier.padding(top = Spacing.md))
+                    Text("For your security this code expired. Generate a fresh one to present at the station.", style = AppType.body, color = colors.textSecondary, textAlign = TextAlign.Center)
+                    SecondaryButton("Regenerate QR", { requestQr() }, modifier = Modifier.padding(top = Spacing.md))
                 }
                 payload != null -> {
                     QrCodeVisual(payload = payload!!)
@@ -320,6 +324,7 @@ private fun QrPanel(viewModel: ProsumerViewModel, reservationId: String) {
                         val time = OffsetDateTime.parse(it).atZoneSameInstant(ZoneId.systemDefault()).format(DateTimeFormatter.ofPattern("MMM d, HH:mm"))
                         Text("Valid until $time", style = AppType.caption, color = colors.textTertiary, modifier = Modifier.padding(top = Spacing.md))
                     }
+                    SecondaryButton("Regenerate QR", { requestQr() }, modifier = Modifier.padding(top = Spacing.md))
                 }
             }
         }

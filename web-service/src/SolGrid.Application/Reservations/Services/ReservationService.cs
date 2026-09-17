@@ -383,6 +383,15 @@ public sealed class ReservationService : IReservationService
             throw new ConflictException("Reservation QR token is not valid for completion.");
         }
 
+        // Energy transfer can only be finalized during the reserved slot window — not before, not after.
+        var slot = await bookingSlotReadService.GetByIdAsync(reservation.BookingSlotId, cancellationToken).ConfigureAwait(false);
+        if (slot is not null && (nowUtc < slot.StartTime || nowUtc >= slot.EndTime))
+        {
+            throw new ConflictException(
+                "Energy transfer can only be finalized during the reserved time window " +
+                $"({slot.StartTime:yyyy-MM-dd HH:mm} to {slot.EndTime:HH:mm} UTC).");
+        }
+
         try
         {
             reservation.Complete(GetRequiredCurrentUserId(), nowUtc);

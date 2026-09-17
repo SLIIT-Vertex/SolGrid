@@ -29,6 +29,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
+import com.solgrid.mobile.core.components.AppPullToRefresh
 import com.solgrid.mobile.core.components.EmptyKind
 import com.solgrid.mobile.core.components.EmptyState
 import com.solgrid.mobile.core.components.HeroStatCard
@@ -66,8 +67,13 @@ fun DashboardScreen(
 
 
 
+    AppPullToRefresh(
+        refreshing = state.reservationsLoading && !state.loading,
+        onRefresh = { viewModel.loadReservations() },
+        modifier = Modifier.fillMaxSize().background(colors.background)
+    ) {
     LazyColumn(
-        modifier = Modifier.fillMaxSize().background(colors.background),
+        modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(horizontal = Spacing.lg, vertical = Spacing.md)
     ) {
         item {
@@ -170,6 +176,7 @@ fun DashboardScreen(
         }
 
         item { Box(modifier = Modifier.padding(bottom = Spacing.xxxl)) }
+    }
     }
 }
 

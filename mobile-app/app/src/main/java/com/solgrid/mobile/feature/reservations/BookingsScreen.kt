@@ -29,6 +29,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import com.solgrid.mobile.core.components.AppPullToRefresh
 import com.solgrid.mobile.core.components.AppTopBar
 import com.solgrid.mobile.core.components.EmptyKind
 import com.solgrid.mobile.core.components.EmptyState
@@ -90,31 +91,40 @@ fun BookingsScreen(
             }
         }
 
-        when {
-            state.reservationsLoading && state.reservations.isEmpty() ->
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator(color = colors.accent)
-                }
+        AppPullToRefresh(
+            refreshing = state.reservationsLoading && state.reservations.isNotEmpty(),
+            onRefresh = { viewModel.loadReservations() },
+            modifier = Modifier.fillMaxSize()
+        ) {
+            when {
+                state.reservationsLoading && state.reservations.isEmpty() ->
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator(color = colors.accent)
+                    }
 
-            state.reservationsError != null && state.reservations.isEmpty() ->
-                ErrorState(kind = ErrorKind.SERVER_ERROR, onRetry = { viewModel.loadReservations() }, modifier = Modifier.padding(top = Spacing.xxxl))
+                state.reservationsError != null && state.reservations.isEmpty() ->
+                    ErrorState(kind = ErrorKind.SERVER_ERROR, onRetry = { viewModel.loadReservations() }, modifier = Modifier.padding(top = Spacing.xxxl))
 
-            filtered.isEmpty() ->
-                EmptyState(kind = EmptyKind.SEARCH_RESULTS, modifier = Modifier.padding(top = Spacing.xxxl))
+                filtered.isEmpty() ->
+                    EmptyState(kind = EmptyKind.SEARCH_RESULTS, modifier = Modifier.padding(top = Spacing.xxxl))
 
-            else -> {
-                Text(
-                    "${filtered.size} active ${if (filtered.size == 1) "booking" else "bookings"}",
-                    style = AppType.caption,
-                    color = colors.textTertiary,
-                    modifier = Modifier.padding(horizontal = Spacing.lg, vertical = Spacing.xs)
-                )
-                LazyColumn(
-                    contentPadding = PaddingValues(horizontal = Spacing.lg, vertical = Spacing.sm),
-                    verticalArrangement = Arrangement.spacedBy(Spacing.md)
-                ) {
-                    items(filtered, key = { it.id }) { reservation ->
-                        BookingListCard(reservation = reservation, onClick = { onBookingClick(reservation.id) })
+                else -> {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(horizontal = Spacing.lg, vertical = Spacing.sm),
+                        verticalArrangement = Arrangement.spacedBy(Spacing.md)
+                    ) {
+                        item {
+                            Text(
+                                "${filtered.size} active ${if (filtered.size == 1) "booking" else "bookings"}",
+                                style = AppType.caption,
+                                color = colors.textTertiary,
+                                modifier = Modifier.padding(vertical = Spacing.xs)
+                            )
+                        }
+                        items(filtered, key = { it.id }) { reservation ->
+                            BookingListCard(reservation = reservation, onClick = { onBookingClick(reservation.id) })
+                        }
                     }
                 }
             }

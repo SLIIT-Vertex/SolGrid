@@ -59,4 +59,9 @@ public sealed class ReservationBookingSlotSnapshot
     public bool IsActive { get; init; }
 
     public bool IsAvailable { get; init; }
+
+    // Reserved window boundaries, used to gate energy-transfer finalization to the booked time.
+    public DateTimeOffset StartTime { get; init; }
+
+    public DateTimeOffset EndTime { get; init; }
 }

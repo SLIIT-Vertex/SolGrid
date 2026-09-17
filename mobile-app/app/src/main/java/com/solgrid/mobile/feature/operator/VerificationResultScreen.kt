@@ -62,6 +62,20 @@ fun VerificationResultScreen(
     val slot = remember(nodeState.slots, reservation?.bookingSlotId) {
         nodeState.slots.find { it.id == reservation?.bookingSlotId }
     }
+    // Finalization is only allowed during the reserved window. null = window not yet known (slot
+    // still loading); -1 = before window; 0 = within window; 1 = after window.
+    val windowPosition: Int? = remember(slot) {
+        val s = slot ?: return@remember null
+        val now = java.time.Instant.now()
+        val start = runCatching { java.time.OffsetDateTime.parse(s.startTime).toInstant() }.getOrNull()
+        val end = runCatching { java.time.OffsetDateTime.parse(s.endTime).toInstant() }.getOrNull()
+        if (start == null || end == null) null
+        else when {
+            now.isBefore(start) -> -1
+            !now.isBefore(end) -> 1
+            else -> 0
+        }
+    }
 
     Column(modifier = Modifier.fillMaxSize().background(colors.background)) {
         Column(
@@ -120,9 +134,25 @@ fun VerificationResultScreen(
 
         Column(modifier = Modifier.padding(horizontal = Spacing.xxl)) {
             if (state.lastVerification?.result == TransferVerificationResult.VALID && reservation != null) {
+                val outsideWindow = windowPosition == -1 || windowPosition == 1
+                if (outsideWindow) {
+                    val note = if (windowPosition == -1) {
+                        "This can only be finalized during the reserved window (${reservation.date}, ${reservation.startTime} – ${reservation.endTime}). The window hasn't started yet."
+                    } else {
+                        "This can only be finalized during the reserved window (${reservation.date}, ${reservation.startTime} – ${reservation.endTime}). That window has already passed."
+                    }
+                    Text(
+                        note,
+                        style = AppType.supporting,
+                        color = colors.warning,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth().padding(bottom = Spacing.sm)
+                    )
+                }
                 PrimaryButton(
                     text = "Finalize Energy Transfer",
                     loading = state.finalizing,
+                    enabled = !outsideWindow && !state.finalizing,
                     onClick = { viewModel.finalizeTransfer(onDone) },
                     modifier = Modifier.fillMaxWidth()
                 )

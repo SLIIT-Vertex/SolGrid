@@ -23,7 +23,6 @@ import androidx.compose.runtime.getValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.solgrid.mobile.core.models.ReservationStatus
 import com.solgrid.mobile.core.components.AppTopBar
-import com.solgrid.mobile.core.components.BadgeTone
 import com.solgrid.mobile.core.components.StatusBadge
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -99,18 +98,16 @@ fun ReservationSummaryScreen(
                     modifier = Modifier.fillMaxWidth().padding(top = Spacing.xl)
                         .clip(RoundedCornerShape(20.dp)).background(colors.surface).padding(Spacing.lg)
                 ) {
-                    StatusBadge(text = booking.status.name.lowercase().replaceFirstChar { it.uppercase() }, tone = if (booking.status == ReservationStatus.PENDING) BadgeTone.WARNING else BadgeTone.NEUTRAL)
+                    StatusBadge(text = statusLabel(booking.status), tone = statusTone(booking.status))
                     Text(booking.nodeName, style = AppType.sectionTitle, color = colors.textPrimary, modifier = Modifier.padding(top = Spacing.md))
                     Text(booking.date, style = AppType.body, color = colors.textPrimary, modifier = Modifier.padding(top = Spacing.sm))
-                    Text(booking.startTime, style = AppType.bodyStrong, color = colors.textPrimary)
+                    Text("${booking.startTime} – ${booking.endTime}", style = AppType.bodyStrong, color = colors.textPrimary)
                     Text("Booking reference", style = AppType.caption, color = colors.textSecondary, modifier = Modifier.padding(top = Spacing.md))
                     Text(booking.reference, style = AppType.supporting, color = colors.textPrimary)
                 }
                 if (booking.status == ReservationStatus.PENDING && action != SummaryAction.CANCELLED) {
-                    SecondaryButton(text = if (state.reservationsLoading) "Checking approval…" else "Check approval status", onClick = { viewModel.loadReservations() }, enabled = !state.reservationsLoading, modifier = Modifier.fillMaxWidth().padding(top = Spacing.lg))
-                    state.reservationsError?.let { Text(it, style = AppType.caption, color = colors.error, modifier = Modifier.padding(top = Spacing.sm)) }
-                    Text("Next: operator approval", style = AppType.bodyStrong, color = colors.textPrimary, modifier = Modifier.padding(top = Spacing.xl))
-                    Text("Open this booking after approval to show your secure QR at the station. A pending request cannot be used for check-in.", style = AppType.supporting, color = colors.textSecondary, textAlign = TextAlign.Center, modifier = Modifier.padding(top = Spacing.sm))
+                    Text("What happens next", style = AppType.bodyStrong, color = colors.textPrimary, modifier = Modifier.padding(top = Spacing.xl))
+                    Text("A Grid Operator will review your request. Once approved, open this booking to show your secure QR at the station. We'll keep your bookings up to date automatically.", style = AppType.supporting, color = colors.textSecondary, textAlign = TextAlign.Center, modifier = Modifier.padding(top = Spacing.sm))
                 }
             }
         }

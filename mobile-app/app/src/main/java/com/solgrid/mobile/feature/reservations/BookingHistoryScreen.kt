@@ -17,6 +17,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import com.solgrid.mobile.core.components.AppPullToRefresh
 import com.solgrid.mobile.core.components.AppTopBar
 import com.solgrid.mobile.core.components.EmptyKind
 import com.solgrid.mobile.core.components.EmptyState
@@ -35,24 +36,31 @@ fun BookingHistoryScreen(viewModel: ProsumerViewModel, onBack: () -> Unit, onBoo
 
     Column(modifier = Modifier.fillMaxSize().background(colors.background)) {
         AppTopBar(title = "Booking History", onBack = onBack)
-        when {
-            state.reservationsLoading && state.reservations.isEmpty() ->
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator(color = colors.accent)
-                }
+        AppPullToRefresh(
+            refreshing = state.reservationsLoading && state.reservations.isNotEmpty(),
+            onRefresh = { viewModel.loadReservations() },
+            modifier = Modifier.fillMaxSize()
+        ) {
+            when {
+                state.reservationsLoading && state.reservations.isEmpty() ->
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator(color = colors.accent)
+                    }
 
-            state.reservationsError != null && state.reservations.isEmpty() ->
-                ErrorState(kind = ErrorKind.SERVER_ERROR, onRetry = { viewModel.loadReservations() }, modifier = Modifier.padding(top = Spacing.xxxl))
+                state.reservationsError != null && state.reservations.isEmpty() ->
+                    ErrorState(kind = ErrorKind.SERVER_ERROR, onRetry = { viewModel.loadReservations() }, modifier = Modifier.padding(top = Spacing.xxxl))
 
-            state.history.isEmpty() ->
-                EmptyState(kind = EmptyKind.ACTIVITY, modifier = Modifier.padding(top = Spacing.xxxl))
+                state.history.isEmpty() ->
+                    EmptyState(kind = EmptyKind.ACTIVITY, modifier = Modifier.padding(top = Spacing.xxxl))
 
-            else -> LazyColumn(
-                contentPadding = PaddingValues(horizontal = Spacing.lg, vertical = Spacing.sm),
-                verticalArrangement = Arrangement.spacedBy(Spacing.md)
-            ) {
-                items(state.history, key = { it.id }) { reservation ->
-                    BookingListCard(reservation = reservation, onClick = { onBookingClick(reservation.id) })
+                else -> LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(horizontal = Spacing.lg, vertical = Spacing.sm),
+                    verticalArrangement = Arrangement.spacedBy(Spacing.md)
+                ) {
+                    items(state.history, key = { it.id }) { reservation ->
+                        BookingListCard(reservation = reservation, onClick = { onBookingClick(reservation.id) })
+                    }
                 }
             }
         }

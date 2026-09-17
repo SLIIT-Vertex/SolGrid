@@ -63,7 +63,11 @@ fun ReservationQrScreen(viewModel: ProsumerViewModel, reservationId: String, onB
         }
     }
     LaunchedEffect(reservationId, reservation?.status) {
-        if (reservation?.status == ReservationStatus.APPROVED) requestQr() else loading = false
+        if (reservation?.status == ReservationStatus.APPROVED) {
+            // Reuse the previously issued code (SQLite) while it's still valid instead of re-minting.
+            val cached = viewModel.cachedQr(reservationId)
+            if (cached != null) { qrPayload = cached.first; expiresAt = cached.second; loading = false } else requestQr()
+        } else loading = false
     }
     LaunchedEffect(expiresAt) {
         val expiry = expiresAt ?: return@LaunchedEffect
