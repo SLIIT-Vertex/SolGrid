@@ -835,6 +835,24 @@ public sealed class ReservationServiceTests
             // Return the configured booking slot when ids match.
             return Task.FromResult(bookingSlots.FirstOrDefault(bookingSlot => bookingSlot.Id == bookingSlotId));
         }
+
+        public Task ReserveAsync(string bookingSlotId, CancellationToken cancellationToken = default)
+        {
+            // No-op: slot status transitions are covered by SolarStations component tests.
+            return Task.CompletedTask;
+        }
+
+        public Task OccupyAsync(string bookingSlotId, CancellationToken cancellationToken = default)
+        {
+            // No-op: slot status transitions are covered by SolarStations component tests.
+            return Task.CompletedTask;
+        }
+
+        public Task ReleaseAsync(string bookingSlotId, CancellationToken cancellationToken = default)
+        {
+            // No-op: slot status transitions are covered by SolarStations component tests.
+            return Task.CompletedTask;
+        }
     }
 
     private sealed class FakeCurrentUserContext : ICurrentUserContext

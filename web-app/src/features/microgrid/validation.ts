@@ -136,9 +136,49 @@ export function validateScheduleWindows(windows: ScheduleWindowFormValues[] | un
   return undefined
 }
 
+/**
+ * Combines a date-picker date and time-picker time — both entered in the Backoffice user's local
+ * wall-clock time — into an absolute timestamp for booking slot start/end, keeping the local UTC
+ * offset in the output (e.g. `2026-09-17T14:00:00+05:30`) instead of converting to `Z`. The backend
+ * validates a slot against the station's operating schedule by reading the clock digits of the
+ * *supplied offset* directly (see docs/microgrid-node-management.md: "Operating-schedule checks use
+ * the weekday/time of the supplied offset-aware instant") — there is no station timezone field, so
+ * converting to UTC here would desync the slot's clock digits from the schedule's local clock digits
+ * and make in-hours slots fail validation. This is distinct from `toTimeOnly`, which serializes the
+ * weekly operating schedule as a timezone-less clock time by design and must not be touched here.
+ */
 export function combineDateAndTime(date: string, time: string): string | undefined {
-  if (!date.trim() || !time.trim()) return undefined
-  return `${date.trim()}T${toTimeOnly(time)}+00:00`
+  const trimmedDate = date.trim()
+  const trimmedTime = time.trim()
+  if (!trimmedDate || !trimmedTime) return undefined
+
+  const [year, month, day] = trimmedDate.split('-').map(Number)
+  const timeMatch = toTimeOnly(trimmedTime).match(/^(\d{2}):(\d{2}):(\d{2})$/)
+  if (!timeMatch || !Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day)) {
+    return undefined
+  }
+  const [, hours, minutes, seconds] = timeMatch.map(Number)
+
+  const local = new Date(year, month - 1, day, hours, minutes, seconds)
+  if (Number.isNaN(local.getTime())) return undefined
+
+  return toIsoStringWithLocalOffset(local)
+}
+
+/** Formats a Date as an ISO-8601 string using its local UTC offset instead of shifting to `Z`. */
+function toIsoStringWithLocalOffset(value: Date): string {
+  const pad = (n: number, width = 2) => String(Math.abs(n)).padStart(width, '0')
+
+  const offsetMinutesTotal = -value.getTimezoneOffset()
+  const sign = offsetMinutesTotal >= 0 ? '+' : '-'
+  const offsetHours = pad(Math.trunc(offsetMinutesTotal / 60))
+  const offsetMinutes = pad(offsetMinutesTotal % 60)
+
+  return (
+    `${value.getFullYear()}-${pad(value.getMonth() + 1)}-${pad(value.getDate())}` +
+    `T${pad(value.getHours())}:${pad(value.getMinutes())}:${pad(value.getSeconds())}` +
+    `.${pad(value.getMilliseconds(), 3)}${sign}${offsetHours}:${offsetMinutes}`
+  )
 }
 
 export function validateSlotInterval(startTime: string, endTime: string): string | undefined {
@@ -194,6 +234,28 @@ function isDayPortionCovered(
   return !coversUntilEndOfDay && cursor >= toSeconds
 }
 
+/**
+ * Reads the wall-clock digits of an offset-aware ISO string as encoded in its own offset — not
+ * shifted to UTC. The backend compares a slot's schedule coverage using .NET `DateTimeOffset`'s
+ * `TimeOfDay`/`DayOfWeek`, which reflect the value's own offset (there is no station timezone
+ * field). `Date.getUTC*` would instead always normalize to UTC regardless of the string's offset,
+ * desyncing this client-side pre-check from what the server actually validates.
+ */
+function readOffsetLocalParts(
+  isoString: string,
+): { year: number; month: number; day: number; seconds: number } | undefined {
+  const match = isoString.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/)
+  if (!match) return undefined
+
+  const [, year, month, day, hours, minutes, secs] = match.map(Number)
+  return { year, month, day, seconds: hours * 3600 + minutes * 60 + secs }
+}
+
+/** Day count since the epoch for an offset-local calendar date, for day-boundary arithmetic. */
+function offsetLocalDayIndex(parts: { year: number; month: number; day: number }): number {
+  return Math.floor(Date.UTC(parts.year, parts.month - 1, parts.day) / 86_400_000)
+}
+
 export function validateSlotAgainstSchedule(
   schedule: ScheduleWindowFormValues[],
   startTime: string,
@@ -208,40 +270,35 @@ export function validateSlotAgainstSchedule(
     closesAt: toTimeOnly(window.closesAt),
   }))
 
-  const start = new Date(startTime)
-  const end = new Date(endTime)
-  let cursor = start.getTime()
-  const endMs = end.getTime()
+  const startParts = readOffsetLocalParts(startTime)
+  const endParts = readOffsetLocalParts(endTime)
+  if (!startParts || !endParts) return undefined
 
-  while (cursor < endMs) {
-    const cursorDate = new Date(cursor)
-    const nextMidnight = Date.UTC(
-      cursorDate.getUTCFullYear(),
-      cursorDate.getUTCMonth(),
-      cursorDate.getUTCDate() + 1,
-    )
-    const dayEnd = Math.min(nextMidnight, endMs)
-    const coversUntilEndOfDay = dayEnd === nextMidnight
-    const fromSeconds =
-      cursorDate.getUTCHours() * 3600 + cursorDate.getUTCMinutes() * 60 + cursorDate.getUTCSeconds()
-    const dayEndDate = new Date(dayEnd)
-    const toSeconds = coversUntilEndOfDay
-      ? 24 * 3600
-      : dayEndDate.getUTCHours() * 3600 + dayEndDate.getUTCMinutes() * 60 + dayEndDate.getUTCSeconds()
+  const startDayIndex = offsetLocalDayIndex(startParts)
+  const endDayIndex = offsetLocalDayIndex(endParts)
+  const totalSecondsSpan = (endDayIndex - startDayIndex) * 86400 + endParts.seconds - startParts.seconds
 
-    if (
-      !isDayPortionCovered(
-        operatingWindows,
-        cursorDate.getUTCDay(),
-        fromSeconds,
-        toSeconds,
-        coversUntilEndOfDay,
-      )
-    ) {
+  let elapsedSeconds = 0
+  let dayIndex = startDayIndex
+  let fromSeconds = startParts.seconds
+
+  while (elapsedSeconds < totalSecondsSpan) {
+    const secondsLeftInDay = 86400 - fromSeconds
+    const secondsRemaining = totalSecondsSpan - elapsedSeconds
+    const coversUntilEndOfDay = secondsRemaining >= secondsLeftInDay
+    const toSeconds = coversUntilEndOfDay ? 86400 : fromSeconds + secondsRemaining
+
+    // JS `Date.UTC`'s weekday matches the offset-local calendar date directly, since dayIndex was
+    // derived from offset-local year/month/day rather than a UTC-shifted instant.
+    const dayOfWeek = new Date(dayIndex * 86_400_000).getUTCDay()
+
+    if (!isDayPortionCovered(operatingWindows, dayOfWeek, fromSeconds, toSeconds, coversUntilEndOfDay)) {
       return 'Booking slot times must fall within the station operating schedule.'
     }
 
-    cursor = nextMidnight
+    elapsedSeconds += secondsLeftInDay
+    dayIndex += 1
+    fromSeconds = 0
   }
 
   return undefined

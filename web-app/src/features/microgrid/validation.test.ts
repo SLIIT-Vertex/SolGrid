@@ -27,6 +27,21 @@ import {
 
 const mondayHours: ScheduleWindowFormValues = { day: 1, opensAt: '08:00', closesAt: '17:00' }
 
+/** Mirrors combineDateAndTime's offset-preserving format so tests aren't timezone-specific. */
+function expectedLocalIso(year: number, monthIndex: number, day: number, hours: number, minutes: number, seconds = 0): string {
+  const value = new Date(year, monthIndex, day, hours, minutes, seconds)
+  const pad = (n: number, width = 2) => String(Math.abs(n)).padStart(width, '0')
+  const offsetMinutesTotal = -value.getTimezoneOffset()
+  const sign = offsetMinutesTotal >= 0 ? '+' : '-'
+  const offsetHours = pad(Math.trunc(offsetMinutesTotal / 60))
+  const offsetMinutes = pad(offsetMinutesTotal % 60)
+  return (
+    `${value.getFullYear()}-${pad(value.getMonth() + 1)}-${pad(value.getDate())}` +
+    `T${pad(value.getHours())}:${pad(value.getMinutes())}:${pad(value.getSeconds())}` +
+    `.${pad(value.getMilliseconds(), 3)}${sign}${offsetHours}:${offsetMinutes}`
+  )
+}
+
 function slot(overrides: Partial<BatterySlotFormValues> = {}): BatterySlotFormValues {
   return {
     slotNumber: '1',
@@ -114,10 +129,15 @@ describe('schedule validation', () => {
 })
 
 describe('battery slot validation', () => {
-  it('formats TimeOnly values and UTC offset timestamps for the station API', () => {
+  it('formats TimeOnly values for the weekly schedule, and converts slot picks to real UTC instants', () => {
     expect(toTimeOnly('08:00')).toBe('08:00:00')
     expect(toTimeOnly('08:00:30')).toBe('08:00:30')
-    expect(combineDateAndTime('2026-09-21', '09:00')).toBe('2026-09-21T09:00:00+00:00')
+
+    // combineDateAndTime treats the picked date/time as the browser's local wall-clock time and
+    // keeps that local offset in the output — the backend reads schedule coverage from the
+    // supplied offset's own clock digits, not from a UTC shift — so this is checked against a
+    // real Date construction rather than a timezone-specific literal string.
+    expect(combineDateAndTime('2026-09-21', '09:00')).toBe(expectedLocalIso(2026, 8, 21, 9, 0, 0))
   })
 
   it('requires a booking window that ends after it starts', () => {
@@ -180,7 +200,12 @@ describe('request mapping', () => {
     slots: [slot()],
   }
 
-  it('maps create requests with trimmed text, kW generation, kWh storage, and +00:00 slot times', () => {
+  it('maps create requests with trimmed text, kW generation, kWh storage, and offset-local slot times', () => {
+    // Slot start/end are picked in the Backoffice user's local wall-clock time and keep that local
+    // offset — computed here rather than hardcoded so the test isn't timezone-specific.
+    const expectedStart = expectedLocalIso(2026, 8, 21, 9, 0, 0)
+    const expectedEnd = expectedLocalIso(2026, 8, 21, 11, 0, 0)
+
     expect(toCreateStationRequest(values)).toEqual({
       code: 'SG-01',
       name: 'North Node',
@@ -192,8 +217,8 @@ describe('request mapping', () => {
         {
           slotNumber: 1,
           batteryCapacityKwh: 12.5,
-          startTime: '2026-09-21T09:00:00+00:00',
-          endTime: '2026-09-21T11:00:00+00:00',
+          startTime: expectedStart,
+          endTime: expectedEnd,
         },
       ],
     })
