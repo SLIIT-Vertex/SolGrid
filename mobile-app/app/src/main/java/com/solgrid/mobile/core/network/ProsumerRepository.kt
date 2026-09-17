@@ -9,7 +9,9 @@ sealed interface ProsumerRegisterOutcome {
 
 sealed interface ProsumerLoginOutcome {
     data class Success(val response: ProsumerLoginResponseDto) : ProsumerLoginOutcome
-    data class Failure(val message: String) : ProsumerLoginOutcome
+    /** [statusCode] lets callers tell a credential mismatch (401) apart from an account the
+     *  backend recognizes but won't sign in yet (403), which need different wording. */
+    data class Failure(val message: String, val statusCode: Int? = null) : ProsumerLoginOutcome
 }
 
 sealed interface ProsumerProfileOutcome {
@@ -57,7 +59,10 @@ class ProsumerRepository(private val apiService: ApiService = NetworkModule.apiS
         if (response.isSuccessful && body != null) {
             ProsumerLoginOutcome.Success(body)
         } else {
-            ProsumerLoginOutcome.Failure(parseApiErrorMessage(response.errorBody()?.string(), response.code()))
+            ProsumerLoginOutcome.Failure(
+                parseApiErrorMessage(response.errorBody()?.string(), response.code()),
+                statusCode = response.code(),
+            )
         }
     }.getOrElse { error -> ProsumerLoginOutcome.Failure(error.toFriendlyMessage()) }
 

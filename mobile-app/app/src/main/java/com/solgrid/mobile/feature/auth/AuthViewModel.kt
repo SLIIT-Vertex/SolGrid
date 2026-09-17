@@ -30,7 +30,48 @@ data class LoginUiState(
     val requestState: AuthRequestState = AuthRequestState.Idle
 )
 
+/**
+ * Registration is asked for one short section at a time rather than as a single long form, so the
+ * user answers a few related questions per screen and each section is validated before the next
+ * one opens. [fields] is the slice of [RegisterUiState.fieldErrors] a section owns.
+ */
+enum class RegisterStep(
+    val label: String,
+    val title: String,
+    val subtitle: String
+) {
+    IDENTITY(
+        label = "Identity",
+        title = "Let's start with you",
+        subtitle = "Your NIC is used as your unique account identity across the system."
+    ),
+    CONTACT(
+        label = "Contact",
+        title = "How do we reach you?",
+        subtitle = "You'll sign in with this email. We use your phone for booking updates."
+    ),
+    SECURITY(
+        label = "Security",
+        title = "Secure your account",
+        subtitle = "Pick a password that meets every requirement below."
+    ),
+    REVIEW(
+        label = "Review",
+        title = "Review your details",
+        subtitle = "Check everything is right, then create your account."
+    );
+
+    val fields: Set<String>
+        get() = when (this) {
+            IDENTITY -> setOf("nic", "fullName")
+            CONTACT -> setOf("email", "phone")
+            SECURITY -> setOf("password", "confirmPassword")
+            REVIEW -> setOf("terms")
+        }
+}
+
 data class RegisterUiState(
+    val step: RegisterStep = RegisterStep.IDENTITY,
     val nic: String = "",
     val fullName: String = "",
     val email: String = "",
@@ -142,7 +183,16 @@ class AuthViewModel : ViewModel() {
                 onSuccess(AppRole.PROSUMER)
             }
             is ProsumerLoginOutcome.Failure -> {
-                _login.update { it.copy(requestState = AuthRequestState.Error("Incorrect email or password.")) }
+                // 401 stays deliberately vague so the form doesn't reveal which emails are
+                // registered. Anything else — most often 403 for an account the Backoffice
+                // hasn't activated yet — has a real reason the user can act on, so don't
+                // flatten it into "wrong password" and leave them retrying valid credentials.
+                val message = when (prosumerOutcome.statusCode) {
+                    401 -> "Incorrect email or password."
+                    403 -> "Your account isn't active yet. A Backoffice officer must activate it before you can sign in."
+                    else -> prosumerOutcome.message
+                }
+                _login.update { it.copy(requestState = AuthRequestState.Error(message)) }
             }
         }
     }
@@ -162,22 +212,58 @@ class AuthViewModel : ViewModel() {
         }
     }
 
-    fun onToggleTerms() = _register.update { it.copy(agreedToTerms = !it.agreedToTerms) }
+    fun onToggleTerms() = _register.update { it.copy(agreedToTerms = !it.agreedToTerms, fieldErrors = it.fieldErrors - "terms") }
+
+    /** Validate only the section on screen and open the next one when it is clean. */
+    fun onRegisterContinue() {
+        val state = _register.value
+        val errors = registerErrors(state).filterKeys { it in state.step.fields }
+        if (errors.isNotEmpty()) {
+            _register.update { it.copy(fieldErrors = errors) }
+            return
+        }
+        val next = RegisterStep.entries.getOrNull(state.step.ordinal + 1) ?: return
+        goToRegisterStep(next)
+    }
+
+    /**
+     * Step back one section. Returns false on the first section, where "back" means leaving
+     * registration altogether — the caller decides what that does.
+     */
+    fun onRegisterStepBack(): Boolean {
+        val previous = RegisterStep.entries.getOrNull(_register.value.step.ordinal - 1) ?: return false
+        goToRegisterStep(previous)
+        return true
+    }
+
+    /** Jump to an already-completed section (stepper header, Review's Edit links). Moving forward
+     *  this way is ignored so a section can never be skipped past its validation. */
+    fun onRegisterStepSelected(step: RegisterStep) {
+        if (step.ordinal < _register.value.step.ordinal) goToRegisterStep(step)
+    }
+
+    private fun goToRegisterStep(step: RegisterStep) {
+        _register.update {
+            it.copy(
+                step = step,
+                fieldErrors = emptyMap(),
+                // A failed submit's banner belongs to that attempt, not to the section the user
+                // moves to next.
+                requestState = if (it.requestState is AuthRequestState.Error) AuthRequestState.Idle else it.requestState
+            )
+        }
+    }
 
     fun submitRegister(onSuccess: () -> Unit) {
         val state = _register.value
-        val errors = mutableMapOf<String, String>()
-        if (!hasSupportedNicFormat(state.nic)) {
-            errors["nic"] = "Enter a valid NIC (12 digits, or 9 digits + V/X)"
-        }
-        if (state.fullName.isBlank()) errors["fullName"] = "Full name is required"
-        if (!hasEmailShape(state.email)) errors["email"] = "Enter a valid email address"
-        if (!hasPhoneShape(state.phone)) errors["phone"] = "Enter a valid phone number"
-        if (!isPasswordStrong(state.password)) errors["password"] = "Password does not meet requirements"
-        if (state.confirmPassword != state.password) errors["confirmPassword"] = "Passwords do not match"
-        if (!state.agreedToTerms) errors["terms"] = "You must accept the Terms of Service"
+        val errors = registerErrors(state)
         if (errors.isNotEmpty()) {
-            _register.update { it.copy(fieldErrors = errors) }
+            // Each section is gated, so this is a backstop: send the user to the earliest section
+            // that still has a problem rather than failing silently on Review.
+            val firstUnfinished = RegisterStep.entries.first { step -> step.fields.any { it in errors } }
+            _register.update {
+                it.copy(step = firstUnfinished, fieldErrors = errors.filterKeys { key -> key in firstUnfinished.fields })
+            }
             return
         }
         viewModelScope.launch {
@@ -213,6 +299,25 @@ class AuthViewModel : ViewModel() {
             }
         }
     }
+}
+
+/**
+ * One source of truth for registration validation. Step gating filters it down to the fields the
+ * section on screen owns, and the final submit runs it whole, so advancing a section can never let
+ * through input the submit would reject.
+ */
+private fun registerErrors(state: RegisterUiState): Map<String, String> {
+    val errors = mutableMapOf<String, String>()
+    if (!hasSupportedNicFormat(state.nic)) {
+        errors["nic"] = "Enter a valid NIC (12 digits, or 9 digits + V/X)"
+    }
+    if (state.fullName.isBlank()) errors["fullName"] = "Full name is required"
+    if (!hasEmailShape(state.email)) errors["email"] = "Enter a valid email address"
+    if (!hasPhoneShape(state.phone)) errors["phone"] = "Enter a valid phone number"
+    if (!isPasswordStrong(state.password)) errors["password"] = "Password does not meet requirements"
+    if (state.confirmPassword != state.password) errors["confirmPassword"] = "Passwords do not match"
+    if (!state.agreedToTerms) errors["terms"] = "You must accept the Terms of Service"
+    return errors
 }
 
 /** Mirrors SolGrid.Application.Prosumers.Validation.ProsumerRequestValidationRules.HasSupportedSriLankanNicFormat. */
