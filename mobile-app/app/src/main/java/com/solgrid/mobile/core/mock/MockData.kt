@@ -22,7 +22,7 @@ object MockData {
         firstName = "Nadeesha",
         lastName = "Perera",
         email = "nadeesha.perera@solgrid.io",
-        phone = "+94 77 214 6630",
+        phone = "0772146630",
         status = ProsumerAccountStatus.ACTIVE
     )
 

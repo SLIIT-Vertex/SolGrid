@@ -194,7 +194,7 @@ private fun IdentitySection(state: RegisterUiState, onField: (String, String) ->
         value = state.nic,
         onValueChange = { onField("nic", it) },
         label = "NIC number",
-        placeholder = "12-digit NIC",
+        placeholder = "12 digits or 9 digits + V/X",
         keyboardType = KeyboardType.Number,
         errorText = state.fieldErrors["nic"]
     )
@@ -220,6 +220,7 @@ private fun ContactSection(state: RegisterUiState, onField: (String, String) -> 
         value = state.phone,
         onValueChange = { onField("phone", it) },
         label = "Phone number",
+        placeholder = "07XXXXXXXX",
         keyboardType = KeyboardType.Phone,
         errorText = state.fieldErrors["phone"],
         modifier = Modifier.padding(top = Spacing.md)

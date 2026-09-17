@@ -45,7 +45,7 @@ public sealed class ProsumerApiTests
             FirstName = "Nimal",
             LastName = "Perera",
             Email = "nimal@example.com",
-            PhoneNumber = "+94712345678",
+            PhoneNumber = "0712345678",
             Password = "password123"
         });
         var body = await response.Content.ReadAsStringAsync();

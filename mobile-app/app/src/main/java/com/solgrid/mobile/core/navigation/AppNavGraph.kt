@@ -262,7 +262,16 @@ fun AppNavGraph(onThemeModeChange: (AppThemeMode) -> Unit) {
                     )
                 }
                 composable(Routes.EDIT_PROSUMER_PROFILE) {
-                    EditProsumerProfileScreen(viewModel = prosumerViewModel, onBack = { navController.popBackStack() })
+                    EditProsumerProfileScreen(
+                        viewModel = prosumerViewModel,
+                        onBack = { navController.popBackStack() },
+                        onSaved = {
+                            val returnedToProfile = navController.popBackStack(Routes.PROSUMER_PROFILE, inclusive = false)
+                            if (!returnedToProfile) {
+                                navController.navigate(Routes.PROSUMER_PROFILE) { launchSingleTop = true }
+                            }
+                        },
+                    )
                 }
                 composable(Routes.DEACTIVATION_REQUEST) {
                     DeactivationRequestScreen(

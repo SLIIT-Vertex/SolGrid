@@ -16,6 +16,12 @@ export function UserCreateDialog({ open, onClose }: UserCreateDialogProps) {
   const createUser = useCreateUser()
   const [submitError, setSubmitError] = useState<string | null>(null)
 
+  const handleClose = () => {
+    if (createUser.isPending) return
+    setSubmitError(null)
+    onClose()
+  }
+
   const handleSubmit = async (values: UserFormValues) => {
     setSubmitError(null)
     try {
@@ -27,6 +33,7 @@ export function UserCreateDialog({ open, onClose }: UserCreateDialogProps) {
         role: values.role,
       })
       showToast(`${user.firstName} ${user.lastName} was created.`)
+      setSubmitError(null)
       onClose()
     } catch (error) {
       setSubmitError(getErrorMessage(error, 'Could not create this user.'))
@@ -36,7 +43,7 @@ export function UserCreateDialog({ open, onClose }: UserCreateDialogProps) {
   return (
     <Dialog
       open={open}
-      onClose={onClose}
+      onClose={handleClose}
       size="lg"
       title="New web user"
       description="Create a Backoffice or Grid Operator account with a temporary password."
@@ -46,7 +53,7 @@ export function UserCreateDialog({ open, onClose }: UserCreateDialogProps) {
         isSubmitting={createUser.isPending}
         submitError={submitError}
         onSubmit={handleSubmit}
-        onCancel={onClose}
+        onCancel={handleClose}
       />
     </Dialog>
   )

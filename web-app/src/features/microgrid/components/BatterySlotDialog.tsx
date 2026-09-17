@@ -3,6 +3,7 @@ import { useForm } from 'react-hook-form'
 import { Button } from '@/components/common/Button'
 import { Dialog } from '@/components/common/Dialog'
 import { TextField } from '@/components/common/TextField'
+import { digitsOnly, unsignedDecimal } from '@/lib/inputConstraints'
 import { useToast } from '@/components/common/useToast'
 import { FormError } from '@/features/microgrid/components/FormError'
 import { useCreateMicrogridSlot, useUpdateMicrogridSlot } from '@/features/microgrid/hooks/useMicrogridSlotMutations'
@@ -102,6 +103,7 @@ function BatterySlotDialogForm({
           <TextField
             label="Slot number"
             inputMode="numeric"
+            sanitizeValue={(value) => digitsOnly(value, 10)}
             readOnly={isEdit}
             hint={isEdit ? 'Slot number cannot be changed after the slot is created.' : 'Must be unique on this node.'}
             error={errors.slotNumber?.message}
@@ -112,6 +114,7 @@ function BatterySlotDialogForm({
           <TextField
             label="Storage capacity (kWh)"
             inputMode="decimal"
+            sanitizeValue={unsignedDecimal}
             error={errors.batteryCapacityKwh?.message}
             {...register('batteryCapacityKwh', {
               required: 'Battery storage slot capacity in kWh must be greater than zero.',

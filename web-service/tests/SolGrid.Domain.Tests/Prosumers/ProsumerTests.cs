@@ -113,7 +113,7 @@ public sealed class ProsumerTests
             "Nimal",
             "Perera",
             "nimal@example.com",
-            "+94712345678",
+            "0712345678",
             "hashed-password",
             createdAt);
     }

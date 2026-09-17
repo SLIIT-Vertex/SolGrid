@@ -32,7 +32,7 @@ export interface UserPage {
 export async function getUsers(filters: UserFilters): Promise<UserPage> {
   const { data } = await apiClient.get<PagedResultDto<UserDto>>('/api/v1/users', {
     params: {
-      searchText: filters.searchText || undefined,
+      searchText: filters.searchText.trim() || undefined,
       role: filters.role ? UserRoleValue[filters.role] : undefined,
       status: filters.status || undefined,
       pageNumber: filters.pageNumber,

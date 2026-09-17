@@ -1,16 +1,24 @@
 import { forwardRef } from 'react'
-import type { InputHTMLAttributes } from 'react'
+import type { ChangeEventHandler, InputHTMLAttributes } from 'react'
 import { cn } from '@/lib/cn'
 
 interface TextFieldProps extends InputHTMLAttributes<HTMLInputElement> {
   label?: string
   error?: string
   hint?: string
+  sanitizeValue?: (value: string) => string
 }
 
 export const TextField = forwardRef<HTMLInputElement, TextFieldProps>(
-  ({ label, error, hint, id, className, ...rest }, ref) => {
+  ({ label, error, hint, id, className, sanitizeValue, onChange, ...rest }, ref) => {
     const inputId = id ?? rest.name
+    const handleChange: ChangeEventHandler<HTMLInputElement> = (event) => {
+      if (sanitizeValue) {
+        event.currentTarget.value = sanitizeValue(event.currentTarget.value)
+      }
+      onChange?.(event)
+    }
+
     return (
       <div className="flex flex-col gap-1.5">
         {label ? (
@@ -30,6 +38,7 @@ export const TextField = forwardRef<HTMLInputElement, TextFieldProps>(
             className,
           )}
           {...rest}
+          onChange={handleChange}
           aria-invalid={Boolean(error)}
           aria-describedby={
             error ? `${inputId}-error` : rest['aria-describedby'] ?? (hint ? `${inputId}-hint` : undefined)

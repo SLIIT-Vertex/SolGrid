@@ -85,6 +85,49 @@ public sealed class ProsumerServiceTests
         await Assert.ThrowsAsync<ValidationException>(() => service.RegisterProsumerAsync(CreateRequest(email: "invalid-email")));
     }
 
+    [Theory]
+    [InlineData("call-me-maybe")]
+    [InlineData("123456")]
+    [InlineData("1234567890123456")]
+    [InlineData("94+771234567")]
+    [InlineData("+94771234567")]
+    [InlineData("7712345678")]
+    public async Task RegisterProsumerAsync_WithInvalidPhone_ThrowsValidation(string phoneNumber)
+    {
+        // Accept only the ten-digit Sri Lankan local format at the API boundary.
+        var service = CreateService();
+        var request = CreateRequest();
+        request = new RegisterProsumerRequest
+        {
+            Nic = request.Nic,
+            FirstName = request.FirstName,
+            LastName = request.LastName,
+            Email = request.Email,
+            PhoneNumber = phoneNumber,
+            Password = request.Password
+        };
+
+        await Assert.ThrowsAsync<ValidationException>(() => service.RegisterProsumerAsync(request));
+    }
+
+    [Fact]
+    public async Task RegisterProsumerAsync_WithShortPassword_ThrowsValidation()
+    {
+        // Keep administrative and mobile registration password length rules aligned.
+        var service = CreateService();
+        var request = CreateRequest();
+
+        await Assert.ThrowsAsync<ValidationException>(() => service.RegisterProsumerAsync(new RegisterProsumerRequest
+        {
+            Nic = request.Nic,
+            FirstName = request.FirstName,
+            LastName = request.LastName,
+            Email = request.Email,
+            PhoneNumber = request.PhoneNumber,
+            Password = "short"
+        }));
+    }
+
     [Fact]
     public async Task GetMyProsumerAsync_ReturnsOnlyAuthenticatedProsumer()
     {
@@ -111,7 +154,7 @@ public sealed class ProsumerServiceTests
             FirstName = "Updated",
             LastName = "Prosumer",
             Email = "updated@example.com",
-            PhoneNumber = "+94771234567"
+            PhoneNumber = "0771234567"
         });
 
         Assert.Equal("199012345678", response.Nic);
@@ -254,7 +297,7 @@ public sealed class ProsumerServiceTests
         var repository = new InMemoryProsumerRepository();
         var service = CreateService(repository, new FakeCurrentUserContext("backoffice", UserRole.Backoffice));
         var created = await service.CreateProsumerAsync(CreateRequest());
-        var updated = await service.UpdateProsumerAsync(created.Nic, new UpdateProsumerRequest { FirstName = "Updated", LastName = "Name", Email = "updated@example.com", PhoneNumber = "+94712345678" });
+        var updated = await service.UpdateProsumerAsync(created.Nic, new UpdateProsumerRequest { FirstName = "Updated", LastName = "Name", Email = "updated@example.com", PhoneNumber = "0712345678" });
         Assert.Equal(created.Nic, updated.Nic);
         Assert.Equal(ProsumerAccountStatus.Pending, updated.Status);
         Assert.Equal("Updated", updated.FirstName);
@@ -277,7 +320,7 @@ public sealed class ProsumerServiceTests
         var first = CreateProsumer("199012345678", "first@example.com");
         var second = CreateProsumer("199012345679", "second@example.com");
         var service = CreateService(new InMemoryProsumerRepository(first, second), new FakeCurrentUserContext("backoffice", UserRole.Backoffice));
-        await Assert.ThrowsAsync<ConflictException>(() => service.UpdateProsumerAsync(first.Nic, new UpdateProsumerRequest { FirstName = "First", LastName = "Name", Email = second.Email, PhoneNumber = "+94712345678" }));
+        await Assert.ThrowsAsync<ConflictException>(() => service.UpdateProsumerAsync(first.Nic, new UpdateProsumerRequest { FirstName = "First", LastName = "Name", Email = second.Email, PhoneNumber = "0712345678" }));
         Assert.Equal("first@example.com", first.Email);
     }
 
@@ -304,7 +347,7 @@ public sealed class ProsumerServiceTests
             FirstName = "Nimal",
             LastName = "Perera",
             Email = email,
-            PhoneNumber = "+94712345678",
+            PhoneNumber = "0712345678",
             Password = "password123"
         };
     }

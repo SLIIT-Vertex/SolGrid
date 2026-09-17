@@ -8,6 +8,7 @@
 
 using SolGrid.Application.Auth.Interfaces;
 using SolGrid.Application.Common.Exceptions;
+using SolGrid.Application.Common.Identity;
 using SolGrid.Application.Common.Models;
 using SolGrid.Application.Common.Validation;
 using SolGrid.Application.Users.Interfaces;
@@ -22,12 +23,17 @@ public sealed class UserService : IUserService
 {
     private readonly IUserRepository userRepository;
     private readonly IPasswordHasher passwordHasher;
+    private readonly ICurrentUserContext currentUserContext;
 
-    public UserService(IUserRepository userRepository, IPasswordHasher passwordHasher)
+    public UserService(
+        IUserRepository userRepository,
+        IPasswordHasher passwordHasher,
+        ICurrentUserContext currentUserContext)
     {
         // Capture user management dependencies.
         this.userRepository = userRepository;
         this.passwordHasher = passwordHasher;
+        this.currentUserContext = currentUserContext;
     }
 
     public async Task<UserResponse> CreateUserAsync(
@@ -68,6 +74,11 @@ public sealed class UserService : IUserService
 
         var user = await GetRequiredUserAsync(id, cancellationToken).ConfigureAwait(false);
         var normalizedEmail = NormalizeEmail(request.Email);
+
+        if (IsCurrentUser(id) && user.Role != request.Role)
+        {
+            throw new ForbiddenException("You cannot change your own role.");
+        }
 
         if (!string.Equals(user.Email, normalizedEmail, StringComparison.OrdinalIgnoreCase)
             && await userRepository.ExistsByEmailAsync(normalizedEmail, user.Id, cancellationToken).ConfigureAwait(false))
@@ -134,6 +145,12 @@ public sealed class UserService : IUserService
     {
         // Remove login eligibility by marking the account inactive.
         ValidateId(id);
+
+        if (IsCurrentUser(id))
+        {
+            throw new ForbiddenException("You cannot deactivate your own account.");
+        }
+
         var user = await GetRequiredUserAsync(id, cancellationToken).ConfigureAwait(false);
         user.Deactivate(DateTimeOffset.UtcNow);
         await userRepository.UpdateAsync(user, cancellationToken).ConfigureAwait(false);
@@ -154,6 +171,14 @@ public sealed class UserService : IUserService
         if (!UserRequestValidationRules.HasValue(request.Password))
         {
             errors.Add("Password is required.");
+        }
+        else if (request.Password.Length < UserRequestValidationRules.PasswordMinimumLength)
+        {
+            errors.Add($"Password must be at least {UserRequestValidationRules.PasswordMinimumLength} characters.");
+        }
+        else if (request.Password.Length > UserRequestValidationRules.PasswordMaximumLength)
+        {
+            errors.Add($"Password must be no more than {UserRequestValidationRules.PasswordMaximumLength} characters.");
         }
 
         ThrowIfInvalid(errors);
@@ -176,10 +201,18 @@ public sealed class UserService : IUserService
         {
             yield return "First name is required.";
         }
+        else if (firstName.Trim().Length > UserRequestValidationRules.NameMaximumLength)
+        {
+            yield return $"First name must be no more than {UserRequestValidationRules.NameMaximumLength} characters.";
+        }
 
         if (!UserRequestValidationRules.HasValue(lastName))
         {
             yield return "Last name is required.";
+        }
+        else if (lastName.Trim().Length > UserRequestValidationRules.NameMaximumLength)
+        {
+            yield return $"Last name must be no more than {UserRequestValidationRules.NameMaximumLength} characters.";
         }
 
         if (!UserRequestValidationRules.HasEmailShape(email))
@@ -227,6 +260,16 @@ public sealed class UserService : IUserService
             errors.Add("Page size must be greater than zero.");
         }
 
+        if (query.PageSize > UserRequestValidationRules.PageSizeMaximum)
+        {
+            errors.Add($"Page size must be no more than {UserRequestValidationRules.PageSizeMaximum}.");
+        }
+
+        if (query.SearchText?.Trim().Length > UserRequestValidationRules.SearchTextMaximumLength)
+        {
+            errors.Add($"Search text must be no more than {UserRequestValidationRules.SearchTextMaximumLength} characters.");
+        }
+
         ThrowIfInvalid(errors);
     }
 
@@ -244,5 +287,12 @@ public sealed class UserService : IUserService
     {
         // Normalize email consistently for uniqueness and authentication.
         return email.Trim().ToLowerInvariant();
+    }
+
+    private bool IsCurrentUser(string id)
+    {
+        // Prevent administrators from accidentally locking themselves out of user management.
+        return currentUserContext.IsAuthenticated
+            && string.Equals(currentUserContext.UserId, id, StringComparison.Ordinal);
     }
 }

@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
+import { useAuth } from '@/auth/useAuth'
 import { ErrorState, LoadingState } from '@/components/common/QueryStates'
 import { useToast } from '@/components/common/useToast'
 import { UserForm } from '@/features/users/components/UserForm'
@@ -12,6 +13,7 @@ export function UserEditPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const { showToast } = useToast()
+  const { session, updateSessionProfile } = useAuth()
   const { data: user, isLoading, isError, refetch } = useUser(id)
   const updateUser = useUpdateUser(id ?? '')
   const [submitError, setSubmitError] = useState<string | null>(null)
@@ -19,11 +21,17 @@ export function UserEditPage() {
   const handleSubmit = async (values: UserFormValues) => {
     setSubmitError(null)
     try {
-      await updateUser.mutateAsync({
+      const updatedUser = await updateUser.mutateAsync({
         firstName: values.firstName,
         lastName: values.lastName,
         email: values.email,
         role: values.role,
+      })
+      updateSessionProfile({
+        userId: updatedUser.id,
+        firstName: updatedUser.firstName,
+        lastName: updatedUser.lastName,
+        email: updatedUser.email,
       })
       showToast('User details were updated.')
       navigate('/users')
@@ -49,6 +57,7 @@ export function UserEditPage() {
             defaultValues={user}
             isSubmitting={updateUser.isPending}
             submitError={submitError}
+            lockRole={session?.userId === user.id}
             onSubmit={handleSubmit}
             onCancel={() => navigate('/users')}
           />

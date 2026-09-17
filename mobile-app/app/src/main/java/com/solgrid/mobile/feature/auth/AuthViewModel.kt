@@ -88,6 +88,12 @@ data class RegisterUiState(
  * (email + password). Both call the real SolGrid Web API.
  */
 private const val USER_ROLE_GRID_OPERATOR = 2
+const val PROSUMER_NIC_MAX_LENGTH = 12
+const val PROSUMER_NAME_MAX_LENGTH = 100
+const val PROSUMER_FULL_NAME_MAX_LENGTH = PROSUMER_NAME_MAX_LENGTH * 2 + 1
+const val PROSUMER_EMAIL_MAX_LENGTH = 254
+const val PROSUMER_PHONE_MAX_LENGTH = 10
+const val PROSUMER_PASSWORD_MAX_LENGTH = 128
 
 class AuthViewModel : ViewModel() {
 
@@ -97,8 +103,8 @@ class AuthViewModel : ViewModel() {
     private val _register = MutableStateFlow(RegisterUiState())
     val register: StateFlow<RegisterUiState> = _register
 
-    fun onIdentifierChange(value: String) = _login.update { it.copy(identifier = value, identifierError = null, infoMessage = null) }
-    fun onPasswordChange(value: String) = _login.update { it.copy(password = value, passwordError = null, infoMessage = null) }
+    fun onIdentifierChange(value: String) = _login.update { it.copy(identifier = value.take(PROSUMER_EMAIL_MAX_LENGTH), identifierError = null, infoMessage = null) }
+    fun onPasswordChange(value: String) = _login.update { it.copy(password = value.take(PROSUMER_PASSWORD_MAX_LENGTH), passwordError = null, infoMessage = null) }
 
     /** Call on logout so a previous session's typed credentials don't linger for the next sign-in. */
     fun resetLoginForm() {
@@ -200,12 +206,12 @@ class AuthViewModel : ViewModel() {
     fun onRegisterField(field: String, value: String) {
         _register.update {
             val updated = when (field) {
-                "nic" -> it.copy(nic = value)
-                "fullName" -> it.copy(fullName = value)
-                "email" -> it.copy(email = value)
-                "phone" -> it.copy(phone = value)
-                "password" -> it.copy(password = value)
-                "confirmPassword" -> it.copy(confirmPassword = value)
+                "nic" -> it.copy(nic = sanitizeNicInput(value))
+                "fullName" -> it.copy(fullName = value.take(PROSUMER_FULL_NAME_MAX_LENGTH))
+                "email" -> it.copy(email = value.take(PROSUMER_EMAIL_MAX_LENGTH))
+                "phone" -> it.copy(phone = sanitizePhoneInput(value))
+                "password" -> it.copy(password = value.take(PROSUMER_PASSWORD_MAX_LENGTH))
+                "confirmPassword" -> it.copy(confirmPassword = value.take(PROSUMER_PASSWORD_MAX_LENGTH))
                 else -> it
             }
             updated.copy(fieldErrors = updated.fieldErrors - field)
@@ -311,9 +317,9 @@ private fun registerErrors(state: RegisterUiState): Map<String, String> {
     if (!hasSupportedNicFormat(state.nic)) {
         errors["nic"] = "Enter a valid NIC (12 digits, or 9 digits + V/X)"
     }
-    if (state.fullName.isBlank()) errors["fullName"] = "Full name is required"
+    validateFullName(state.fullName)?.let { errors["fullName"] = it }
     if (!hasEmailShape(state.email)) errors["email"] = "Enter a valid email address"
-    if (!hasPhoneShape(state.phone)) errors["phone"] = "Enter a valid phone number"
+    if (!hasPhoneShape(state.phone)) errors["phone"] = "Enter 10 digits beginning with 0"
     if (!isPasswordStrong(state.password)) errors["password"] = "Password does not meet requirements"
     if (state.confirmPassword != state.password) errors["confirmPassword"] = "Passwords do not match"
     if (!state.agreedToTerms) errors["terms"] = "You must accept the Terms of Service"
@@ -330,18 +336,39 @@ fun hasSupportedNicFormat(nic: String): Boolean {
     return isLegacy || isModern
 }
 
+fun sanitizeNicInput(value: String): String {
+    val allowed = value.uppercase().filter { it.isDigit() || it == 'V' || it == 'X' }
+    val letterIndex = allowed.indexOfFirst { it == 'V' || it == 'X' }
+    if (letterIndex == -1) return allowed.take(PROSUMER_NIC_MAX_LENGTH)
+
+    val digits = allowed.take(letterIndex).filter(Char::isDigit).take(9)
+    return if (digits.length == 9) digits + allowed[letterIndex] else digits
+}
+
 /** Mirrors SolGrid.Application.Users.Validation.UserRequestValidationRules.HasEmailShape (minimal shape check). */
 fun hasEmailShape(email: String): Boolean {
     val trimmed = email.trim()
     val atIndex = trimmed.indexOf('@')
-    return atIndex > 0 && trimmed.indexOf('.', atIndex) > atIndex + 1 && trimmed.last() != '.'
+    return trimmed.length <= PROSUMER_EMAIL_MAX_LENGTH && trimmed.none(Char::isWhitespace) &&
+        atIndex > 0 && trimmed.indexOf('.', atIndex) > atIndex + 1 && trimmed.last() != '.'
 }
 
 /** Mirrors SolGrid.Application.Prosumers.Validation.ProsumerRequestValidationRules.HasPhoneNumberShape. */
 fun hasPhoneShape(phone: String): Boolean {
     if (phone.isBlank()) return false
     val trimmed = phone.trim()
-    return trimmed.length in 7..20 && trimmed.all { it.isDigit() || it in " +-()" }
+    return trimmed.length == PROSUMER_PHONE_MAX_LENGTH && trimmed.first() == '0' && trimmed.all(Char::isDigit)
+}
+
+fun sanitizePhoneInput(value: String): String = value.filter(Char::isDigit).take(PROSUMER_PHONE_MAX_LENGTH)
+
+fun validateFullName(fullName: String): String? {
+    if (fullName.isBlank()) return "Full name is required"
+    val (firstName, lastName) = splitFullName(fullName)
+    if (firstName.length > PROSUMER_NAME_MAX_LENGTH || lastName.length > PROSUMER_NAME_MAX_LENGTH) {
+        return "First and last names must each be no more than $PROSUMER_NAME_MAX_LENGTH characters"
+    }
+    return null
 }
 
 private fun splitFullName(fullName: String): Pair<String, String> {
@@ -355,7 +382,7 @@ private fun splitFullName(fullName: String): Pair<String, String> {
 }
 
 fun isPasswordStrong(password: String): Boolean =
-    password.length >= 8 &&
+    password.length in 8..PROSUMER_PASSWORD_MAX_LENGTH &&
         password.any { it.isUpperCase() } &&
         password.any { it.isLowerCase() } &&
         password.any { it.isDigit() } &&
@@ -365,6 +392,7 @@ data class PasswordRequirement(val label: String, val met: Boolean)
 
 fun passwordRequirements(password: String): List<PasswordRequirement> = listOf(
     PasswordRequirement("At least 8 characters", password.length >= 8),
+    PasswordRequirement("No more than $PROSUMER_PASSWORD_MAX_LENGTH characters", password.length <= PROSUMER_PASSWORD_MAX_LENGTH),
     PasswordRequirement("Uppercase letter", password.any { it.isUpperCase() }),
     PasswordRequirement("Lowercase letter", password.any { it.isLowerCase() }),
     PasswordRequirement("Number", password.any { it.isDigit() }),
