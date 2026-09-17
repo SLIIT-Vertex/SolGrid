@@ -14,7 +14,9 @@ export interface ProsumerFormValues {
   password: string
 }
 
-export type ProsumerFormErrors = Partial<Record<keyof ProsumerFormValues, string>>
+export type ProsumerFormField = keyof ProsumerFormValues
+
+export type ProsumerFormErrors = Partial<Record<ProsumerFormField, string>>
 
 export function sanitizeNicInput(value: string): string {
   const allowed = value.toUpperCase().replace(/[^0-9VX]/g, '')
@@ -29,10 +31,45 @@ export function sanitizePhoneInput(value: string): string {
   return value.replace(/\D/g, '').slice(0, PROSUMER_PHONE_MAX_LENGTH)
 }
 
+export function sanitizeNameInput(value: string): string {
+  return value
+    .replace(/[^\p{L}\p{M}\s'.-]/gu, '')
+    .replace(/^\s+/, '')
+    .replace(/\s{2,}/g, ' ')
+    .slice(0, PROSUMER_NAME_MAX_LENGTH)
+}
+
+export function sanitizeEmailInput(value: string): string {
+  return value.replace(/\s+/g, '').slice(0, PROSUMER_EMAIL_MAX_LENGTH)
+}
+
 export function validateSriLankanNic(value: string): string | undefined {
   const nic = value.trim().toUpperCase()
+  if (!nic) return 'NIC is required'
   if (/^\d{12}$/.test(nic) || /^\d{9}[VX]$/.test(nic)) return undefined
   return 'Enter 12 digits, or 9 digits followed by V or X'
+}
+
+export function validateProsumerName(value: string, label: string): string | undefined {
+  const name = value.trim()
+  if (!name) return `${label} is required`
+  if (name.length > PROSUMER_NAME_MAX_LENGTH) {
+    return `${label} must be no more than ${PROSUMER_NAME_MAX_LENGTH} characters`
+  }
+  if (!/^\p{L}[\p{L}\p{M}\s'.-]*$/u.test(name)) {
+    return `${label} may only contain letters, spaces, apostrophes, and hyphens`
+  }
+  return undefined
+}
+
+export function validateProsumerEmail(value: string): string | undefined {
+  const email = value.trim()
+  if (!email) return 'Email is required'
+  if (email.length > PROSUMER_EMAIL_MAX_LENGTH) {
+    return `Email must be no more than ${PROSUMER_EMAIL_MAX_LENGTH} characters`
+  }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) return 'Enter a valid email address'
+  return undefined
 }
 
 export function validatePhoneNumber(value: string, required = false): string | undefined {
@@ -42,37 +79,53 @@ export function validatePhoneNumber(value: string, required = false): string | u
   return undefined
 }
 
+export function validateProsumerPassword(value: string): string | undefined {
+  if (!value) return 'Password is required'
+  if (value.length < PROSUMER_PASSWORD_MIN_LENGTH) {
+    return `Password must be at least ${PROSUMER_PASSWORD_MIN_LENGTH} characters`
+  }
+  if (value.length > PROSUMER_PASSWORD_MAX_LENGTH) {
+    return `Password must be no more than ${PROSUMER_PASSWORD_MAX_LENGTH} characters`
+  }
+  return undefined
+}
+
+/** Validate a single field so the dialog can report problems as the user leaves each input. */
+export function validateProsumerField(
+  field: ProsumerFormField,
+  values: ProsumerFormValues,
+  includePassword: boolean,
+): string | undefined {
+  switch (field) {
+    case 'nic':
+      return validateSriLankanNic(values.nic)
+    case 'firstName':
+      return validateProsumerName(values.firstName, 'First name')
+    case 'lastName':
+      return validateProsumerName(values.lastName, 'Last name')
+    case 'email':
+      return validateProsumerEmail(values.email)
+    case 'phoneNumber':
+      return validatePhoneNumber(values.phoneNumber)
+    case 'password':
+      return includePassword ? validateProsumerPassword(values.password) : undefined
+  }
+}
+
+const PROSUMER_FORM_FIELDS: ProsumerFormField[] = [
+  'nic',
+  'firstName',
+  'lastName',
+  'email',
+  'phoneNumber',
+  'password',
+]
+
 export function validateProsumerForm(values: ProsumerFormValues, includePassword: boolean): ProsumerFormErrors {
   const errors: ProsumerFormErrors = {}
-  const firstName = values.firstName.trim()
-  const lastName = values.lastName.trim()
-  const email = values.email.trim()
-
-  const nicError = validateSriLankanNic(values.nic)
-  if (nicError) errors.nic = nicError
-  if (!firstName) errors.firstName = 'First name is required'
-  else if (firstName.length > PROSUMER_NAME_MAX_LENGTH) {
-    errors.firstName = `First name must be no more than ${PROSUMER_NAME_MAX_LENGTH} characters`
-  }
-  if (!lastName) errors.lastName = 'Last name is required'
-  else if (lastName.length > PROSUMER_NAME_MAX_LENGTH) {
-    errors.lastName = `Last name must be no more than ${PROSUMER_NAME_MAX_LENGTH} characters`
-  }
-  if (!email) errors.email = 'Email is required'
-  else if (email.length > PROSUMER_EMAIL_MAX_LENGTH || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    errors.email = 'Enter a valid email address'
-  }
-
-  const phoneError = validatePhoneNumber(values.phoneNumber)
-  if (phoneError) errors.phoneNumber = phoneError
-
-  if (includePassword) {
-    if (!values.password) errors.password = 'Password is required'
-    else if (values.password.length < PROSUMER_PASSWORD_MIN_LENGTH) {
-      errors.password = `Password must be at least ${PROSUMER_PASSWORD_MIN_LENGTH} characters`
-    } else if (values.password.length > PROSUMER_PASSWORD_MAX_LENGTH) {
-      errors.password = `Password must be no more than ${PROSUMER_PASSWORD_MAX_LENGTH} characters`
-    }
+  for (const field of PROSUMER_FORM_FIELDS) {
+    const message = validateProsumerField(field, values, includePassword)
+    if (message) errors[field] = message
   }
 
   return errors

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import type { FormEvent } from 'react'
+import type { ChangeEvent, FormEvent } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Button } from '@/components/common/Button'
 import { Dialog } from '@/components/common/Dialog'
@@ -15,14 +15,22 @@ import {
   PROSUMER_NIC_MAX_LENGTH,
   PROSUMER_PASSWORD_MAX_LENGTH,
   PROSUMER_PHONE_MAX_LENGTH,
+  sanitizeEmailInput,
+  sanitizeNameInput,
   sanitizeNicInput,
   sanitizePhoneInput,
+  validateProsumerField,
   validateProsumerForm,
 } from '@/features/prosumers/validation'
-import type { ProsumerFormErrors, ProsumerFormValues } from '@/features/prosumers/validation'
+import type {
+  ProsumerFormErrors,
+  ProsumerFormField,
+  ProsumerFormValues,
+} from '@/features/prosumers/validation'
 import { getErrorMessage } from '@/lib/problemDetails'
 
 export function ProsumerDialog({ prosumer, onClose }: { prosumer?: Prosumer; onClose: () => void }) {
+  const isCreate = !prosumer
   const [values, setValues] = useState<ProsumerFormValues>({
     nic: prosumer?.nic ?? '',
     firstName: prosumer?.firstName ?? '',
@@ -35,8 +43,18 @@ export function ProsumerDialog({ prosumer, onClose }: { prosumer?: Prosumer; onC
   const client = useQueryClient()
   const { showToast } = useToast()
   const save = useMutation({
-    mutationFn: (request: ProsumerFormValues) =>
-      prosumer ? updateProsumer(prosumer.nic, request) : createProsumer(request),
+    mutationFn: (request: ProsumerFormValues) => {
+      const profile = {
+        firstName: request.firstName,
+        lastName: request.lastName,
+        email: request.email,
+        // The API models an omitted phone number as null, not an empty string.
+        phoneNumber: request.phoneNumber || null,
+      }
+      return prosumer
+        ? updateProsumer(prosumer.nic, profile)
+        : createProsumer({ ...profile, nic: request.nic, password: request.password })
+    },
     onSuccess: async () => {
       await client.invalidateQueries({ queryKey: prosumersKeys.all })
       showToast(prosumer ? 'Profile updated.' : 'Prosumer created. Activate the account when ready.')
@@ -44,18 +62,33 @@ export function ProsumerDialog({ prosumer, onClose }: { prosumer?: Prosumer; onC
     },
   })
 
-  const setField = (field: keyof ProsumerFormValues, value: string) => {
+  const setField = (field: ProsumerFormField, value: string) => {
     setValues((current) => ({ ...current, [field]: value }))
-    setErrors((current) => ({ ...current, [field]: undefined }))
+    // Clear the message while the user is correcting the field; re-check on blur.
+    setErrors((current) => (current[field] ? { ...current, [field]: undefined } : current))
     if (save.isError) save.reset()
   }
 
+  const validateField = (field: ProsumerFormField) => {
+    setErrors((current) => ({ ...current, [field]: validateProsumerField(field, values, isCreate) }))
+  }
+
+  const fieldProps = (field: ProsumerFormField) => ({
+    name: field,
+    value: values[field],
+    error: errors[field],
+    onChange: (event: ChangeEvent<HTMLInputElement>) => setField(field, event.target.value),
+    onBlur: () => validateField(field),
+  })
+
   const submit = (event: FormEvent) => {
     event.preventDefault()
-    const nextErrors = validateProsumerForm(values, !prosumer)
+    const normalized = normalizeProsumerForm(values)
+    const nextErrors = validateProsumerForm(normalized, isCreate)
+    setValues(normalized)
     setErrors(nextErrors)
     if (Object.keys(nextErrors).length > 0) return
-    save.mutate(normalizeProsumerForm(values))
+    save.mutate(normalized)
   }
 
   const close = () => {
@@ -66,77 +99,63 @@ export function ProsumerDialog({ prosumer, onClose }: { prosumer?: Prosumer; onC
     <Dialog open onClose={close} title={prosumer ? 'Edit prosumer' : 'Create prosumer'} size="lg">
       <form onSubmit={submit} className="grid gap-4" noValidate>
         <TextField
-          name="nic"
+          {...fieldProps('nic')}
           label="NIC"
-          value={values.nic}
           readOnly={Boolean(prosumer)}
           required
           inputMode="text"
           autoCapitalize="characters"
+          autoComplete="off"
           maxLength={PROSUMER_NIC_MAX_LENGTH}
           hint="12 digits, or 9 digits followed by V or X."
-          error={errors.nic}
           sanitizeValue={sanitizeNicInput}
-          onChange={(event) => setField('nic', event.target.value)}
         />
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <TextField
-            name="firstName"
+            {...fieldProps('firstName')}
             label="First name"
-            value={values.firstName}
             required
             autoComplete="given-name"
             maxLength={PROSUMER_NAME_MAX_LENGTH}
-            error={errors.firstName}
-            onChange={(event) => setField('firstName', event.target.value)}
+            sanitizeValue={sanitizeNameInput}
           />
           <TextField
-            name="lastName"
+            {...fieldProps('lastName')}
             label="Last name"
-            value={values.lastName}
             required
             autoComplete="family-name"
             maxLength={PROSUMER_NAME_MAX_LENGTH}
-            error={errors.lastName}
-            onChange={(event) => setField('lastName', event.target.value)}
+            sanitizeValue={sanitizeNameInput}
           />
         </div>
         <TextField
-          name="email"
+          {...fieldProps('email')}
           label="Email"
           type="email"
-          value={values.email}
           required
           autoComplete="email"
           maxLength={PROSUMER_EMAIL_MAX_LENGTH}
-          error={errors.email}
-          onChange={(event) => setField('email', event.target.value)}
+          sanitizeValue={sanitizeEmailInput}
         />
         <TextField
-          name="phoneNumber"
+          {...fieldProps('phoneNumber')}
           label="Phone number"
           type="tel"
-          value={values.phoneNumber}
           autoComplete="tel"
-          inputMode="tel"
+          inputMode="numeric"
           maxLength={PROSUMER_PHONE_MAX_LENGTH}
           hint="Optional; enter 10 digits beginning with 0."
-          error={errors.phoneNumber}
           sanitizeValue={sanitizePhoneInput}
-          onChange={(event) => setField('phoneNumber', event.target.value)}
         />
-        {!prosumer ? (
+        {isCreate ? (
           <TextField
-            name="password"
+            {...fieldProps('password')}
             label="Password"
             type="password"
-            value={values.password}
             required
             autoComplete="new-password"
             maxLength={PROSUMER_PASSWORD_MAX_LENGTH}
             hint="Use at least 8 characters."
-            error={errors.password}
-            onChange={(event) => setField('password', event.target.value)}
           />
         ) : null}
         {save.isError ? (
