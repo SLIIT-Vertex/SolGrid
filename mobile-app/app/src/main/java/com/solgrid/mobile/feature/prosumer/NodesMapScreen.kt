@@ -28,8 +28,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -48,6 +50,7 @@ import com.google.maps.android.compose.rememberCameraPositionState
 import com.solgrid.mobile.core.components.AppTopBar
 import com.solgrid.mobile.core.components.ErrorKind
 import com.solgrid.mobile.core.components.ErrorState
+import com.solgrid.mobile.core.components.PrimaryButton
 import com.solgrid.mobile.core.components.StatePlaceholder
 import com.solgrid.mobile.core.components.clickableNoRipple
 import com.solgrid.mobile.core.design.AppType
@@ -66,7 +69,12 @@ fun NodesMapScreen(viewModel: NodeViewModel, onBack: () -> Unit, onNodeClick: (S
     val scope = rememberCoroutineScope()
     val locationHelper = remember { LocationHelper(context) }
 
+    // Tracks whether a search has been kicked off yet (auto on arrival, or via retry), so the
+    // empty/pre-search placeholder is distinct from a real "no nodes found" result.
+    var hasSearched by remember { mutableStateOf(false) }
+
     fun loadCurrentLocation() {
+        viewModel.beginLocationSearch()
         scope.launch {
             val location = locationHelper.getCurrentLocation()
             if (location != null) {
@@ -91,6 +99,7 @@ fun NodesMapScreen(viewModel: NodeViewModel, onBack: () -> Unit, onNodeClick: (S
     }
 
     fun requestLocation() {
+        hasSearched = true
         val hasPermission = androidx.core.content.ContextCompat.checkSelfPermission(
             context,
             Manifest.permission.ACCESS_FINE_LOCATION
@@ -109,6 +118,7 @@ fun NodesMapScreen(viewModel: NodeViewModel, onBack: () -> Unit, onNodeClick: (S
             val place = Autocomplete.getPlaceFromIntent(result.data!!)
             val latLng = place.latLng
             if (latLng != null) {
+                hasSearched = true
                 viewModel.loadNearby(latLng.latitude, latLng.longitude, areaLabel = place.displayName ?: place.formattedAddress)
             }
         }
@@ -121,6 +131,8 @@ fun NodesMapScreen(viewModel: NodeViewModel, onBack: () -> Unit, onNodeClick: (S
         searchAreaLauncher.launch(intent)
     }
 
+    // Automatically search on first arriving at this screen; the "Find nearby grids" button and
+    // location icon remain for an explicit retry/re-search afterward.
     LaunchedEffect(Unit) { requestLocation() }
 
     Column(Modifier.fillMaxSize().background(colors.background)) {
@@ -150,7 +162,22 @@ fun NodesMapScreen(viewModel: NodeViewModel, onBack: () -> Unit, onNodeClick: (S
             }
         }
 
+        if (!hasSearched) {
+            PrimaryButton(
+                text = "Find nearby grids",
+                onClick = { requestLocation() },
+                modifier = Modifier.fillMaxWidth().padding(horizontal = Spacing.lg, vertical = Spacing.md),
+            )
+        }
+
         when {
+            !hasSearched -> StatePlaceholder(
+                Icons.Outlined.MyLocation,
+                "Find grid nodes near you",
+                "Tap \"Find nearby grids\" to search using your current location, or search a specific area instead.",
+                actionText = "Search area",
+                onAction = { launchAreaSearch() }
+            )
             state.loading -> Box(Modifier.fillMaxWidth().padding(Spacing.xxl), contentAlignment = Alignment.Center) {
                 androidx.compose.material3.CircularProgressIndicator(color = colors.accent)
             }

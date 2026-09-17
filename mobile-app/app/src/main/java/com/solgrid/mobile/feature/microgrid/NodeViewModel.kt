@@ -32,6 +32,13 @@ class NodeViewModel(private val repository: NodeRepository = NodeRepository()) :
             is NodeResult.Failure -> _state.update { it.copy(loading = false, error = result.message) }
         }
     }
+    /** Call as soon as a nearby search is requested, before the device's GPS position is even
+     * resolved — otherwise the loading indicator doesn't appear until after that fetch completes,
+     * leaving a gap where the screen looks idle/empty while waiting on location. */
+    fun beginLocationSearch() {
+        _state.update { it.copy(loading = true, error = null, locationUnavailable = false) }
+    }
+
     fun loadNearby(latitude: Double, longitude: Double, areaLabel: String? = null) = viewModelScope.launch {
         _state.update {
             it.copy(
