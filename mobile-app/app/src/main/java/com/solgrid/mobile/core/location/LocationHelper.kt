@@ -12,18 +12,20 @@ import kotlinx.coroutines.withTimeoutOrNull
  * One-shot device location fetch via the Fused Location Provider. Callers must hold
  * ACCESS_FINE_LOCATION (checked/requested at the UI layer) before calling [getCurrentLocation].
  *
- * A fresh GPS fix (getCurrentLocation) can take a while to settle, especially indoors or on an
- * emulator without an active location stream, and Play Services silently returns null rather than
- * erroring if it can't resolve one in time. To avoid the caller waiting indefinitely or bouncing
- * straight to a hardcoded fallback on a slow-but-working fix, this tries a bounded-time fresh fix
- * first, then falls back to the provider's last known location (which can be stale but is usually
- * still a reasonable "nearby" origin) before giving up.
+ * Checks the last-known location first — usually available near-instantly from a cache — and uses
+ * it immediately if present, since a nearby-search only needs an approximate origin. Only falls
+ * back to waiting for a bounded-time fresh GPS fix (which can take several seconds, especially
+ * indoors or on an emulator without an active location stream) when there's no cached location at
+ * all, e.g. on a genuinely fresh install.
  */
 class LocationHelper(context: Context) {
     private val client = LocationServices.getFusedLocationProviderClient(context.applicationContext)
 
     @SuppressLint("MissingPermission")
     suspend fun getCurrentLocation(): Pair<Double, Double>? {
+        val lastKnown = runCatching { client.lastLocation.await() }.getOrNull()
+        if (lastKnown != null) return lastKnown.latitude to lastKnown.longitude
+
         val fresh = runCatching {
             withTimeoutOrNull(FRESH_FIX_TIMEOUT_MS) {
                 val request = CurrentLocationRequest.Builder()
@@ -32,10 +34,7 @@ class LocationHelper(context: Context) {
                 client.getCurrentLocation(request, null).await()
             }
         }.getOrNull()
-        if (fresh != null) return fresh.latitude to fresh.longitude
-
-        val lastKnown = runCatching { client.lastLocation.await() }.getOrNull()
-        return lastKnown?.let { it.latitude to it.longitude }
+        return fresh?.let { it.latitude to it.longitude }
     }
 
     private companion object {
