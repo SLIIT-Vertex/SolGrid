@@ -1,3 +1,15 @@
+# SolGrid web app
+
+Run `npm install` and `npm run dev` from this directory. Start the backend
+on `http://localhost:5080` (for example, run `docker compose up -d mongo backend`
+from the repository root with the root `.env` configured).
+
+The development server forwards `/api` requests to `http://localhost:5080`
+when `VITE_API_BASE_URL` is unset. For another backend port, set
+`VITE_API_PROXY_TARGET` in `web-app/.env.local` and restart Vite. Alternatively,
+set `VITE_API_BASE_URL` to call the backend directly. Production builds need
+`VITE_API_BASE_URL` configured or a hosting reverse proxy for `/api`.
+
 # React + TypeScript + Vite
 
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.

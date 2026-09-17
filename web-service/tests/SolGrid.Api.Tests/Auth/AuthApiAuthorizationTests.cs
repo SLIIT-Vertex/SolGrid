@@ -452,5 +452,23 @@ public sealed class AuthApiAuthorizationTests
                 IsAvailable = true
             });
         }
+
+        public Task ReserveAsync(string bookingSlotId, CancellationToken cancellationToken = default)
+        {
+            // No-op: not exercised by API host wiring tests.
+            return Task.CompletedTask;
+        }
+
+        public Task OccupyAsync(string bookingSlotId, CancellationToken cancellationToken = default)
+        {
+            // No-op: not exercised by API host wiring tests.
+            return Task.CompletedTask;
+        }
+
+        public Task ReleaseAsync(string bookingSlotId, CancellationToken cancellationToken = default)
+        {
+            // No-op: not exercised by API host wiring tests.
+            return Task.CompletedTask;
+        }
     }
 }

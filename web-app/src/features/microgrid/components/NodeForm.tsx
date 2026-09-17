@@ -112,6 +112,9 @@ export function NodeForm(props: NodeFormProps) {
         >
           <TextField
             label="Generation capacity (kW)"
+            type="number"
+            step="any"
+            min="0"
             inputMode="decimal"
             sanitizeValue={unsignedDecimal}
             error={errors.capacityKw?.message}

@@ -17,21 +17,18 @@ export function formatClock(value: string): string {
   return value.length >= 5 ? value.slice(0, 5) : value
 }
 
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-
 export function formatCoordinate(value: number): string {
   if (!Number.isFinite(value)) return '—'
   return String(Number(value.toFixed(6)))
 }
 
+/**
+ * Formats an absolute UTC timestamp (booking slot start/end) in the viewer's local time zone.
+ * These values are true instants — unlike the weekly operating schedule's timezone-less
+ * `TimeOnly` clock strings (see `formatClock`) — so they must always be converted, never read
+ * as literal UTC digits.
+ */
 export function formatDateTime(value: string): string {
-  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})/)
-  if (match) {
-    const month = MONTHS[Number(match[2]) - 1]
-    if (!month) return value
-    return `${Number(match[3])} ${month} ${match[1]}, ${match[4]}:${match[5]}`
-  }
-
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return value
   return new Intl.DateTimeFormat('en-GB', {
@@ -45,25 +42,42 @@ export function formatDateTime(value: string): string {
 }
 
 export function formatDateTimeRange(start: string, end: string): string {
-  const startMatch = start.match(/^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})/)
-  const endMatch = end.match(/^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})/)
-  if (
-    startMatch &&
-    endMatch &&
-    startMatch[1] === endMatch[1] &&
-    startMatch[2] === endMatch[2] &&
-    startMatch[3] === endMatch[3]
-  ) {
-    return `${formatDateTime(start)} – ${endMatch[4]}:${endMatch[5]}`
+  const startDate = new Date(start)
+  const endDate = new Date(end)
+  if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) {
+    return `${formatDateTime(start)} – ${formatDateTime(end)}`
+  }
+
+  const sameLocalDay =
+    startDate.getFullYear() === endDate.getFullYear() &&
+    startDate.getMonth() === endDate.getMonth() &&
+    startDate.getDate() === endDate.getDate()
+
+  if (sameLocalDay) {
+    const endTime = new Intl.DateTimeFormat('en-GB', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    }).format(endDate)
+    return `${formatDateTime(start)} – ${endTime}`
   }
 
   return `${formatDateTime(start)} – ${formatDateTime(end)}`
 }
 
+/** Splits an absolute UTC timestamp into the local date/time an <input type="date"/time"> pair
+ * expects, so editing an existing booking slot shows the time it was actually created at. */
 export function splitDateTimeOffset(value: string): { date: string; time: string } {
-  const match = value.match(/^(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2})/)
-  if (match) return { date: match[1], time: match[2] }
-  return { date: '', time: '' }
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return { date: '', time: '' }
+
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  const hours = String(date.getHours()).padStart(2, '0')
+  const minutes = String(date.getMinutes()).padStart(2, '0')
+
+  return { date: `${year}-${month}-${day}`, time: `${hours}:${minutes}` }
 }
 
 export function formatWindowsForDay(windows: OperatingWindow[], day: number): string {

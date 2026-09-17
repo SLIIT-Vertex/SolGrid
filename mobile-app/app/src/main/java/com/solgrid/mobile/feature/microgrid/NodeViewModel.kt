@@ -18,6 +18,7 @@ data class NodeState(
     val slotTotalCount: Long = 0, val bookingTotalCount: Long = 0,
     val searchLatitude: Double? = null, val searchLongitude: Double? = null,
     val searchAreaLabel: String? = null, val changingSlot: String? = null,
+    val locationUnavailable: Boolean = false,
 )
 
 class NodeViewModel(private val repository: NodeRepository = NodeRepository()) : ViewModel() {
@@ -32,10 +33,27 @@ class NodeViewModel(private val repository: NodeRepository = NodeRepository()) :
         }
     }
     fun loadNearby(latitude: Double, longitude: Double, areaLabel: String? = null) = viewModelScope.launch {
-        _state.update { it.copy(loading = true, error = null, searchAreaLabel = areaLabel, searchLatitude = latitude, searchLongitude = longitude) }
+        _state.update {
+            it.copy(
+                loading = true, error = null, locationUnavailable = false,
+                searchAreaLabel = areaLabel, searchLatitude = latitude, searchLongitude = longitude,
+            )
+        }
         when (val result = repository.nearby(latitude, longitude)) {
             is NodeResult.Success -> _state.update { it.copy(nodes = result.value, loading = false) }
             is NodeResult.Failure -> _state.update { it.copy(loading = false, error = result.message) }
+        }
+    }
+
+    /** Call when the device's location genuinely could not be resolved (no fresh fix, no cached
+     * last-known location) — shows an explicit "couldn't find your location" state instead of
+     * silently substituting an unrelated fallback point as if it were a real "no nodes" result. */
+    fun markLocationUnavailable() {
+        _state.update {
+            it.copy(
+                loading = false, error = null, locationUnavailable = true,
+                nodes = emptyList(), searchLatitude = null, searchLongitude = null, searchAreaLabel = null,
+            )
         }
     }
     fun loadDetail(id: String) = viewModelScope.launch {

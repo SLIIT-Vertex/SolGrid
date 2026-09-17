@@ -1,5 +1,9 @@
 package com.solgrid.mobile.core.navigation
 
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.consumeWindowInsets
+import androidx.compose.foundation.layout.isImeVisible
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -9,7 +13,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -52,6 +55,7 @@ import com.solgrid.mobile.feature.operator.OperatorNodeDetailScreen
 
 private val prosumerBottomNavRoutes = ProsumerBottomNav.entries.map { it.route }.toSet()
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun AppNavGraph(onThemeModeChange: (AppThemeMode) -> Unit) {
     val navController = rememberNavController()
@@ -71,9 +75,11 @@ fun AppNavGraph(onThemeModeChange: (AppThemeMode) -> Unit) {
 
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
-    val showBottomBar = currentRoute in prosumerBottomNavRoutes
+    val showBottomBar = currentRoute in prosumerBottomNavRoutes && !WindowInsets.isImeVisible
 
     Scaffold(
+        // AppSafeArea owns window insets; Scaffold only reserves space for the app tab bar.
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         bottomBar = {
             if (showBottomBar) {
                 val currentDest = ProsumerBottomNav.entries.find { it.route == currentRoute } ?: ProsumerBottomNav.DASHBOARD
@@ -93,7 +99,8 @@ fun AppNavGraph(onThemeModeChange: (AppThemeMode) -> Unit) {
                 startDestination = Routes.SPLASH,
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(bottom = if (showBottomBar) padding.calculateBottomPadding() else 0.dp)
+                    .padding(padding)
+                    .consumeWindowInsets(padding)
             ) {
                 composable(Routes.SPLASH) {
                     SplashScreen(onFinished = {

@@ -6,6 +6,7 @@ import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -29,6 +30,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
@@ -70,7 +72,10 @@ fun NodesMapScreen(viewModel: NodeViewModel, onBack: () -> Unit, onNodeClick: (S
             if (location != null) {
                 viewModel.loadNearby(location.first, location.second, areaLabel = "your current location")
             } else {
-                viewModel.loadNearby(6.9271, 79.8612, areaLabel = "Colombo (location unavailable)")
+                // A GPS fix genuinely could not be resolved (fresh fix timed out and no last-known
+                // location is cached) — surface that explicitly rather than silently substituting an
+                // unrelated fallback point, which looked like a real "no nearby nodes" result.
+                viewModel.markLocationUnavailable()
             }
         }
     }
@@ -81,7 +86,7 @@ fun NodesMapScreen(viewModel: NodeViewModel, onBack: () -> Unit, onNodeClick: (S
         if (granted) {
             loadCurrentLocation()
         } else {
-            viewModel.loadNearby(6.9271, 79.8612, areaLabel = "Colombo (location permission denied)")
+            viewModel.markLocationUnavailable()
         }
     }
 
@@ -131,18 +136,33 @@ fun NodesMapScreen(viewModel: NodeViewModel, onBack: () -> Unit, onNodeClick: (S
                 }
             }
         )
+        val hasLocation = state.searchLatitude != null && state.searchLongitude != null
         val camera = rememberCameraPositionState { position = CameraPosition.fromLatLngZoom(LatLng(6.9271, 79.8612), 12f) }
         LaunchedEffect(state.searchLatitude, state.searchLongitude) {
             val latitude = state.searchLatitude
             val longitude = state.searchLongitude
             if (latitude != null && longitude != null) camera.position = CameraPosition.fromLatLngZoom(LatLng(latitude, longitude), 12f)
         }
-        GoogleMap(Modifier.fillMaxWidth().height(260.dp).padding(horizontal = Spacing.lg).clip(RoundedCornerShape(Radius.lg)), cameraPositionState = camera) {
-            state.nodes.forEach { node -> Marker(MarkerState(LatLng(node.location.latitude, node.location.longitude)), title = node.name, snippet = "${node.availableSlotCount} slots available", onClick = { onNodeClick(node.id); true }) }
+
+        if (hasLocation) {
+            GoogleMap(Modifier.fillMaxWidth().height(260.dp).padding(horizontal = Spacing.lg).clip(RoundedCornerShape(Radius.lg)), cameraPositionState = camera) {
+                state.nodes.forEach { node -> Marker(MarkerState(LatLng(node.location.latitude, node.location.longitude)), title = node.name, snippet = "${node.availableSlotCount} slots available", onClick = { onNodeClick(node.id); true }) }
+            }
         }
+
         when {
+            state.loading -> Box(Modifier.fillMaxWidth().padding(Spacing.xxl), contentAlignment = Alignment.Center) {
+                androidx.compose.material3.CircularProgressIndicator(color = colors.accent)
+            }
+            state.locationUnavailable -> StatePlaceholder(
+                Icons.Outlined.MyLocation,
+                "Couldn't find your location",
+                "We couldn't get a GPS fix on this device. Check location is enabled, or search a specific area instead.",
+                actionText = "Search area",
+                onAction = { launchAreaSearch() }
+            )
             state.error != null -> ErrorState(ErrorKind.SERVER_ERROR, onRetry = { requestLocation() })
-            state.nodes.isEmpty() && !state.loading -> StatePlaceholder(
+            state.nodes.isEmpty() -> StatePlaceholder(
                 com.solgrid.mobile.core.components.EmptyStateIcons.NoActivity,
                 "No nearby nodes",
                 "Try searching a different area.",
