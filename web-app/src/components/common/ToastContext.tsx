@@ -37,11 +37,12 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     <ToastContext.Provider value={value}>
       {children}
       {createPortal(
-        <div className="pointer-events-none fixed bottom-4 right-4 z-[100] flex flex-col gap-2">
+        <div className="pointer-events-none fixed bottom-4 right-4 z-[100] flex max-w-[calc(100%-2rem)] flex-col gap-2">
           {toasts.map((toast) => (
             <div
               key={toast.id}
-              role="status"
+              role={toast.tone === 'error' ? 'alert' : 'status'}
+              aria-live={toast.tone === 'error' ? 'assertive' : 'polite'}
               className={cn(
                 'pointer-events-auto min-w-[260px] rounded-lg px-4 py-3 text-sm font-medium shadow-lg ring-1',
                 toast.tone === 'success'

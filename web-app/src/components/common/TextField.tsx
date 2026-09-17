@@ -25,19 +25,22 @@ export const TextField = forwardRef<HTMLInputElement, TextFieldProps>(
             'h-10 rounded-lg border border-ink-200 bg-white px-3 text-sm text-ink-900',
             'placeholder:text-ink-400',
             'focus:border-brand-500 focus:outline focus:outline-2 focus:outline-brand-100',
+            'read-only:bg-ink-50 read-only:text-ink-700',
             error && 'border-red-300 focus:border-red-400 focus:outline-red-100',
             className,
           )}
-          aria-invalid={Boolean(error)}
-          aria-describedby={error ? `${inputId}-error` : undefined}
           {...rest}
+          aria-invalid={Boolean(error)}
+          aria-describedby={
+            error ? `${inputId}-error` : rest['aria-describedby'] ?? (hint ? `${inputId}-hint` : undefined)
+          }
         />
         {error ? (
-          <p id={`${inputId}-error`} className="text-sm text-red-600">
+          <p id={`${inputId}-error`} role="alert" className="text-sm text-red-600">
             {error}
           </p>
         ) : hint ? (
-          <p className="text-sm text-ink-500">{hint}</p>
+          <p id={`${inputId}-hint`} className="text-sm text-ink-500">{hint}</p>
         ) : null}
       </div>
     )

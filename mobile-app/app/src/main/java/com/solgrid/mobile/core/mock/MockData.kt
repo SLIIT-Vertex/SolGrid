@@ -19,10 +19,10 @@ object MockData {
 
     val prosumer = ProsumerProfile(
         nic = "200114701234",
-        fullName = "Nadeesha Perera",
+        firstName = "Nadeesha",
+        lastName = "Perera",
         email = "nadeesha.perera@solgrid.io",
         phone = "+94 77 214 6630",
-        address = "42/3 Galle Road, Colombo 06",
         status = ProsumerAccountStatus.ACTIVE
     )
 

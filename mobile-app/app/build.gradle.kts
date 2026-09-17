@@ -1,8 +1,16 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
 }
+
+val mobileEnv = Properties().apply {
+    val contents = providers.fileContents(rootProject.layout.projectDirectory.file("env.properties")).asText.orElse("").get()
+    contents.reader().use { load(it) }
+}
+val mapsApiKey = providers.gradleProperty("MAPS_API_KEY").orElse(mobileEnv.getProperty("MAPS_API_KEY", "")).get()
 
 android {
     namespace = "com.solgrid.mobile"
@@ -14,12 +22,17 @@ android {
 
     defaultConfig {
         applicationId = "com.solgrid.mobile"
+        val apiBaseUrl = providers.gradleProperty("API_BASE_URL").orElse(mobileEnv.getProperty("API_BASE_URL", "http://10.0.2.2:5080/")).get()
+        require(apiBaseUrl.startsWith("http://") || apiBaseUrl.startsWith("https://")) { "API_BASE_URL must be an HTTP(S) URL" }
+        require(apiBaseUrl.endsWith("/")) { "API_BASE_URL must end with /" }
+        buildConfigField("String", "API_BASE_URL", "\"$apiBaseUrl\"")
         minSdk = 26
         targetSdk = 36
         versionCode = 1
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        manifestPlaceholders["MAPS_API_KEY"] = mapsApiKey
     }
 
     buildTypes {
@@ -30,11 +43,12 @@ android {
         }
     }
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_11
-        targetCompatibility = JavaVersion.VERSION_11
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
     packaging {
         resources {
@@ -43,7 +57,11 @@ android {
     }
 }
 
+kotlin { compilerOptions.jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17) }
+
 dependencies {
+    implementation(libs.zxing.core)
+    implementation(libs.zxing.embedded)
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
@@ -62,6 +80,10 @@ dependencies {
     implementation(libs.retrofit.converter.kotlinx.serialization)
     implementation(libs.okhttp)
     implementation(libs.okhttp.logging.interceptor)
+    implementation(libs.google.maps.compose)
+    implementation(libs.play.services.location)
+    implementation(libs.kotlinx.coroutines.play.services)
+    implementation(libs.places.sdk)
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)

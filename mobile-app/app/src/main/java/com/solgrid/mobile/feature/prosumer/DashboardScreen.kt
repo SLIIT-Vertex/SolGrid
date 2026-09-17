@@ -64,15 +64,17 @@ fun DashboardScreen(
         return
     }
 
-    val totalEnergy = state.reservations.filter { it.status == ReservationStatus.COMPLETED }.sumOf { it.energyKwh }
-    val pendingEnergy = state.reservations.filter { it.status == ReservationStatus.PENDING }.sumOf { it.energyKwh }
-    val approvedEnergy = state.reservations.filter { it.status == ReservationStatus.APPROVED }.sumOf { it.energyKwh }
+
 
     LazyColumn(
         modifier = Modifier.fillMaxSize().background(colors.background),
         contentPadding = PaddingValues(horizontal = Spacing.lg, vertical = Spacing.md)
     ) {
         item {
+            state.reservationsError?.let { message ->
+                Text(message, style = AppType.body, color = colors.error)
+                com.solgrid.mobile.core.components.SecondaryButton("Retry bookings", { viewModel.loadReservations() })
+            }
             Row(
                 modifier = Modifier.fillMaxWidth().padding(top = Spacing.sm),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -95,8 +97,8 @@ fun DashboardScreen(
 
             // Plain hero card mirrors the reference UI set's total-kWh callout, no photo/illustration.
             HeroStatCard(
-                statValue = "%.1f kWh".format(totalEnergy),
-                statLabel = "Total Energy Traded",
+                statValue = state.summary?.currentReservationsCount?.toString() ?: "—",
+                statLabel = "Current Bookings",
                 icon = Icons.Outlined.Bolt,
                 modifier = Modifier.padding(top = Spacing.lg)
             )
@@ -106,21 +108,21 @@ fun DashboardScreen(
                 horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
             ) {
                 StatTile(
-                    value = state.pendingCount.toString(),
+                    value = state.summary?.pendingReservationsCount?.toString() ?: "—",
                     label = "Pending",
                     icon = Icons.Outlined.PendingActions,
                     modifier = Modifier.weight(1f)
                 )
                 StatTile(
-                    value = state.approvedFutureCount.toString(),
+                    value = state.summary?.approvedFutureReservationsCount?.toString() ?: "—",
                     label = "Approved",
                     icon = Icons.Outlined.EventAvailable,
                     highlighted = true,
                     modifier = Modifier.weight(1f)
                 )
                 StatTile(
-                    value = "%.1f".format(pendingEnergy + approvedEnergy),
-                    label = "kWh Booked",
+                    value = state.summary?.bookingHistoryCount?.toString() ?: "—",
+                    label = "History",
                     icon = Icons.Outlined.Bolt,
                     modifier = Modifier.weight(1f)
                 )
@@ -199,6 +201,7 @@ fun ReservationRow(reservation: EnergyReservation, onClick: () -> Unit) {
 fun statusLabel(status: ReservationStatus): String = when (status) {
     ReservationStatus.PENDING -> "Pending"
     ReservationStatus.APPROVED -> "Approved"
+    ReservationStatus.REJECTED -> "Rejected"
     ReservationStatus.CANCELLED -> "Cancelled"
     ReservationStatus.COMPLETED -> "Completed"
 }
@@ -206,6 +209,7 @@ fun statusLabel(status: ReservationStatus): String = when (status) {
 fun statusTone(status: ReservationStatus): BadgeTone = when (status) {
     ReservationStatus.PENDING -> BadgeTone.WARNING
     ReservationStatus.APPROVED -> BadgeTone.SUCCESS
+    ReservationStatus.REJECTED -> BadgeTone.ERROR
     ReservationStatus.CANCELLED -> BadgeTone.ERROR
     ReservationStatus.COMPLETED -> BadgeTone.NEUTRAL
 }

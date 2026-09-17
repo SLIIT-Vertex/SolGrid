@@ -619,6 +619,32 @@ public sealed class ReservationServiceTests
             }));
     }
 
+    [Fact]
+    public async Task GetMyDashboardSummary_CountsOnlyOwnerAndFutureApprovedReservations()
+    {
+        // Verify ownership and the exact now boundary in server-calculated mobile counts.
+        var future = CreateReservation("future", "prosumer-1", "station-1", "slot-1", CurrentTime);
+        future.Approve("operator", CurrentTime);
+        var past = CreateReservation("past", "prosumer-1", "station-1", "slot-2", CurrentTime.AddHours(-1));
+        past.Approve("operator", CurrentTime);
+        var pending = CreateReservation("pending", "prosumer-1", "station-1", "slot-3", CurrentTime.AddHours(2));
+        var other = CreateReservation("other", "prosumer-2", "station-1", "slot-4", CurrentTime.AddHours(2));
+        other.Approve("operator", CurrentTime);
+        var summary = await CreateService(new InMemoryReservationRepository(future, past, pending, other)).GetMyDashboardSummaryAsync();
+        Assert.Equal(1, summary.PendingReservationsCount);
+        Assert.Equal(1, summary.ApprovedFutureReservationsCount);
+        Assert.Equal(2, summary.CurrentReservationsCount);
+        Assert.Equal(1, summary.BookingHistoryCount);
+    }
+
+    [Fact]
+    public async Task GetMyDashboardSummary_RejectsWebUserIdentity()
+    {
+        // Reject operational tokens at the owner-only dashboard endpoint.
+        var service = CreateService(currentUserContext: new FakeCurrentUserContext("operator", UserRole.GridOperator));
+        await Assert.ThrowsAsync<ForbiddenException>(() => service.GetMyDashboardSummaryAsync());
+    }
+
     private static ReservationService CreateService(
         InMemoryReservationRepository? repository = null,
         FakeProsumerReadService? prosumerReadService = null,

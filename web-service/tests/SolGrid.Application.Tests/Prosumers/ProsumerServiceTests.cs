@@ -247,16 +247,50 @@ public sealed class ProsumerServiceTests
         Assert.Equal("prosumer-token-199012345678", response.AccessToken);
     }
 
+    [Fact]
+    public async Task Backoffice_CanCreateAndEditPendingProfile_WithoutChangingNicOrStatus()
+    {
+        // Exercise administrative profile maintenance separately from activation.
+        var repository = new InMemoryProsumerRepository();
+        var service = CreateService(repository, new FakeCurrentUserContext("backoffice", UserRole.Backoffice));
+        var created = await service.CreateProsumerAsync(CreateRequest());
+        var updated = await service.UpdateProsumerAsync(created.Nic, new UpdateProsumerRequest { FirstName = "Updated", LastName = "Name", Email = "updated@example.com", PhoneNumber = "+94712345678" });
+        Assert.Equal(created.Nic, updated.Nic);
+        Assert.Equal(ProsumerAccountStatus.Pending, updated.Status);
+        Assert.Equal("Updated", updated.FirstName);
+        Assert.Equal("updated@example.com", (await repository.GetByNicAsync(created.Nic))!.Email);
+    }
+
+    [Fact]
+    public async Task GridOperator_CannotCreateOrEditProsumerProfiles()
+    {
+        // Verify the service rejects administrative writes even outside the controller.
+        var service = CreateService(currentUserContext: new FakeCurrentUserContext("operator", UserRole.GridOperator));
+        await Assert.ThrowsAsync<ForbiddenException>(() => service.CreateProsumerAsync(CreateRequest()));
+        await Assert.ThrowsAsync<ForbiddenException>(() => service.UpdateProsumerAsync("199012345678", new UpdateProsumerRequest()));
+    }
+
+    [Fact]
+    public async Task Backoffice_EditCannotReuseAnotherProsumerEmail()
+    {
+        // Preserve email uniqueness on administrative updates.
+        var first = CreateProsumer("199012345678", "first@example.com");
+        var second = CreateProsumer("199012345679", "second@example.com");
+        var service = CreateService(new InMemoryProsumerRepository(first, second), new FakeCurrentUserContext("backoffice", UserRole.Backoffice));
+        await Assert.ThrowsAsync<ConflictException>(() => service.UpdateProsumerAsync(first.Nic, new UpdateProsumerRequest { FirstName = "First", LastName = "Name", Email = second.Email, PhoneNumber = "+94712345678" }));
+        Assert.Equal("first@example.com", first.Email);
+    }
+
     private static ProsumerService CreateService(InMemoryProsumerRepository? repository = null, FakeCurrentUserContext? currentUserContext = null)
     {
         // Create a prosumer service with deterministic dependencies for registration tests.
         var activeRepository = repository ?? new InMemoryProsumerRepository();
         if (currentUserContext is null)
         {
-            return new ProsumerService(activeRepository, new FakePasswordHasher(), new FixedTimeProvider(CurrentTime));
+            return new ProsumerService(activeRepository, new EmptyUserRepository(), new FakePasswordHasher(), new FixedTimeProvider(CurrentTime));
         }
 
-        return new ProsumerService(activeRepository, new FakePasswordHasher(), currentUserContext, new FixedTimeProvider(CurrentTime));
+        return new ProsumerService(activeRepository, new EmptyUserRepository(), new FakePasswordHasher(), currentUserContext, new FixedTimeProvider(CurrentTime));
     }
 
     private static RegisterProsumerRequest CreateRequest(

@@ -2,6 +2,7 @@ package com.solgrid.mobile.feature.prosumer
 
 import androidx.compose.foundation.background
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.ErrorOutline
 import androidx.compose.material.icons.outlined.HourglassEmpty
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -11,6 +12,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -26,20 +32,72 @@ import com.solgrid.mobile.core.design.SolGridTheme
 import com.solgrid.mobile.core.design.Spacing
 import com.solgrid.mobile.core.models.ReservationStatus
 
-/** Secure transaction QR for an approved reservation (MOB-11), presented at the node for the Grid Operator to scan. */
+/** Secure transaction QR for an approved reservation (MOB-11), presented at the node for the Grid Operator to scan.
+ * The QR payload is fetched fresh from the server each visit — issuing a token replaces any
+ * previous one, so this screen must not reuse a stale local value. */
 @Composable
 fun ReservationQrScreen(viewModel: ProsumerViewModel, reservationId: String, onBack: () -> Unit) {
     val colors = SolGridTheme.colors
     val reservation = viewModel.reservationById(reservationId)
+    var qrPayload by remember(reservationId) { mutableStateOf<String?>(null) }
+    var qrError by remember(reservationId) { mutableStateOf<String?>(null) }
+    var loading by remember(reservationId) { mutableStateOf(true) }
+
+    var expiresAt by remember(reservationId) { mutableStateOf<String?>(null) }
+    var expired by remember(reservationId) { mutableStateOf(false) }
+    fun requestQr() {
+        loading = true
+        qrError = null
+        qrPayload = null
+        expiresAt = null
+        expired = false
+        viewModel.issueReservationQr(reservationId, onError = { loading = false; qrError = it }) { payload, expiry ->
+            loading = false
+            qrPayload = payload
+            expiresAt = expiry
+        }
+    }
+    LaunchedEffect(reservationId, reservation?.status) {
+        if (reservation?.status == ReservationStatus.APPROVED) requestQr() else loading = false
+    }
+    LaunchedEffect(expiresAt) {
+        val expiry = expiresAt ?: return@LaunchedEffect
+        val milliseconds = java.time.Duration.between(java.time.Instant.now(), java.time.OffsetDateTime.parse(expiry).toInstant()).toMillis()
+        if (milliseconds > 0) kotlinx.coroutines.delay(milliseconds)
+        expired = true
+    }
 
     Column(modifier = Modifier.fillMaxSize().background(colors.background)) {
         AppTopBar(title = "Transaction QR", onBack = onBack)
 
-        if (reservation == null || reservation.status != ReservationStatus.APPROVED || reservation.qrPayload == null) {
+        if (reservation == null || reservation.status != ReservationStatus.APPROVED) {
             StatePlaceholder(
                 icon = Icons.Outlined.HourglassEmpty,
                 title = "QR not available yet",
                 description = "This reservation must be approved by a Grid Operator before a transaction QR is issued.",
+                modifier = Modifier.padding(top = Spacing.xxxl)
+            )
+            return@Column
+        }
+
+        if (loading) {
+            Text(
+                "Requesting transaction code…",
+                style = AppType.body,
+                color = colors.textSecondary,
+                modifier = Modifier.padding(top = Spacing.xxxl, start = Spacing.lg)
+            )
+            return@Column
+        }
+
+        val payload = qrPayload
+        if (qrError != null || payload == null) {
+            StatePlaceholder(
+                icon = Icons.Outlined.ErrorOutline,
+                title = "Couldn't generate QR",
+                description = qrError ?: "Something went wrong. Please try again.",
+                actionText = "Try again",
+                onAction = { requestQr() },
                 modifier = Modifier.padding(top = Spacing.xxxl)
             )
             return@Column
@@ -64,7 +122,9 @@ fun ReservationQrScreen(viewModel: ProsumerViewModel, reservationId: String, onB
                 modifier = Modifier.padding(top = Spacing.xs, bottom = Spacing.xxl)
             )
 
-            QrCodeVisual(payload = reservation.qrPayload)
+            if (expired) Text("This QR has expired. Generate a new code before presenting it.", style = AppType.body, color = colors.error, textAlign = TextAlign.Center)
+            else QrCodeVisual(payload = payload)
+            com.solgrid.mobile.core.components.SecondaryButton("Generate new QR", { requestQr() }, modifier = Modifier.padding(top = Spacing.md))
 
             Row(modifier = Modifier.padding(top = Spacing.xl)) {
                 StatusBadge(text = "Approved", tone = BadgeTone.SUCCESS)
@@ -79,12 +139,13 @@ fun ReservationQrScreen(viewModel: ProsumerViewModel, reservationId: String, onB
                     .padding(Spacing.lg)
             ) {
                 InfoRow(label = "Reservation ID", value = reservation.id)
-                InfoRow(label = "Energy", value = "${reservation.energyKwh} kWh")
-                InfoRow(label = "Time", value = "${reservation.startTime} – ${reservation.endTime}")
+                InfoRow(label = "Station", value = reservation.nodeName)
+                InfoRow(label = "Time", value = reservation.startTime)
+                expiresAt?.let { InfoRow(label = "QR expires", value = java.time.OffsetDateTime.parse(it).atZoneSameInstant(java.time.ZoneId.systemDefault()).format(java.time.format.DateTimeFormatter.ofPattern("MMM d, HH:mm"))) }
             }
 
             Text(
-                "This code is unique to your reservation and expires once the transfer is finalized.",
+                "This code expires at the time shown above. Completing the transfer or generating a new code invalidates it.",
                 style = AppType.caption,
                 color = colors.textTertiary,
                 textAlign = TextAlign.Center,

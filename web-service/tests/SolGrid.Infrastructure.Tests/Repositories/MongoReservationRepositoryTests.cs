@@ -21,7 +21,7 @@ namespace SolGrid.Infrastructure.Tests.Repositories;
 public sealed class MongoReservationRepositoryTests : IAsyncLifetime
 {
     private readonly string? connectionString = Environment.GetEnvironmentVariable("SOLGRID_MONGO_TEST_CONNECTION_STRING");
-    private readonly string databaseName = $"SolGrid_ReservationRepositoryTests_{Guid.NewGuid():N}";
+    private readonly string databaseName = $"SG_Reservation_{Guid.NewGuid():N}";
     private IMongoClient? mongoClient;
     private MongoReservationRepository? repository;
 

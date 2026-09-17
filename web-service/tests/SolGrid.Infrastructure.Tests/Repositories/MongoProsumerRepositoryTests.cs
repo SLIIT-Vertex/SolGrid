@@ -19,7 +19,7 @@ namespace SolGrid.Infrastructure.Tests.Repositories;
 public sealed class MongoProsumerRepositoryTests : IAsyncLifetime
 {
     private readonly string? connectionString = Environment.GetEnvironmentVariable("SOLGRID_MONGO_TEST_CONNECTION_STRING");
-    private readonly string databaseName = $"SolGrid_ProsumerRepositoryTests_{Guid.NewGuid():N}";
+    private readonly string databaseName = $"SG_Prosumer_{Guid.NewGuid():N}";
     private IMongoClient? mongoClient;
     private MongoProsumerRepository? repository;
 

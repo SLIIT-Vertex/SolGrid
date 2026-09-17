@@ -25,9 +25,12 @@ fun BookingHistoryScreen(viewModel: ProsumerViewModel, onBack: () -> Unit, onBoo
 
     Column(modifier = Modifier.fillMaxSize().background(colors.background)) {
         AppTopBar(title = "Booking History", onBack = onBack)
-        if (state.history.isEmpty()) {
+        androidx.compose.runtime.LaunchedEffect(Unit) { viewModel.loadReservations() }
+        state.reservationsError?.let { androidx.compose.material3.Text(it, color = colors.error); com.solgrid.mobile.core.components.SecondaryButton("Retry", { viewModel.loadReservations() }) }
+        if (state.reservationsLoading) androidx.compose.material3.Text("Loading history…")
+        if (state.history.isEmpty() && !state.reservationsLoading && state.reservationsError == null) {
             EmptyState(kind = EmptyKind.ACTIVITY, modifier = Modifier.padding(top = Spacing.xxxl))
-        } else {
+        } else if (state.history.isNotEmpty()) {
             LazyColumn(contentPadding = PaddingValues(horizontal = Spacing.lg)) {
                 items(state.history, key = { it.id }) { reservation ->
                     ReservationRow(reservation = reservation, onClick = { onBookingClick(reservation.id) })

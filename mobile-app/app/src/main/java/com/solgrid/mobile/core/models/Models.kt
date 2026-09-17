@@ -13,17 +13,23 @@ package com.solgrid.mobile.core.models
 /** The two mobile-facing roles. Backoffice is web-only per the assignment brief. */
 enum class AppRole { PROSUMER, GRID_OPERATOR }
 
-enum class ProsumerAccountStatus { PENDING, ACTIVE, DEACTIVATED }
+enum class ProsumerAccountStatus { PENDING, ACTIVE, DEACTIVATION_REQUESTED, DEACTIVATED }
 
-/** A registered Solar Prosumer. NIC is the primary/unique identity, per the assignment rule. */
+/**
+ * A registered Solar Prosumer. NIC is the primary/unique identity, per the assignment rule.
+ * Mirrors SolGrid.Application.Prosumers.Responses.ProsumerResponse — the backend has no address
+ * field, so none is modeled here.
+ */
 data class ProsumerProfile(
     val nic: String,
-    val fullName: String,
+    val firstName: String,
+    val lastName: String,
     val email: String,
     val phone: String,
-    val address: String,
-    val status: ProsumerAccountStatus = ProsumerAccountStatus.ACTIVE
-)
+    val status: ProsumerAccountStatus = ProsumerAccountStatus.PENDING
+) {
+    val fullName: String get() = "$firstName $lastName"
+}
 
 /** A Grid Operator's mobile profile (operational role, not Backoffice). */
 data class OperatorProfile(
@@ -61,22 +67,25 @@ data class BookingSlot(
     val status: SlotStatus
 )
 
-enum class ReservationStatus { PENDING, APPROVED, CANCELLED, COMPLETED }
+enum class ReservationStatus { PENDING, APPROVED, REJECTED, CANCELLED, COMPLETED }
 
-/** Mirrors an Energy Reservation document. */
+/** Mirrors an Energy Reservation document (SolGrid.Application.Reservations.Responses.ReservationResponse). */
 data class EnergyReservation(
     val id: String,
     val prosumerNic: String,
     val nodeId: String,
     val nodeName: String,
+    val bookingSlotId: String = "",
     val date: String,
     val startTime: String,
     val endTime: String,
     val energyKwh: Double,
     val status: ReservationStatus,
     val createdAt: String,
+    val rejectionReason: String? = null,
     /** Populated once the reservation is approved; drives the transaction QR screen. */
-    val qrPayload: String? = null
+    val qrPayload: String? = null,
+    val scheduledAt: String? = null
 ) {
     /** Whether this booking is still within the 12-hour modify/cancel window (mock check). */
     val canModify: Boolean

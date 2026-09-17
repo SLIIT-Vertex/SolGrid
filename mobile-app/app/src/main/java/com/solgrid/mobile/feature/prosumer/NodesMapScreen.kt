@@ -1,8 +1,11 @@
 package com.solgrid.mobile.feature.prosumer
 
+import android.Manifest
+import android.app.Activity
+import android.content.pm.PackageManager
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -10,159 +13,152 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.BatteryChargingFull
-import androidx.compose.material.icons.outlined.Bolt
-import androidx.compose.material.icons.outlined.EvStation
-import androidx.compose.material.icons.outlined.Map
 import androidx.compose.material.icons.outlined.MyLocation
-import androidx.compose.material.icons.outlined.SolarPower
+import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.ListItem
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import androidx.compose.foundation.layout.offset
+import com.google.android.gms.maps.model.CameraPosition
+import com.google.android.gms.maps.model.LatLng
+import com.google.android.libraries.places.api.Places
+import com.google.android.libraries.places.api.model.Place
+import com.google.android.libraries.places.widget.Autocomplete
+import com.google.android.libraries.places.widget.model.AutocompleteActivityMode
+import com.google.maps.android.compose.GoogleMap
+import com.google.maps.android.compose.Marker
+import com.google.maps.android.compose.MarkerState
+import com.google.maps.android.compose.rememberCameraPositionState
 import com.solgrid.mobile.core.components.AppTopBar
-import com.solgrid.mobile.core.components.BadgeTone
-import com.solgrid.mobile.core.components.IconToggleItem
-import com.solgrid.mobile.core.components.IconToggleRow
-import com.solgrid.mobile.core.components.StatusBadge
+import com.solgrid.mobile.core.components.ErrorKind
+import com.solgrid.mobile.core.components.ErrorState
+import com.solgrid.mobile.core.components.StatePlaceholder
 import com.solgrid.mobile.core.components.clickableNoRipple
 import com.solgrid.mobile.core.design.AppType
 import com.solgrid.mobile.core.design.Radius
 import com.solgrid.mobile.core.design.SolGridTheme
 import com.solgrid.mobile.core.design.Spacing
-import com.solgrid.mobile.core.mock.MockData
-import com.solgrid.mobile.core.models.MicrogridNode
-import com.solgrid.mobile.core.models.NodeStatus
-
-/**
- * Nearby microgrid nodes. The assignment requires plotting stored lat/lng on Google Maps
- * (MOB-07); that SDK needs a Google Cloud API key which isn't available in this environment, so
- * this screen renders a clearly-labelled placeholder "map" (relative pin layout from stored
- * coordinates) plus a live list — swap `NodeMapPlaceholder` for a `com.google.maps.android.compose
- * .GoogleMap` composable once a key is configured.
- */
-private val nodeFilters = listOf(
-    IconToggleItem("all", Icons.Outlined.Map, "All"),
-    IconToggleItem("active", Icons.Outlined.Bolt, "Active"),
-    IconToggleItem("solar", Icons.Outlined.SolarPower, "Solar"),
-    IconToggleItem("nearby", Icons.Outlined.MyLocation, "Nearby")
-)
+import com.solgrid.mobile.core.location.LocationHelper
+import com.solgrid.mobile.feature.microgrid.NodeViewModel
+import kotlinx.coroutines.launch
 
 @Composable
-fun NodesMapScreen(onBack: () -> Unit, onNodeClick: (String) -> Unit) {
+fun NodesMapScreen(viewModel: NodeViewModel, onBack: () -> Unit, onNodeClick: (String) -> Unit) {
+    val state by viewModel.state.collectAsState()
     val colors = SolGridTheme.colors
-    var selectedFilter by remember { mutableStateOf("all") }
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val locationHelper = remember { LocationHelper(context) }
 
-    val filteredNodes = when (selectedFilter) {
-        "active" -> MockData.nodes.filter { it.status == NodeStatus.ACTIVE }
-        "nearby" -> MockData.nodes.sortedBy { it.distanceKm ?: Double.MAX_VALUE }.take(3)
-        else -> MockData.nodes
+    fun loadCurrentLocation() {
+        scope.launch {
+            val location = locationHelper.getCurrentLocation()
+            if (location != null) {
+                viewModel.loadNearby(location.first, location.second, areaLabel = "your current location")
+            } else {
+                viewModel.loadNearby(6.9271, 79.8612, areaLabel = "Colombo (location unavailable)")
+            }
+        }
     }
 
-    Column(modifier = Modifier.fillMaxSize().background(colors.background)) {
-        AppTopBar(title = "Nearby Grid Nodes", onBack = onBack)
-        NodeMapPlaceholder(nodes = MockData.nodes, onNodeClick = onNodeClick, modifier = Modifier.padding(horizontal = Spacing.lg))
+    val locationPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) {
+            loadCurrentLocation()
+        } else {
+            viewModel.loadNearby(6.9271, 79.8612, areaLabel = "Colombo (location permission denied)")
+        }
+    }
 
-        IconToggleRow(
-            items = nodeFilters,
-            selectedId = selectedFilter,
-            onSelect = { selectedFilter = it },
-            modifier = Modifier.padding(horizontal = Spacing.lg, vertical = Spacing.md)
+    fun requestLocation() {
+        val hasPermission = androidx.core.content.ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.ACCESS_FINE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED
+        if (hasPermission) {
+            loadCurrentLocation()
+        } else {
+            locationPermissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
+        }
+    }
+
+    val searchAreaLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK && result.data != null) {
+            val place = Autocomplete.getPlaceFromIntent(result.data!!)
+            val latLng = place.latLng
+            if (latLng != null) {
+                viewModel.loadNearby(latLng.latitude, latLng.longitude, areaLabel = place.displayName ?: place.formattedAddress)
+            }
+        }
+    }
+
+    fun launchAreaSearch() {
+        if (!Places.isInitialized()) return
+        val fields = listOf(Place.Field.ID, Place.Field.DISPLAY_NAME, Place.Field.FORMATTED_ADDRESS, Place.Field.LAT_LNG)
+        val intent = Autocomplete.IntentBuilder(AutocompleteActivityMode.FULLSCREEN, fields).build(context)
+        searchAreaLauncher.launch(intent)
+    }
+
+    LaunchedEffect(Unit) { requestLocation() }
+
+    Column(Modifier.fillMaxSize().background(colors.background)) {
+        AppTopBar(
+            title = "Nearby Grid Nodes",
+            onBack = onBack,
+            actions = {
+                IconButton(onClick = { launchAreaSearch() }) {
+                    Icon(Icons.Outlined.Search, contentDescription = "Search an area", tint = colors.textPrimary)
+                }
+                IconButton(onClick = { requestLocation() }) {
+                    Icon(Icons.Outlined.MyLocation, contentDescription = "Use my location", tint = colors.textPrimary)
+                }
+            }
         )
-
-        LazyColumn(contentPadding = PaddingValues(horizontal = Spacing.lg, vertical = Spacing.sm)) {
-            items(filteredNodes, key = { it.id }) { node ->
-                NodeRow(node = node, onClick = { onNodeClick(node.id) })
+        val camera = rememberCameraPositionState { position = CameraPosition.fromLatLngZoom(LatLng(6.9271, 79.8612), 12f) }
+        LaunchedEffect(state.searchLatitude, state.searchLongitude) {
+            val latitude = state.searchLatitude
+            val longitude = state.searchLongitude
+            if (latitude != null && longitude != null) camera.position = CameraPosition.fromLatLngZoom(LatLng(latitude, longitude), 12f)
+        }
+        GoogleMap(Modifier.fillMaxWidth().height(260.dp).padding(horizontal = Spacing.lg).clip(RoundedCornerShape(Radius.lg)), cameraPositionState = camera) {
+            state.nodes.forEach { node -> Marker(MarkerState(LatLng(node.location.latitude, node.location.longitude)), title = node.name, snippet = "${node.availableSlotCount} slots available", onClick = { onNodeClick(node.id); true }) }
+        }
+        when {
+            state.error != null -> ErrorState(ErrorKind.SERVER_ERROR, onRetry = { requestLocation() })
+            state.nodes.isEmpty() && !state.loading -> StatePlaceholder(
+                com.solgrid.mobile.core.components.EmptyStateIcons.NoActivity,
+                "No nearby nodes",
+                "Try searching a different area.",
+                actionText = "Search area",
+                onAction = { launchAreaSearch() }
+            )
+            else -> {
+                Row(Modifier.fillMaxWidth().padding(horizontal = Spacing.lg, vertical = Spacing.sm)) {
+                    Text(
+                        state.searchAreaLabel?.let { "Results near $it" } ?: "Results",
+                        style = AppType.caption,
+                        color = colors.textSecondary
+                    )
+                }
+                LazyColumn(contentPadding = PaddingValues(horizontal = Spacing.lg)) { items(state.nodes, key = { it.id }) { node -> ListItem(headlineContent = { Text(node.name) }, supportingContent = { Text("${node.addressLine} · ${node.availableSlotCount}/${node.totalSlotCount} slots") }, modifier = Modifier.clickableNoRipple { onNodeClick(node.id) }) } }
             }
-        }
-    }
-}
-
-@Composable
-private fun NodeMapPlaceholder(nodes: List<MicrogridNode>, onNodeClick: (String) -> Unit, modifier: Modifier = Modifier) {
-    val colors = SolGridTheme.colors
-    // Normalize stored lat/lng into a relative 0..1 box purely for placeholder pin layout.
-    val lats = nodes.map { it.latitude }
-    val lngs = nodes.map { it.longitude }
-    val latRange = (lats.max() - lats.min()).takeIf { it > 0 } ?: 1.0
-    val lngRange = (lngs.max() - lngs.min()).takeIf { it > 0 } ?: 1.0
-
-    Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .height(200.dp)
-            .padding(top = Spacing.sm)
-            .clip(RoundedCornerShape(Radius.lg))
-            .background(colors.surfaceAlt)
-    ) {
-        Row(
-            modifier = Modifier.padding(Spacing.sm),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(Spacing.xs)
-        ) {
-            Icon(Icons.Outlined.Map, contentDescription = null, tint = colors.textTertiary, modifier = Modifier.size(14.dp))
-            Text("Map preview — live coordinates from server", style = AppType.caption, color = colors.textTertiary)
-        }
-        nodes.forEach { node ->
-            val xFrac = ((node.longitude - lngs.min()) / lngRange).toFloat().coerceIn(0.08f, 0.92f)
-            val yFrac = (1f - ((node.latitude - lats.min()) / latRange)).toFloat().coerceIn(0.2f, 0.85f)
-            Box(
-                modifier = Modifier
-                    .offset(x = (xFrac * 320).dp, y = (yFrac * 160).dp)
-                    .size(28.dp)
-                    .clip(CircleShape)
-                    .background(if (node.status == NodeStatus.ACTIVE) colors.accent else colors.textTertiary)
-                    .clickableNoRipple { onNodeClick(node.id) },
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(Icons.Outlined.EvStation, contentDescription = node.name, tint = Color.White, modifier = Modifier.size(16.dp))
-            }
-        }
-    }
-}
-
-@Composable
-private fun NodeRow(node: MicrogridNode, onClick: () -> Unit) {
-    val colors = SolGridTheme.colors
-    Row(
-        modifier = Modifier.fillMaxWidth().clickableNoRipple(onClick).padding(vertical = Spacing.md),
-        horizontalArrangement = Arrangement.spacedBy(Spacing.md),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Box(
-            modifier = Modifier.size(44.dp).clip(RoundedCornerShape(Radius.sm)).background(colors.accentSurface),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(Icons.Outlined.BatteryChargingFull, contentDescription = null, tint = colors.accent)
-        }
-        Column(modifier = Modifier.weight(1f)) {
-            Text(node.name, style = AppType.bodyStrong, color = colors.textPrimary)
-            Text(node.address, style = AppType.supporting, color = colors.textSecondary)
-            Row(modifier = Modifier.padding(top = Spacing.xs), horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-                StatusBadge(
-                    text = if (node.status == NodeStatus.ACTIVE) "Active" else "Inactive",
-                    tone = if (node.status == NodeStatus.ACTIVE) BadgeTone.SUCCESS else BadgeTone.NEUTRAL
-                )
-                StatusBadge(text = "${node.availableSlots}/${node.totalSlots} slots free", tone = BadgeTone.ACCENT)
-            }
-        }
-        node.distanceKm?.let {
-            Text("${it} km", style = AppType.caption, color = colors.textTertiary)
         }
     }
 }

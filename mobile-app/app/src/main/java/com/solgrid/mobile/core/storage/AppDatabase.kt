@@ -26,11 +26,26 @@ class AppDatabase private constructor(context: Context) :
             )
             """.trimIndent(),
         )
+        createReferenceCache(db)
     }
 
+    private fun createReferenceCache(db: SQLiteDatabase) {
+        db.execSQL("CREATE TABLE IF NOT EXISTS reference_cache (cacheKey TEXT PRIMARY KEY, payload TEXT NOT NULL, savedAt INTEGER NOT NULL)")
+    }
+
+    fun cacheReference(key: String, payload: String) {
+        val values = ContentValues().apply { put("cacheKey", key); put("payload", payload); put("savedAt", System.currentTimeMillis()) }
+        writableDatabase.insertWithOnConflict("reference_cache", null, values, SQLiteDatabase.CONFLICT_REPLACE)
+    }
+
+    fun loadReference(key: String): String? = readableDatabase.query("reference_cache", arrayOf("payload"), "cacheKey = ?", arrayOf(key), null, null, null).use {
+        if (it.moveToFirst()) it.getString(0) else null
+    }
+
+    fun clearReferences() { writableDatabase.delete("reference_cache", null, null) }
+
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
-        db.execSQL("DROP TABLE IF EXISTS $TABLE_SESSION")
-        onCreate(db)
+        if (oldVersion < 2) createReferenceCache(db)
     }
 
     fun saveSession(accessToken: String, userId: String, displayName: String, role: String) {
@@ -75,7 +90,7 @@ class AppDatabase private constructor(context: Context) :
 
     companion object {
         private const val DATABASE_NAME = "solgrid_local.db"
-        private const val DATABASE_VERSION = 1
+        private const val DATABASE_VERSION = 2
         private const val TABLE_SESSION = "session"
 
         @Volatile

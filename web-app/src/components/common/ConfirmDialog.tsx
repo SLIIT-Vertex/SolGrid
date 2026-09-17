@@ -27,15 +27,19 @@ export function ConfirmDialog({
   return (
     <Dialog
       open={open}
-      onClose={onCancel}
+      onClose={() => {
+        if (isLoading) return
+        onCancel()
+      }}
       title={title}
       description={description}
       footer={
         <>
-          <Button variant="secondary" onClick={onCancel} disabled={isLoading}>
+          <Button variant="secondary" type="button" onClick={onCancel} disabled={isLoading}>
             {cancelLabel}
           </Button>
           <Button
+            type="button"
             variant={isDestructive ? 'danger' : 'primary'}
             onClick={onConfirm}
             isLoading={isLoading}

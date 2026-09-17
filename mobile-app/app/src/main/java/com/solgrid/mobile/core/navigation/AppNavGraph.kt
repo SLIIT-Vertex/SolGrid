@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
@@ -23,6 +24,7 @@ import com.solgrid.mobile.feature.auth.OnboardingScreen
 import com.solgrid.mobile.feature.auth.RegisterScreen
 import com.solgrid.mobile.feature.auth.SplashScreen
 import com.solgrid.mobile.core.models.AppRole
+import com.solgrid.mobile.core.network.SessionExpiryNotifier
 import com.solgrid.mobile.core.network.SessionStore
 import com.solgrid.mobile.feature.operator.OperatorHomeScreen
 import com.solgrid.mobile.feature.operator.OperatorViewModel
@@ -44,6 +46,9 @@ import com.solgrid.mobile.feature.prosumer.ReservationSummaryScreen
 import com.solgrid.mobile.feature.prosumer.SummaryAction
 import com.solgrid.mobile.feature.shared.HelpScreen
 import com.solgrid.mobile.feature.shared.SettingsScreen
+import com.solgrid.mobile.feature.microgrid.NodeViewModel
+import com.solgrid.mobile.feature.operator.OperatorNodesScreen
+import com.solgrid.mobile.feature.operator.OperatorNodeDetailScreen
 
 private val prosumerBottomNavRoutes = ProsumerBottomNav.entries.map { it.route }.toSet()
 
@@ -54,6 +59,15 @@ fun AppNavGraph(onThemeModeChange: (AppThemeMode) -> Unit) {
     val authViewModel = remember { AuthViewModel() }
     val prosumerViewModel = remember { ProsumerViewModel() }
     val operatorViewModel = remember { OperatorViewModel() }
+    val nodeViewModel = remember { NodeViewModel() }
+
+    LaunchedEffect(Unit) {
+        SessionExpiryNotifier.events.collect {
+            authViewModel.resetLoginForm()
+            authViewModel.showSessionExpiredMessage()
+            navController.navigate(Routes.LOGIN) { popUpTo(0) { inclusive = true } }
+        }
+    }
 
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
@@ -83,10 +97,14 @@ fun AppNavGraph(onThemeModeChange: (AppThemeMode) -> Unit) {
             ) {
                 composable(Routes.SPLASH) {
                     SplashScreen(onFinished = {
-                        val destination = if (SessionStore.accessToken != null && SessionStore.role == "GridOperator") {
-                            Routes.OPERATOR_HOME
-                        } else {
-                            Routes.ONBOARDING
+                        val destination = when {
+                            SessionStore.accessToken == null -> Routes.ONBOARDING
+                            SessionStore.role == "GridOperator" -> Routes.OPERATOR_HOME
+                            SessionStore.role == "Prosumer" -> {
+                                prosumerViewModel.loadProfile()
+                                Routes.PROSUMER_DASHBOARD
+                            }
+                            else -> Routes.ONBOARDING
                         }
                         navController.navigate(destination) { popUpTo(Routes.SPLASH) { inclusive = true } }
                     })
@@ -100,7 +118,12 @@ fun AppNavGraph(onThemeModeChange: (AppThemeMode) -> Unit) {
                     LoginScreen(
                         viewModel = authViewModel,
                         onLoginSuccess = { role ->
-                            val destination = if (role == AppRole.PROSUMER) Routes.PROSUMER_DASHBOARD else Routes.OPERATOR_HOME
+                            val destination = if (role == AppRole.PROSUMER) {
+                                prosumerViewModel.loadProfile()
+                                Routes.PROSUMER_DASHBOARD
+                            } else {
+                                Routes.OPERATOR_HOME
+                            }
                             navController.navigate(destination) { popUpTo(0) { inclusive = true } }
                         },
                         onNavigateToRegister = { navController.navigate(Routes.REGISTER) }
@@ -110,7 +133,9 @@ fun AppNavGraph(onThemeModeChange: (AppThemeMode) -> Unit) {
                     RegisterScreen(
                         viewModel = authViewModel,
                         onRegisterSuccess = {
-                            navController.navigate(Routes.PROSUMER_DASHBOARD) { popUpTo(0) { inclusive = true } }
+                            // New accounts start Pending until Backoffice activates them, so
+                            // route back to Login rather than straight into the dashboard.
+                            navController.navigate(Routes.LOGIN) { popUpTo(Routes.LOGIN) { inclusive = true } }
                         },
                         onNavigateToLogin = { navController.popBackStack() }
                     )
@@ -128,6 +153,7 @@ fun AppNavGraph(onThemeModeChange: (AppThemeMode) -> Unit) {
                 }
                 composable(Routes.PROSUMER_NODES_MAP) {
                     NodesMapScreen(
+                        viewModel = nodeViewModel,
                         onBack = { navController.popBackStack() },
                         onNodeClick = { id -> navController.navigate(Routes.nodeDetail(id)) }
                     )
@@ -138,6 +164,7 @@ fun AppNavGraph(onThemeModeChange: (AppThemeMode) -> Unit) {
                 ) { entry ->
                     val nodeId = entry.arguments?.getString("nodeId").orEmpty()
                     NodeDetailScreen(
+                        viewModel = nodeViewModel,
                         nodeId = nodeId,
                         onBack = { navController.popBackStack() },
                         onBookSlot = { id -> navController.navigate(Routes.createReservation(id)) }
@@ -226,7 +253,12 @@ fun AppNavGraph(onThemeModeChange: (AppThemeMode) -> Unit) {
                         onDeactivationRequest = { navController.navigate(Routes.DEACTIVATION_REQUEST) },
                         onSettings = { navController.navigate(Routes.SETTINGS) },
                         onHelp = { navController.navigate(Routes.HELP) },
-                        onLogout = { navController.navigate(Routes.LOGIN) { popUpTo(0) { inclusive = true } } }
+                        onLogout = {
+                            SessionStore.clear()
+                            nodeViewModel.clear()
+                            authViewModel.resetLoginForm()
+                            navController.navigate(Routes.LOGIN) { popUpTo(0) { inclusive = true } }
+                        }
                     )
                 }
                 composable(Routes.EDIT_PROSUMER_PROFILE) {
@@ -246,11 +278,20 @@ fun AppNavGraph(onThemeModeChange: (AppThemeMode) -> Unit) {
                         viewModel = operatorViewModel,
                         onScanClick = { navController.navigate(Routes.OPERATOR_SCANNER) },
                         onBookingClick = { },
+                        onNodesClick = { navController.navigate(Routes.OPERATOR_NODES) },
                         onLogout = {
                             SessionStore.clear()
+                            nodeViewModel.clear()
+                            authViewModel.resetLoginForm()
                             navController.navigate(Routes.LOGIN) { popUpTo(0) { inclusive = true } }
                         }
                     )
+                }
+                composable(Routes.OPERATOR_NODES) {
+                    OperatorNodesScreen(nodeViewModel, onBack = { navController.popBackStack() }, onNodeClick = { id -> navController.navigate(Routes.operatorNodeDetail(id)) })
+                }
+                composable(Routes.OPERATOR_NODE_DETAIL, arguments = listOf(navArgument("nodeId") { type = NavType.StringType })) { entry ->
+                    OperatorNodeDetailScreen(nodeViewModel, entry.arguments?.getString("nodeId").orEmpty(), onBack = { navController.popBackStack() })
                 }
                 composable(Routes.OPERATOR_SCANNER) {
                     ScannerScreen(

@@ -87,14 +87,15 @@ fun VerificationResultScreen(
                     InfoRow("Prosumer NIC", reservation.prosumerNic)
                     InfoRow("Node", reservation.nodeName)
                     InfoRow("Slot", "${reservation.date} · ${reservation.startTime}-${reservation.endTime}")
-                    InfoRow("Energy", "${reservation.energyKwh} kWh")
+                    InfoRow("Status", reservation.status.name)
                 }
             }
         }
 
         Box(modifier = Modifier.weight(1f))
 
-        if (state.lastVerification?.result == TransferVerificationResult.VALID) {
+        state.operationError?.let { Text(it, style = AppType.body, color = colors.error, textAlign = TextAlign.Center, modifier = Modifier.padding(bottom = Spacing.md)) }
+        if (state.lastVerification?.result == TransferVerificationResult.VALID && state.lastVerification?.reservation != null) {
             PrimaryButton(
                 text = "Finalize Energy Transfer",
                 loading = state.finalizing,

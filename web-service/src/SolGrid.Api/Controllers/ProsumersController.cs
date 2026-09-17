@@ -48,6 +48,23 @@ public sealed class ProsumersController : ControllerBase
         return Created($"/api/v1/prosumers/{response.Nic}", response);
     }
 
+    [HttpPost]
+    [Authorize(Policy = AuthorizationPolicies.Backoffice)]
+    public async Task<ActionResult<ProsumerResponse>> Create(RegisterProsumerRequest request, CancellationToken cancellationToken)
+    {
+        // Create a pending profile for Backoffice using central registration validation.
+        var response = await prosumerService.CreateProsumerAsync(request, cancellationToken).ConfigureAwait(false);
+        return Created($"/api/v1/prosumers/{response.Nic}", response);
+    }
+
+    [HttpPut("{nic}")]
+    [Authorize(Policy = AuthorizationPolicies.Backoffice)]
+    public async Task<ActionResult<ProsumerResponse>> Update(string nic, UpdateProsumerRequest request, CancellationToken cancellationToken)
+    {
+        // Maintain editable profile fields without changing NIC, password, or lifecycle status.
+        return Ok(await prosumerService.UpdateProsumerAsync(nic, request, cancellationToken).ConfigureAwait(false));
+    }
+
     [HttpPost("login")]
     [AllowAnonymous]
     [ProducesResponseType(typeof(ProsumerLoginResponse), StatusCodes.Status200OK)]

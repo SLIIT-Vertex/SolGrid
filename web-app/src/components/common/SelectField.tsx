@@ -28,9 +28,9 @@ export const SelectField = forwardRef<HTMLSelectElement, SelectFieldProps>(
               error && 'border-red-300 focus:border-red-400 focus:outline-red-100',
               className,
             )}
+            {...rest}
             aria-invalid={Boolean(error)}
             aria-describedby={error ? `${selectId}-error` : undefined}
-            {...rest}
           >
             {children}
           </select>
@@ -50,7 +50,7 @@ export const SelectField = forwardRef<HTMLSelectElement, SelectFieldProps>(
           </svg>
         </div>
         {error ? (
-          <p id={`${selectId}-error`} className="text-sm text-red-600">
+          <p id={`${selectId}-error`} role="alert" className="text-sm text-red-600">
             {error}
           </p>
         ) : null}

@@ -24,9 +24,36 @@ function UsersIcon({ className }: { className?: string }) {
   )
 }
 
+function MicrogridIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 20 20" fill="currentColor" className={className}>
+      <path d="M10 2.25a.75.75 0 0 1 .67.415l1.86 3.77 4.16.605a.75.75 0 0 1 .416 1.279l-3.01 2.934.71 4.145a.75.75 0 0 1-1.088.79L10 14.22l-3.718 1.968a.75.75 0 0 1-1.088-.79l.71-4.145-3.01-2.934a.75.75 0 0 1 .416-1.28l4.16-.604 1.86-3.77A.75.75 0 0 1 10 2.25Z" />
+    </svg>
+  )
+}
+
+function ProsumersIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 20 20" fill="currentColor" className={className}>
+      <path d="M10 2a1 1 0 0 1 1 1v.06a6.5 6.5 0 0 1 5.5 6.44V13a1 1 0 0 1-1 1H4.5a1 1 0 0 1-1-1V9.5A6.5 6.5 0 0 1 9 3.06V3a1 1 0 0 1 1-1Zm-3 13a3 3 0 0 0 6 0H7Z" />
+    </svg>
+  )
+}
+
+function ReservationsIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 20 20" fill="currentColor" className={className}>
+      <path d="M5.75 2a.75.75 0 0 1 .75.75V4h7V2.75a.75.75 0 0 1 1.5 0V4h.25A2.75 2.75 0 0 1 18 6.75v8.5A2.75 2.75 0 0 1 15.25 18H4.75A2.75 2.75 0 0 1 2 15.25v-8.5A2.75 2.75 0 0 1 4.75 4H5V2.75A.75.75 0 0 1 5.75 2ZM3.5 8.5v6.75c0 .69.56 1.25 1.25 1.25h10.5c.69 0 1.25-.56 1.25-1.25V8.5h-13Z" />
+    </svg>
+  )
+}
+
 const navItems: NavItem[] = [
   { to: '/', label: 'Dashboard', icon: DashboardIcon },
+  { to: '/reservations', label: 'Reservations', icon: ReservationsIcon },
+  { to: '/microgrid', label: 'Microgrid Nodes', icon: MicrogridIcon },
   { to: '/users', label: 'Web Users', icon: UsersIcon },
+  { to: '/prosumers', label: 'Prosumers', icon: ProsumersIcon },
 ]
 
 export function Sidebar() {

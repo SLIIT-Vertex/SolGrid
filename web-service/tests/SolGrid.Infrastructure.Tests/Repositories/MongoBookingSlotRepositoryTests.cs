@@ -22,7 +22,7 @@ namespace SolGrid.Infrastructure.Tests.Repositories;
 public sealed class MongoBookingSlotRepositoryTests : IAsyncLifetime
 {
     private readonly string? connectionString = Environment.GetEnvironmentVariable("SOLGRID_MONGO_TEST_CONNECTION_STRING");
-    private readonly string databaseName = $"SolGrid_BookingSlotRepositoryTests_{Guid.NewGuid():N}";
+    private readonly string databaseName = $"SG_Slot_{Guid.NewGuid():N}";
     private IMongoClient? mongoClient;
     private IMongoDatabase? database;
     private MongoDbOptions? options;

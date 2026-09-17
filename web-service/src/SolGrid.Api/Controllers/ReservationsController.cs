@@ -101,6 +101,13 @@ public sealed class ReservationsController : ControllerBase
         return Ok(response);
     }
 
+    [HttpGet("me/dashboard/summary")]
+    public async Task<ActionResult<ReservationDashboardSummaryResponse>> GetMyDashboardSummary(CancellationToken cancellationToken = default)
+    {
+        // Return owner-scoped counts; the application service rejects web-user identities.
+        return Ok(await reservationService.GetMyDashboardSummaryAsync(cancellationToken).ConfigureAwait(false));
+    }
+
     [HttpGet("dashboard/summary")]
     [Authorize(Roles = "Backoffice,GridOperator")]
     [ProducesResponseType(typeof(ReservationDashboardSummaryResponse), StatusCodes.Status200OK)]

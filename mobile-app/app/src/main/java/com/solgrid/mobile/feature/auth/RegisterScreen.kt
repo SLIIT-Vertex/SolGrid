@@ -1,6 +1,7 @@
 package com.solgrid.mobile.feature.auth
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -8,19 +9,27 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Check
+import androidx.compose.material.icons.outlined.ErrorOutline
 import androidx.compose.material.icons.outlined.RadioButtonUnchecked
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.solgrid.mobile.core.components.AppTextField
@@ -29,8 +38,10 @@ import com.solgrid.mobile.core.components.PasswordField
 import com.solgrid.mobile.core.components.PrimaryButton
 import com.solgrid.mobile.core.components.clickableNoRipple
 import com.solgrid.mobile.core.design.AppType
+import com.solgrid.mobile.core.design.Radius
 import com.solgrid.mobile.core.design.SolGridTheme
 import com.solgrid.mobile.core.design.Spacing
+import kotlinx.coroutines.launch
 
 /** Prosumer self-registration. Grid Operator accounts are created only by Backoffice (web). */
 @Composable
@@ -41,7 +52,21 @@ fun RegisterScreen(
 ) {
     val colors = SolGridTheme.colors
     val state by viewModel.register.collectAsState()
+    val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
 
+    LaunchedEffect(Unit) { viewModel.resetRegisterForm() }
+
+    LaunchedEffect(state.requestState) {
+        if (state.requestState is AuthRequestState.Success) {
+            snackbarHostState.showSnackbar(
+                "Account created. It will go through Backoffice activation before you can sign in.",
+            )
+            onRegisterSuccess()
+        }
+    }
+
+    Box(modifier = Modifier.fillMaxSize()) {
     Column(modifier = Modifier.fillMaxSize().background(colors.background)) {
         AppTopBar(title = "Register as Prosumer", onBack = onNavigateToLogin)
         Column(
@@ -56,6 +81,26 @@ fun RegisterScreen(
                 color = colors.textSecondary,
                 modifier = Modifier.padding(top = Spacing.md, bottom = Spacing.xl)
             )
+
+            if (state.requestState is AuthRequestState.Error) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = Spacing.lg)
+                        .clip(RoundedCornerShape(Radius.md))
+                        .background(colors.errorSurface)
+                        .padding(Spacing.md),
+                    horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(Spacing.sm),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(Icons.Outlined.ErrorOutline, contentDescription = null, tint = colors.error, modifier = Modifier.size(18.dp))
+                    Text(
+                        (state.requestState as AuthRequestState.Error).message,
+                        style = AppType.supporting,
+                        color = colors.error
+                    )
+                }
+            }
 
             AppTextField(
                 value = state.nic,
@@ -86,14 +131,6 @@ fun RegisterScreen(
                 label = "Phone number",
                 keyboardType = KeyboardType.Phone,
                 errorText = state.fieldErrors["phone"],
-                modifier = Modifier.padding(top = Spacing.md)
-            )
-            AppTextField(
-                value = state.address,
-                onValueChange = { viewModel.onRegisterField("address", it) },
-                label = "Address",
-                singleLine = false,
-                minLines = 2,
                 modifier = Modifier.padding(top = Spacing.md)
             )
             PasswordField(
@@ -150,7 +187,7 @@ fun RegisterScreen(
 
             PrimaryButton(
                 text = "Create Account",
-                onClick = { viewModel.submitRegister(onRegisterSuccess) },
+                onClick = { viewModel.submitRegister {} },
                 loading = state.requestState is AuthRequestState.Loading,
                 modifier = Modifier.fillMaxWidth().padding(top = Spacing.xl)
             )
@@ -168,5 +205,10 @@ fun RegisterScreen(
                 )
             }
         }
+    }
+        SnackbarHost(
+            hostState = snackbarHostState,
+            modifier = Modifier.align(Alignment.BottomCenter).padding(Spacing.md),
+        )
     }
 }
