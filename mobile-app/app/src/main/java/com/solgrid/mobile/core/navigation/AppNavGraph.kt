@@ -29,24 +29,26 @@ import com.solgrid.mobile.feature.auth.SplashScreen
 import com.solgrid.mobile.core.models.AppRole
 import com.solgrid.mobile.core.network.SessionExpiryNotifier
 import com.solgrid.mobile.core.network.SessionStore
+import com.solgrid.mobile.feature.operator.OperatorBookingDetailScreen
 import com.solgrid.mobile.feature.operator.OperatorHomeScreen
 import com.solgrid.mobile.feature.operator.OperatorViewModel
 import com.solgrid.mobile.feature.operator.ScannerScreen
 import com.solgrid.mobile.feature.operator.VerificationResultScreen
-import com.solgrid.mobile.feature.prosumer.BookingHistoryScreen
-import com.solgrid.mobile.feature.prosumer.BookingsScreen
-import com.solgrid.mobile.feature.prosumer.CreateReservationScreen
+import com.solgrid.mobile.feature.reservations.BookingDetailScreen
+import com.solgrid.mobile.feature.reservations.BookingHistoryScreen
+import com.solgrid.mobile.feature.reservations.BookingsScreen
+import com.solgrid.mobile.feature.reservations.CreateReservationScreen
 import com.solgrid.mobile.feature.prosumer.DashboardScreen
 import com.solgrid.mobile.feature.prosumer.DeactivationRequestScreen
 import com.solgrid.mobile.feature.prosumer.EditProsumerProfileScreen
-import com.solgrid.mobile.feature.prosumer.EditReservationScreen
+import com.solgrid.mobile.feature.reservations.EditReservationScreen
 import com.solgrid.mobile.feature.prosumer.NodeDetailScreen
 import com.solgrid.mobile.feature.prosumer.NodesMapScreen
 import com.solgrid.mobile.feature.prosumer.ProsumerProfileScreen
 import com.solgrid.mobile.feature.prosumer.ProsumerViewModel
-import com.solgrid.mobile.feature.prosumer.ReservationQrScreen
-import com.solgrid.mobile.feature.prosumer.ReservationSummaryScreen
-import com.solgrid.mobile.feature.prosumer.SummaryAction
+import com.solgrid.mobile.feature.reservations.ReservationQrScreen
+import com.solgrid.mobile.feature.reservations.ReservationSummaryScreen
+import com.solgrid.mobile.feature.reservations.SummaryAction
 import com.solgrid.mobile.feature.shared.HelpScreen
 import com.solgrid.mobile.feature.shared.SettingsScreen
 import com.solgrid.mobile.feature.microgrid.NodeViewModel
@@ -154,7 +156,7 @@ fun AppNavGraph(onThemeModeChange: (AppThemeMode) -> Unit) {
                         viewModel = prosumerViewModel,
                         onProfileClick = { navController.navigate(Routes.PROSUMER_PROFILE) },
                         onFindNodesClick = { navController.navigate(Routes.PROSUMER_NODES_MAP) },
-                        onBookingClick = { id -> navController.navigate(Routes.editReservation(id)) },
+                        onBookingClick = { id -> navController.navigate(Routes.bookingDetail(id)) },
                         onViewAllBookings = { navController.navigate(Routes.BOOKINGS) }
                     )
                 }
@@ -195,6 +197,23 @@ fun AppNavGraph(onThemeModeChange: (AppThemeMode) -> Unit) {
                     )
                 }
                 composable(
+                    Routes.BOOKING_DETAIL,
+                    arguments = listOf(navArgument("reservationId") { type = NavType.StringType })
+                ) { entry ->
+                    val reservationId = entry.arguments?.getString("reservationId").orEmpty()
+                    BookingDetailScreen(
+                        viewModel = prosumerViewModel,
+                        reservationId = reservationId,
+                        onBack = { navController.popBackStack() },
+                        onEdit = { navController.navigate(Routes.editReservation(reservationId)) },
+                        onCancelled = {
+                            navController.navigate(Routes.reservationSummary(reservationId, "CANCELLED")) {
+                                popUpTo(Routes.PROSUMER_DASHBOARD)
+                            }
+                        }
+                    )
+                }
+                composable(
                     Routes.EDIT_RESERVATION,
                     arguments = listOf(navArgument("reservationId") { type = NavType.StringType })
                 ) { entry ->
@@ -205,11 +224,6 @@ fun AppNavGraph(onThemeModeChange: (AppThemeMode) -> Unit) {
                         onBack = { navController.popBackStack() },
                         onUpdated = {
                             navController.navigate(Routes.reservationSummary(reservationId, "UPDATED")) {
-                                popUpTo(Routes.PROSUMER_DASHBOARD)
-                            }
-                        },
-                        onCancelled = {
-                            navController.navigate(Routes.reservationSummary(reservationId, "CANCELLED")) {
                                 popUpTo(Routes.PROSUMER_DASHBOARD)
                             }
                         }
@@ -225,6 +239,8 @@ fun AppNavGraph(onThemeModeChange: (AppThemeMode) -> Unit) {
                     val action = SummaryAction.valueOf(entry.arguments?.getString("action") ?: "CREATED")
                     ReservationSummaryScreen(
                         action = action,
+                        viewModel = prosumerViewModel,
+                        reservationId = entry.arguments?.getString("reservationId").orEmpty(),
                         onViewBookings = {
                             navController.navigate(Routes.BOOKINGS) { popUpTo(Routes.PROSUMER_DASHBOARD) }
                         },
@@ -237,14 +253,15 @@ fun AppNavGraph(onThemeModeChange: (AppThemeMode) -> Unit) {
                     BookingsScreen(
                         viewModel = prosumerViewModel,
                         onBack = { navController.popBackStack() },
-                        onBookingClick = { id -> navController.navigate(Routes.editReservation(id)) }
+                        onBookingClick = { id -> navController.navigate(Routes.bookingDetail(id)) },
+                        onViewHistory = { navController.navigate(Routes.BOOKING_HISTORY) }
                     )
                 }
                 composable(Routes.BOOKING_HISTORY) {
                     BookingHistoryScreen(
                         viewModel = prosumerViewModel,
                         onBack = { navController.popBackStack() },
-                        onBookingClick = { id -> navController.navigate(Routes.editReservation(id)) }
+                        onBookingClick = { id -> navController.navigate(Routes.bookingDetail(id)) }
                     )
                 }
                 composable(
@@ -294,7 +311,7 @@ fun AppNavGraph(onThemeModeChange: (AppThemeMode) -> Unit) {
                     OperatorHomeScreen(
                         viewModel = operatorViewModel,
                         onScanClick = { navController.navigate(Routes.OPERATOR_SCANNER) },
-                        onBookingClick = { },
+                        onBookingClick = { id -> navController.navigate(Routes.operatorBookingDetail(id)) },
                         onNodesClick = { navController.navigate(Routes.OPERATOR_NODES) },
                         onLogout = {
                             SessionStore.clear()
@@ -306,6 +323,13 @@ fun AppNavGraph(onThemeModeChange: (AppThemeMode) -> Unit) {
                 }
                 composable(Routes.OPERATOR_NODES) {
                     OperatorNodesScreen(nodeViewModel, onBack = { navController.popBackStack() }, onNodeClick = { id -> navController.navigate(Routes.operatorNodeDetail(id)) })
+                }
+                composable(Routes.OPERATOR_BOOKING_DETAIL, arguments = listOf(navArgument("reservationId") { type = NavType.StringType })) { entry ->
+                    OperatorBookingDetailScreen(
+                        viewModel = operatorViewModel,
+                        reservationId = entry.arguments?.getString("reservationId").orEmpty(),
+                        onBack = { navController.popBackStack() }
+                    )
                 }
                 composable(Routes.OPERATOR_NODE_DETAIL, arguments = listOf(navArgument("nodeId") { type = NavType.StringType })) { entry ->
                     OperatorNodeDetailScreen(nodeViewModel, entry.arguments?.getString("nodeId").orEmpty(), onBack = { navController.popBackStack() })

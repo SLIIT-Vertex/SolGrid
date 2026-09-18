@@ -45,7 +45,9 @@ public sealed class ReservationBookingSlotReadService : IReservationBookingSlotR
                 Id = slot.Id,
                 StationId = slot.StationId,
                 IsActive = slot.IsActive,
-                IsAvailable = slot.IsAvailable
+                IsAvailable = slot.IsAvailable,
+                StartTime = slot.StartTime,
+                EndTime = slot.EndTime
             };
     }
 

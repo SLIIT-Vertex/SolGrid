@@ -60,7 +60,7 @@ private fun ReservationDto.toEnergyReservation(nodeName: String): EnergyReservat
     val created = OffsetDateTime.parse(createdAt).atZoneSameInstant(ZoneId.systemDefault())
     return EnergyReservation(
         id = id,
-        prosumerNic = prosumerId,
+        prosumerNic = prosumerNic ?: prosumerId,
         nodeId = stationId,
         nodeName = nodeName,
         bookingSlotId = bookingSlotId,
@@ -73,6 +73,8 @@ private fun ReservationDto.toEnergyReservation(nodeName: String): EnergyReservat
         rejectionReason = rejectionReason,
         qrPayload = null,
         scheduledAt = scheduledAt,
+        referenceCode = referenceCode,
+        prosumerName = prosumerName,
     )
 }
 
@@ -259,11 +261,23 @@ class ProsumerViewModel : ViewModel() {
         }
     }
 
+    /** The last issued QR for a reservation if it's still within its validity window, else null.
+     * Lets the UI reuse a previously generated code instead of minting a new one on every open. */
+    fun cachedQr(reservationId: String): Pair<String, String>? {
+        val cached = SessionStore.cachedQr(reservationId) ?: return null
+        val stillValid = runCatching {
+            OffsetDateTime.parse(cached.expiresAt).toInstant().isAfter(Instant.now())
+        }.getOrDefault(false)
+        return if (stillValid) cached.payload to cached.expiresAt else null
+    }
+
     fun issueReservationQr(reservationId: String, onError: (String) -> Unit, onResult: (String, String) -> Unit) {
         viewModelScope.launch {
             when (val outcome = reservationRepository.issueQr(reservationId)) {
                 is ReservationQrOutcome.Success -> {
                     val payload = com.solgrid.mobile.core.qr.TransactionQr.payload(outcome.response.reservationId, outcome.response.verificationToken)
+                    // Persist so re-opening the booking reuses this code until it expires.
+                    SessionStore.cacheQr(reservationId, payload, outcome.response.expiresAt)
                     _uiState.update { state ->
                         state.copy(
                             reservations = state.reservations.map {

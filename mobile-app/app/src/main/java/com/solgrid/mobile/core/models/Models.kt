@@ -85,11 +85,28 @@ data class EnergyReservation(
     val rejectionReason: String? = null,
     /** Populated once the reservation is approved; drives the transaction QR screen. */
     val qrPayload: String? = null,
-    val scheduledAt: String? = null
+    val scheduledAt: String? = null,
+    /** Server-generated booking reference (e.g. "SG-201041A6"). Authoritative when present. */
+    val referenceCode: String? = null,
+    /** Prosumer full name — populated on single-reservation reads for operator confirmation. */
+    val prosumerName: String? = null,
 ) {
     /** Whether this booking is still within the 12-hour modify/cancel window (mock check). */
     val canModify: Boolean
         get() = status == ReservationStatus.PENDING || status == ReservationStatus.APPROVED
+
+    /** Short, human-friendly booking reference shown in place of the raw 32-char id. Prefers the
+     * server-generated [referenceCode]; falls back to a derived code for older records. Display only. */
+    val reference: String
+        get() = referenceCode?.takeIf { it.isNotBlank() } ?: bookingReference(id)
+}
+
+/** Derives a compact, readable reference (e.g. "SG-3F9A2C10") from a raw entity id (a 32-char GUID).
+ * Fallback only — prefer the server's referenceCode. Never send this to the API. */
+fun bookingReference(rawId: String): String {
+    val cleaned = rawId.filter { it.isLetterOrDigit() }
+    if (cleaned.isEmpty()) return rawId
+    return "SG-" + cleaned.takeLast(8).uppercase()
 }
 
 enum class TransferVerificationResult { VALID, EXPIRED, ALREADY_COMPLETED, NOT_FOUND }

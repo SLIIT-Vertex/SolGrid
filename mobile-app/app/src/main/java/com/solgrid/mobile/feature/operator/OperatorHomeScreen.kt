@@ -10,6 +10,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -30,6 +32,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import com.solgrid.mobile.core.components.AppDivider
+import com.solgrid.mobile.core.components.AppPullToRefresh
 import com.solgrid.mobile.core.components.AppTopBar
 import com.solgrid.mobile.core.components.ConfirmationDialog
 import com.solgrid.mobile.core.components.PrimaryButton
@@ -70,7 +73,12 @@ fun OperatorHomeScreen(
                 }
             }
         )
-        Column(modifier = Modifier.fillMaxSize().padding(horizontal = Spacing.lg)) {
+        AppPullToRefresh(
+            refreshing = state.queueLoading && state.queue.isNotEmpty(),
+            onRefresh = { viewModel.loadQueue() },
+            modifier = Modifier.fillMaxSize()
+        ) {
+        Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = Spacing.lg)) {
             Row(
                 modifier = Modifier.fillMaxWidth().padding(top = Spacing.md),
                 verticalAlignment = Alignment.CenterVertically,
@@ -135,6 +143,8 @@ fun OperatorHomeScreen(
                     AppDivider()
                 }
             }
+            Box(modifier = Modifier.padding(bottom = Spacing.xxxl))
+        }
         }
     }
 
