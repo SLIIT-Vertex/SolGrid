@@ -90,6 +90,34 @@ export function toTimeOnly(value: string): string {
   return trimmed
 }
 
+/**
+ * Returns the earliest open time and latest close time across all of a weekday's operating
+ * windows, for use as a native time input's `min`/`max` — the closest a browser's own time picker
+ * can get to "grey out unavailable times," since it only supports one contiguous min/max range and
+ * can't represent a day with disjoint windows (e.g. 06:00-12:00 and 14:00-20:00) or gaps between
+ * them. A time inside that overall span but inside a gap still gets caught by validateSlotRow.
+ */
+export function getDayOperatingRange(
+  schedule: ScheduleWindowFormValues[],
+  dayOfWeek: number,
+): { min: string; max: string } | undefined {
+  const windows = schedule.filter((window) => window.day === dayOfWeek)
+  if (windows.length === 0) return undefined
+
+  const opens = windows.map((window) => clockToSeconds(window.opensAt) ?? 0)
+  const closes = windows.map((window) => clockToSeconds(window.closesAt) ?? 0)
+  const earliest = Math.min(...opens)
+  const latest = Math.max(...closes)
+
+  const toClock = (totalSeconds: number) => {
+    const hours = String(Math.floor(totalSeconds / 3600)).padStart(2, '0')
+    const minutes = String(Math.floor((totalSeconds % 3600) / 60)).padStart(2, '0')
+    return `${hours}:${minutes}`
+  }
+
+  return { min: toClock(earliest), max: toClock(latest) }
+}
+
 function clockToSeconds(value: string): number | null {
   const match = toTimeOnly(value).match(/^(\d{2}):(\d{2}):(\d{2})$/)
   if (!match) return null
@@ -327,6 +355,10 @@ export function validateSlotRow(
 
   const intervalError = validateSlotInterval(startTime, endTime)
   if (intervalError) return intervalError
+
+  if (Date.parse(startTime) < Date.now()) {
+    return 'A booking slot cannot start in the past.'
+  }
 
   return validateSlotAgainstSchedule(schedule, startTime, endTime)
 }

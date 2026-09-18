@@ -32,7 +32,7 @@ export function EditMicrogridNodePage() {
   }
 
   return (
-    <div className="mx-auto max-w-3xl">
+    <div className="mx-auto flex h-full w-full max-w-3xl flex-col">
       <MicrogridBackLink to={id ? detailsPath : '/microgrid'} label="Node details" />
       <div className="mb-6">
         <h2 className="text-lg font-semibold text-ink-900">Edit Microgrid Node</h2>

@@ -25,7 +25,7 @@ export function CreateMicrogridNodePage() {
   }
 
   return (
-    <div className="mx-auto max-w-3xl">
+    <div className="mx-auto flex h-full w-full max-w-3xl flex-col">
       <MicrogridBackLink />
       <div className="mb-6">
         <h2 className="text-lg font-semibold text-ink-900">Create Microgrid Node</h2>
