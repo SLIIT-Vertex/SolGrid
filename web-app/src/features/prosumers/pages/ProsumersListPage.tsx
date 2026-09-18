@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { Button } from '@/components/common/Button'
 import { ProsumerDialog } from '@/features/prosumers/components/ProsumerDialog'
 import { ConfirmDialog } from '@/components/common/ConfirmDialog'
@@ -17,7 +18,7 @@ import {
   useReactivateProsumer,
 } from '@/features/prosumers/hooks/useSetProsumerStatus'
 import { defaultProsumerFilters } from '@/features/prosumers/types'
-import type { Prosumer } from '@/features/prosumers/types'
+import type { Prosumer, ProsumerAccountStatus } from '@/features/prosumers/types'
 import { getErrorMessage } from '@/lib/problemDetails'
 
 const actionCopy: Record<
@@ -29,9 +30,19 @@ const actionCopy: Record<
   reactivate: { title: 'Reactivate prosumer', verb: 'reactivated' },
 }
 
+function statusFromQuery(value: string | null): ProsumerAccountStatus | '' {
+  return value === 'Pending' || value === 'Active' || value === 'DeactivationRequested' || value === 'Deactivated'
+    ? value
+    : ''
+}
+
 export function ProsumersListPage() {
+  const [searchParams] = useSearchParams()
   const [editor, setEditor] = useState<{ prosumer?: Prosumer } | null>(null)
-  const [filters, setFilters] = useState(defaultProsumerFilters)
+  const [filters, setFilters] = useState(() => ({
+    ...defaultProsumerFilters,
+    status: statusFromQuery(searchParams.get('status')),
+  }))
   const [pendingAction, setPendingAction] = useState<{ prosumer: Prosumer; action: ProsumerAction } | null>(
     null,
   )
