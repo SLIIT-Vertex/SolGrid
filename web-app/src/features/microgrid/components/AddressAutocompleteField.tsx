@@ -27,6 +27,7 @@ export function AddressAutocompleteField() {
   const mapDivRef = useRef<HTMLDivElement | null>(null)
   const mapRef = useRef<google.maps.Map | null>(null)
   const markerRef = useRef<google.maps.marker.AdvancedMarkerElement | google.maps.Marker | null>(null)
+  const currentLocationMarkerRef = useRef<google.maps.marker.AdvancedMarkerElement | google.maps.Marker | null>(null)
   const geocoderRef = useRef<google.maps.Geocoder | null>(null)
   const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null)
   const [geocodeError, setGeocodeError] = useState<string | null>(null)
@@ -96,10 +97,9 @@ export function AddressAutocompleteField() {
 
     const parsedLat = Number(currentLatitude)
     const parsedLng = Number(currentLongitude)
-    const initialCenter =
+    const hasExistingLocation =
       Number.isFinite(parsedLat) && Number.isFinite(parsedLng) && (parsedLat !== 0 || parsedLng !== 0)
-        ? { lat: parsedLat, lng: parsedLng }
-        : DEFAULT_CENTER
+    const initialCenter = hasExistingLocation ? { lat: parsedLat, lng: parsedLng } : DEFAULT_CENTER
 
     const map = new google.maps.Map(mapDivRef.current, {
       center: initialCenter,
@@ -116,6 +116,60 @@ export function AddressAutocompleteField() {
       ? new AdvancedMarker({ map, position: initialCenter, gmpDraggable: true })
       : new google.maps.Marker({ map, position: initialCenter, draggable: true })
     markerRef.current = marker
+
+    // Show the browser's actual current position as a plain reference dot — never selectable and
+    // never written to the form. Only used to center the map on the user's real location on first
+    // load (when no station location has been picked yet), instead of always defaulting to Colombo.
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const here = { lat: position.coords.latitude, lng: position.coords.longitude }
+
+          if (AdvancedMarker) {
+            const dot = document.createElement('div')
+            dot.style.width = '14px'
+            dot.style.height = '14px'
+            dot.style.borderRadius = '50%'
+            dot.style.background = '#4285F4'
+            dot.style.border = '2px solid white'
+            dot.style.boxShadow = '0 0 0 1px rgba(66,133,244,0.4)'
+            currentLocationMarkerRef.current = new AdvancedMarker({
+              map,
+              position: here,
+              content: dot,
+              gmpDraggable: false,
+              zIndex: 0,
+            })
+          } else {
+            currentLocationMarkerRef.current = new google.maps.Marker({
+              map,
+              position: here,
+              draggable: false,
+              clickable: false,
+              zIndex: 0,
+              icon: {
+                path: google.maps.SymbolPath.CIRCLE,
+                scale: 7,
+                fillColor: '#4285F4',
+                fillOpacity: 1,
+                strokeColor: '#ffffff',
+                strokeWeight: 2,
+              },
+            })
+          }
+
+          // Only recenter on the user's real position if a station location hasn't already been
+          // picked/loaded — otherwise this would yank the map away from an existing node's pin.
+          if (!hasExistingLocation) {
+            map.panTo(here)
+          }
+        },
+        () => {
+          // Geolocation denied/unavailable — silently keep the Colombo default center, no error UI
+          // needed since this is just a convenience reference point, not a required input.
+        },
+      )
+    }
 
     map.addListener('click', (event: google.maps.MapMouseEvent) => {
       if (event.latLng) reverseGeocode(event.latLng)

@@ -1,15 +1,17 @@
 import { useState } from 'react'
-import { useForm } from 'react-hook-form'
+import { useForm, useWatch } from 'react-hook-form'
 import { Button } from '@/components/common/Button'
 import { Dialog } from '@/components/common/Dialog'
 import { TextField } from '@/components/common/TextField'
 import { digitsOnly, unsignedDecimal } from '@/lib/inputConstraints'
 import { useToast } from '@/components/common/useToast'
 import { FormError } from '@/features/microgrid/components/FormError'
+import { SlotDateCalendar } from '@/features/microgrid/components/SlotDateCalendar'
 import { useCreateMicrogridSlot, useUpdateMicrogridSlot } from '@/features/microgrid/hooks/useMicrogridSlotMutations'
 import type { BatterySlotFormValues, MicrogridBatterySlot, MicrogridNode } from '@/features/microgrid/types'
 import {
   defaultBatterySlotFormValues,
+  getDayOperatingRange,
   toCreateSlotRequest,
   toScheduleWindows,
   toSlotFormValues,
@@ -51,12 +53,28 @@ function BatterySlotDialogForm({
   const {
     register,
     handleSubmit,
+    control,
+    setValue,
     formState: { errors },
   } = useForm<BatterySlotFormValues>({
     defaultValues: slot ? toSlotFormValues(slot) : defaultBatterySlotFormValues,
   })
 
   const isSubmitting = createSlot.isPending || updateSlot.isPending
+  const watchedSlot = useWatch({ control })
+  const schedule = toScheduleWindows(node.schedule)
+  const hasCompleteRange = Boolean(
+    watchedSlot.startDate && watchedSlot.startTime && watchedSlot.endDate && watchedSlot.endTime,
+  )
+  const scheduleError = hasCompleteRange
+    ? validateSlotRow(watchedSlot as BatterySlotFormValues, schedule)
+    : undefined
+  const startDayRange = watchedSlot.startDate
+    ? getDayOperatingRange(schedule, new Date(`${watchedSlot.startDate}T00:00:00`).getDay())
+    : undefined
+  const endDayRange = watchedSlot.endDate
+    ? getDayOperatingRange(schedule, new Date(`${watchedSlot.endDate}T00:00:00`).getDay())
+    : undefined
 
   const submit = handleSubmit(async (values) => {
     const rowError = validateSlotRow(values, toScheduleWindows(node.schedule))
@@ -126,27 +144,50 @@ function BatterySlotDialogForm({
               required: 'Battery storage slot capacity in kWh must be greater than zero.',
             })}
           />
-          <TextField
+          <input type="hidden" {...register('startDate', { required: 'A booking slot must end after it starts.' })} />
+          <input type="hidden" {...register('endDate', { required: 'A booking slot must end after it starts.' })} />
+          <SlotDateCalendar
             label="Start date"
-            type="date"
-            error={errors.startDate?.message}
-            {...register('startDate', { required: 'A booking slot must end after it starts.' })}
+            value={watchedSlot.startDate ?? ''}
+            schedule={schedule}
+            error={errors.startDate?.message ?? scheduleError}
+            onSelect={(date) => setValue('startDate', date, { shouldValidate: true, shouldDirty: true })}
+          />
+          <SlotDateCalendar
+            label="End date"
+            value={watchedSlot.endDate ?? ''}
+            schedule={schedule}
+            minDate={watchedSlot.startDate}
+            error={errors.endDate?.message}
+            onSelect={(date) => setValue('endDate', date, { shouldValidate: true, shouldDirty: true })}
           />
           <TextField
             label="Start time"
             type="time"
-            error={errors.startTime?.message}
+            min={startDayRange?.min}
+            max={startDayRange?.max}
+            hint={
+              startDayRange
+                ? `Station is open ${startDayRange.min}–${startDayRange.max} on this day.`
+                : watchedSlot.startDate
+                  ? 'Station is not open on this day of the week.'
+                  : undefined
+            }
+            error={errors.startTime?.message ?? scheduleError}
             {...register('startTime', { required: 'A booking slot must end after it starts.' })}
-          />
-          <TextField
-            label="End date"
-            type="date"
-            error={errors.endDate?.message}
-            {...register('endDate', { required: 'A booking slot must end after it starts.' })}
           />
           <TextField
             label="End time"
             type="time"
+            min={endDayRange?.min}
+            max={endDayRange?.max}
+            hint={
+              endDayRange
+                ? `Station is open ${endDayRange.min}–${endDayRange.max} on this day.`
+                : watchedSlot.endDate
+                  ? 'Station is not open on this day of the week.'
+                  : undefined
+            }
             error={errors.endTime?.message}
             {...register('endTime', { required: 'A booking slot must end after it starts.' })}
           />
