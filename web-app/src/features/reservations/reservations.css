@@ -1,0 +1,77 @@
+.reservation-workspace {
+  color: var(--color-ink-800);
+  caret-color: var(--color-brand-700);
+  scrollbar-color: var(--color-ink-300) var(--color-ink-50);
+}
+
+.reservation-workspace ::selection {
+  background: var(--color-brand-100);
+  color: var(--color-brand-950);
+}
+
+.reservation-workspace :is(button, a, input, select):focus-visible {
+  outline: 2px solid var(--color-brand-700);
+  outline-offset: 3px;
+}
+
+.reservation-workspace :is(button, a) {
+  transition:
+    background-color 160ms ease-out,
+    border-color 160ms ease-out,
+    color 160ms ease-out;
+}
+
+.reservation-primary:not(:disabled) {
+  background-color: var(--color-brand-700);
+  color: white;
+}
+
+.reservation-primary:not(:disabled):hover {
+  background-color: var(--color-brand-800);
+}
+
+.reservation-detail-dialog {
+  position: fixed;
+  inset: 0 0 0 auto;
+  width: min(600px, 100vw);
+  max-width: 100vw;
+  height: 100dvh;
+  max-height: 100dvh;
+  margin: 0 0 0 auto;
+  padding: 0;
+  border: 0;
+  background: white;
+  box-shadow: -12px 0 40px rgb(19 20 23 / 12%);
+}
+
+.reservation-workspace fieldset {
+  min-width: 0;
+}
+
+.reservation-workspace input[aria-describedby] ~ p {
+  color: var(--color-ink-600);
+}
+
+.reservation-detail-dialog::backdrop {
+  background: rgb(19 20 23 / 35%);
+}
+
+@media (max-width: 639px) {
+  .reservation-stepper button {
+    flex-direction: column;
+    gap: 8px;
+    padding: 14px 4px;
+    text-align: center;
+  }
+
+  .reservation-stepper button > span:last-child {
+    font-size: 11px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reservation-workspace * {
+    animation: none !important;
+    transition: none !important;
+  }
+}

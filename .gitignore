@@ -446,6 +446,9 @@ Icon
 .DocumentRevisions-V100
 .fseventsd
 .Spotlight-V100
+.agents/
+.codex/
+.impeccable/
 .TemporaryItems
 .Trashes
 .VolumeIcon.icns
@@ -496,3 +499,4 @@ mobile-app/secrets.properties
 mobile-app/local.properties
 
 mobile-app/env.properties
+skills-lock.json

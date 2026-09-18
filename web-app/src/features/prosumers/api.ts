@@ -9,7 +9,7 @@ import type {
   ProsumerStatusCounts,
 } from '@/features/prosumers/types'
 
-function toProsumer(dto: ProsumerDto): Prosumer {
+export function toProsumer(dto: ProsumerDto): Prosumer {
   return {
     nic: dto.nic,
     firstName: dto.firstName,

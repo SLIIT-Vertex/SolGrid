@@ -213,7 +213,7 @@ public sealed class ProsumerServiceTests
     [Fact]
     public async Task ReservationProsumerReadService_ReturnsStableIdentifierAndActiveState()
     {
-        // Verify reservation integration receives no prosumer profile or persistence-specific data.
+        // Verify the reservation contract includes a safe linked profile without authentication secrets.
         var prosumer = CreateProsumer("199012345678", "nimal@example.com");
         prosumer.Activate(CurrentTime);
         var service = new ReservationProsumerReadService(new InMemoryProsumerRepository(prosumer));
@@ -223,6 +223,13 @@ public sealed class ProsumerServiceTests
         Assert.NotNull(result);
         Assert.Equal(prosumer.Nic, result.Id);
         Assert.True(result.IsActive);
+        Assert.NotNull(result.Details);
+        Assert.Equal(prosumer.Nic, result.Details.Nic);
+        Assert.Equal(prosumer.Email, result.Details.Email);
+        Assert.Equal(prosumer.FirstName, result.Details.FirstName);
+        Assert.Equal(prosumer.PhoneNumber, result.Details.PhoneNumber);
+        Assert.Equal(prosumer.Status, result.Details.Status);
+        Assert.DoesNotContain("PasswordHash", JsonSerializer.Serialize(result), StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -302,6 +309,16 @@ public sealed class ProsumerServiceTests
         Assert.Equal(ProsumerAccountStatus.Pending, updated.Status);
         Assert.Equal("Updated", updated.FirstName);
         Assert.Equal("updated@example.com", (await repository.GetByNicAsync(created.Nic))!.Email);
+    }
+
+    [Fact]
+    public async Task GridOperator_CannotReadStandaloneProsumerProfiles()
+    {
+        var service = CreateService(currentUserContext: new FakeCurrentUserContext("operator", UserRole.GridOperator));
+
+        await Assert.ThrowsAsync<ForbiddenException>(() => service.GetProsumersAsync(new ProsumerQuery()));
+        await Assert.ThrowsAsync<ForbiddenException>(() => service.GetProsumerByNicAsync("199012345678"));
+        await Assert.ThrowsAsync<ForbiddenException>(() => service.GetMyProsumerAsync());
     }
 
     [Fact]

@@ -1,4 +1,14 @@
-export type ReservationStatus = 'Pending' | 'Approved' | 'Rejected' | 'Cancelled' | 'Completed'
+import type { Prosumer, ProsumerDto } from '@/features/prosumers/types'
+
+export type ReservationAction = 'approve' | 'reject' | 'cancel'
+
+export interface PendingReservationAction {
+  reservation: Reservation
+  action: ReservationAction
+}
+
+export type ReservationStatus =
+  'Pending' | 'Approved' | 'Rejected' | 'Cancelled' | 'Completed'
 
 export const ReservationStatusValue = {
   Pending: 1,
@@ -23,7 +33,9 @@ export function reservationStatusFromValue(value: number): ReservationStatus {
 export type ReservationDashboardTab = 'current' | 'pending' | 'history'
 
 export interface Reservation {
+  prosumerDetails?: Prosumer | null
   id: string
+  referenceCode: string
   prosumerId: string
   stationId: string
   bookingSlotId: string
@@ -47,7 +59,9 @@ export interface Reservation {
 
 /** Raw shape from the API (status as a number). */
 export interface ReservationDto {
+  prosumerDetails?: ProsumerDto | null
   id: string
+  referenceCode: string
   prosumerId: string
   stationId: string
   bookingSlotId: string
@@ -102,7 +116,7 @@ export const defaultReservationFilters: ReservationFilters = {
   scheduledFrom: '',
   scheduledTo: '',
   pageNumber: 1,
-  pageSize: 10,
+  pageSize: 5,
 }
 
 export interface RejectReservationInput {

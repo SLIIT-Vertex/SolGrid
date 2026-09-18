@@ -110,15 +110,19 @@ public sealed class ProsumerApiTests
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
 
-    [Fact]
-    public async Task GetProsumers_WithGridOperatorJwt_ReturnsForbidden()
+    [Theory]
+    [InlineData("/api/v1/prosumers")]
+    [InlineData("/api/v1/prosumers?searchText=Nimal")]
+    [InlineData("/api/v1/prosumers/pending")]
+    [InlineData("/api/v1/prosumers/199012345678")]
+    [InlineData("/api/v1/prosumers/me")]
+    public async Task GridOperator_CannotReadStandaloneProsumerRoutes(string path)
     {
-        // Verify GridOperator claims cannot satisfy the Backoffice prosumer-administration policy.
         await using var factory = CreateFactory();
         var client = factory.CreateClient();
         client.DefaultRequestHeaders.Authorization = new("Bearer", CreateWebUserJwt(UserRole.GridOperator));
 
-        var response = await client.GetAsync("/api/v1/prosumers");
+        var response = await client.GetAsync(path);
 
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
     }

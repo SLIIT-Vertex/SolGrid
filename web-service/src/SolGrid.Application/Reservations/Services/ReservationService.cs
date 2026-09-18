@@ -52,6 +52,7 @@ public sealed class ReservationService : IReservationService
         CancellationToken cancellationToken = default)
     {
         // Validate references, enforce slot availability rules, and persist a pending reservation.
+        EnsureCanWriteBookings();
         ValidateCreateRequest(request);
 
         var requestedProsumerId = ResolveProsumerIdForCreate(request.ProsumerId);
@@ -91,6 +92,7 @@ public sealed class ReservationService : IReservationService
         CancellationToken cancellationToken = default)
     {
         // Validate ownership, notice period, slot availability, and reschedule an active reservation.
+        EnsureCanWriteBookings();
         ValidateId(id, "Reservation id is required.");
         ValidateUpdateRequest(request);
 
@@ -134,6 +136,7 @@ public sealed class ReservationService : IReservationService
     public async Task CancelReservationAsync(string id, CancellationToken cancellationToken = default)
     {
         // Validate ownership, notice period, and cancel an active reservation without deleting it.
+        EnsureCanWriteBookings();
         ValidateId(id, "Reservation id is required.");
 
         var reservation = await GetRequiredReservationAsync(id, cancellationToken).ConfigureAwait(false);
@@ -157,13 +160,12 @@ public sealed class ReservationService : IReservationService
         string id,
         CancellationToken cancellationToken = default)
     {
-        // Return a reservation when the authenticated caller can access it, including the prosumer's
-        // NIC and name so a Grid Operator can confirm identity at handover.
+        // Authorize access to the reservation before resolving its linked safe prosumer profile.
         ValidateId(id, "Reservation id is required.");
         var reservation = await GetRequiredReservationAsync(id, cancellationToken).ConfigureAwait(false);
         EnsureCanAccessReservation(reservation);
         var prosumer = await prosumerReadService.GetByIdAsync(reservation.ProsumerId, cancellationToken).ConfigureAwait(false);
-        return ReservationResponseMapper.ToResponse(reservation, prosumer?.Nic, prosumer?.FullName);
+        return ReservationResponseMapper.ToResponse(reservation, prosumer);
     }
 
     public async Task<PagedResult<ReservationResponse>> GetReservationsAsync(
@@ -263,7 +265,7 @@ public sealed class ReservationService : IReservationService
     {
         // Approve a pending reservation with authenticated reviewer metadata.
         ValidateId(id, "Reservation id is required.");
-        EnsureCanReviewReservations();
+        EnsureBackofficeReservationAction();
 
         var reservation = await GetRequiredReservationAsync(id, cancellationToken).ConfigureAwait(false);
         EnsurePendingForReview(reservation, "Only pending reservations can be approved.");
@@ -290,7 +292,7 @@ public sealed class ReservationService : IReservationService
         // Reject a pending reservation with authenticated reviewer metadata and a validated reason.
         ValidateId(id, "Reservation id is required.");
         ValidateRejectRequest(request);
-        EnsureCanReviewReservations();
+        EnsureBackofficeReservationAction();
 
         var reservation = await GetRequiredReservationAsync(id, cancellationToken).ConfigureAwait(false);
         EnsurePendingForReview(reservation, "Only pending reservations can be rejected.");
@@ -313,6 +315,7 @@ public sealed class ReservationService : IReservationService
         CancellationToken cancellationToken = default)
     {
         // Issue a new short-lived QR token for an approved reservation.
+        EnsureCanWriteBookings();
         ValidateId(id, "Reservation id is required.");
         var reservation = await GetRequiredReservationAsync(id, cancellationToken).ConfigureAwait(false);
         EnsureCanIssueQr(reservation);
@@ -338,7 +341,7 @@ public sealed class ReservationService : IReservationService
     {
         // Verify a QR token against the server-side reservation token hash.
         ValidateVerifyQrRequest(request);
-        EnsureCanVerifyQr();
+        EnsureBackofficeReservationAction();
 
         var reservationId = NormalizeIdentifier(request.ReservationId);
         var reservation = await GetRequiredReservationAsync(reservationId, cancellationToken).ConfigureAwait(false);
@@ -373,7 +376,7 @@ public sealed class ReservationService : IReservationService
         // Complete an approved reservation after revalidating the QR token server-side.
         ValidateId(id, "Reservation id is required.");
         ValidateCompleteRequest(request);
-        EnsureCanCompleteReservation();
+        EnsureBackofficeReservationAction();
 
         var reservation = await GetRequiredReservationAsync(id, cancellationToken).ConfigureAwait(false);
         var nowUtc = timeProvider.GetUtcNow();
@@ -586,6 +589,18 @@ public sealed class ReservationService : IReservationService
         throw new ForbiddenException("Current user is not allowed to access this reservation.");
     }
 
+    private void EnsureCanWriteBookings()
+    {
+        // Preserve Backoffice administration and prosumer self-service without granting operator writes.
+        if (currentUserContext.IsAuthenticated
+            && (currentUserContext.Role is null or UserRole.Backoffice))
+        {
+            return;
+        }
+
+        throw new ForbiddenException("Current user is not allowed to modify this reservation.");
+    }
+
     private void EnsureCanListReservations()
     {
         // Limit general reservation listing to operational web roles.
@@ -595,21 +610,11 @@ public sealed class ReservationService : IReservationService
         }
     }
 
-    private void EnsureCanReviewReservations()
+    private void EnsureBackofficeReservationAction()
     {
-        // Limit reservation approval and rejection to operational web roles.
-        if (!IsOperationalRole())
+        if (!currentUserContext.IsAuthenticated || currentUserContext.Role != UserRole.Backoffice)
         {
-            throw new ForbiddenException("Current user is not allowed to review reservations.");
-        }
-    }
-
-    private void EnsureCanVerifyQr()
-    {
-        // Limit QR verification to operational web roles.
-        if (!IsOperationalRole())
-        {
-            throw new ForbiddenException("Current user is not allowed to verify reservation QR tokens.");
+            throw new ForbiddenException("Backoffice authorization is required for reservation operations.");
         }
     }
 
@@ -622,15 +627,6 @@ public sealed class ReservationService : IReservationService
         }
 
         throw new ForbiddenException("Current user is not allowed to issue reservation QR tokens.");
-    }
-
-    private void EnsureCanCompleteReservation()
-    {
-        // Limit completion to authenticated operational users.
-        if (!IsOperationalRole())
-        {
-            throw new ForbiddenException("Current user is not allowed to complete reservations.");
-        }
     }
 
     private void EnsureReservationCanChange(EnergyReservation reservation, string message)

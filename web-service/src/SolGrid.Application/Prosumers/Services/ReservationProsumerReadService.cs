@@ -7,6 +7,7 @@
  */
 
 using SolGrid.Application.Prosumers.Interfaces;
+using SolGrid.Application.Prosumers.Responses;
 using SolGrid.Application.Reservations.Interfaces;
 
 namespace SolGrid.Application.Prosumers.Services;
@@ -25,7 +26,7 @@ public sealed class ReservationProsumerReadService : IReservationProsumerReadSer
         string prosumerId,
         CancellationToken cancellationToken = default)
     {
-        // Return only the stable NIC reference and booking-eligibility state required by reservations.
+        // Read the linked profile through the reservation contract, using the safe response mapper.
         if (string.IsNullOrWhiteSpace(prosumerId))
         {
             return null;
@@ -42,7 +43,8 @@ public sealed class ReservationProsumerReadService : IReservationProsumerReadSer
                 Id = prosumer.Nic,
                 IsActive = prosumer.IsActive,
                 Nic = prosumer.Nic,
-                FullName = $"{prosumer.FirstName} {prosumer.LastName}".Trim()
+                FullName = $"{prosumer.FirstName} {prosumer.LastName}".Trim(),
+                Details = ProsumerResponseMapper.ToResponse(prosumer)
             };
     }
 }

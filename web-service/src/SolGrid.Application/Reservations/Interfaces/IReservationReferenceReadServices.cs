@@ -6,6 +6,8 @@
  * Contributor: Dilshan Yapa S Y C T
  */
 
+using SolGrid.Application.Prosumers.Responses;
+
 namespace SolGrid.Application.Reservations.Interfaces;
 
 public interface IReservationProsumerReadService
@@ -41,6 +43,8 @@ public sealed class ReservationProsumerSnapshot
     public string Nic { get; init; } = string.Empty;
 
     public string FullName { get; init; } = string.Empty;
+
+    public ProsumerResponse? Details { get; init; }
 }
 
 public sealed class ReservationStationSnapshot
