@@ -96,7 +96,17 @@ export function ProsumerDialog({ prosumer, onClose }: { prosumer?: Prosumer; onC
   }
 
   return (
-    <Dialog open onClose={close} title={prosumer ? 'Edit prosumer' : 'Create prosumer'} size="lg">
+    <Dialog
+      open
+      onClose={close}
+      title={prosumer ? 'Edit prosumer' : 'Create prosumer'}
+      description={
+        isCreate
+          ? 'Prosumers normally register from the Android app. Creating here adds a Pending account that still needs activation.'
+          : undefined
+      }
+      size="lg"
+    >
       <form onSubmit={submit} className="grid gap-4" noValidate>
         <TextField
           {...fieldProps('nic')}
