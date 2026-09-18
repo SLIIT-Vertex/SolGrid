@@ -1,60 +1,60 @@
-import { useState } from 'react'
-import type { KeyboardEvent } from 'react'
-import { useAuth } from '@/auth/useAuth'
-import { Button } from '@/components/common/Button'
-import { ReservationWorkspace } from '@/features/reservations/components/ReservationWorkspace'
-import { EmptyState, ErrorState } from '@/components/common/QueryStates'
-import { Pagination } from '@/components/common/Pagination'
-import { cn } from '@/lib/cn'
-import { ReservationFilters } from '@/features/reservations/components/ReservationFilters'
-import { ReservationSummaryCards } from '@/features/reservations/components/ReservationSummaryCards'
+import { useState } from "react";
+import type { KeyboardEvent } from "react";
+import { useAuth } from "@/auth/useAuth";
+import { Button } from "@/components/common/Button";
+import { ReservationWorkspace } from "@/features/reservations/components/ReservationWorkspace";
+import { EmptyState, ErrorState } from "@/components/common/QueryStates";
+import { Pagination } from "@/components/common/Pagination";
+import { cn } from "@/lib/cn";
+import { ReservationFilters } from "@/features/reservations/components/ReservationFilters";
+import { ReservationSummaryCards } from "@/features/reservations/components/ReservationSummaryCards";
 import {
   ReservationTable,
   ReservationTableSkeleton,
-} from '@/features/reservations/components/ReservationTable'
-import { ReservationDetails } from '../components/ReservationDetails'
-import { ReservationIcon } from '../components/ReservationIcon'
-import { timezoneLabel } from '../presentation'
-import { getReservationPermissions } from '../permissions'
-import '../reservations.css'
-import type { ReservationAction } from '../types'
-import { useDashboardReservations } from '@/features/reservations/hooks/useDashboardReservations'
-import { useReservationDashboardSummary } from '@/features/reservations/hooks/useReservationDashboardSummary'
-import { useReservationActions } from '../hooks/useReservationActions'
-import { ReservationActionDialogs } from '../components/ReservationActionDialogs'
-import { defaultReservationFilters } from '@/features/reservations/types'
+} from "@/features/reservations/components/ReservationTable";
+import { ReservationDetails } from "../components/ReservationDetails";
+import { ReservationIcon } from "../components/ReservationIcon";
+import { timezoneLabel } from "../presentation";
+import { getReservationPermissions } from "../permissions";
+import "../reservations.css";
+import type { ReservationAction } from "../types";
+import { useDashboardReservations } from "@/features/reservations/hooks/useDashboardReservations";
+import { useReservationDashboardSummary } from "@/features/reservations/hooks/useReservationDashboardSummary";
+import { useReservationActions } from "../hooks/useReservationActions";
+import { ReservationActionDialogs } from "../components/ReservationActionDialogs";
+import { defaultReservationFilters } from "@/features/reservations/types";
 import type {
   Reservation,
   ReservationDashboardTab,
-} from '@/features/reservations/types'
+} from "@/features/reservations/types";
 
 const tabs: { key: ReservationDashboardTab; label: string; compact: string }[] =
   [
-    { key: 'pending', label: 'Awaiting review', compact: 'Review' },
-    { key: 'current', label: 'Current reservations', compact: 'Current' },
-    { key: 'history', label: 'Booking history', compact: 'History' },
-  ]
+    { key: "pending", label: "Awaiting review", compact: "Review" },
+    { key: "current", label: "Current reservations", compact: "Current" },
+    { key: "history", label: "Booking history", compact: "History" },
+  ];
 
 export function ReservationsPage() {
-  const { session } = useAuth()
+  const { session } = useAuth();
   const { canManageBookings, canApprove, canReject } =
-    getReservationPermissions(session?.role)
+    getReservationPermissions(session?.role);
   const [editor, setEditor] = useState<{ reservation?: Reservation } | null>(
     null,
-  )
-  const [details, setDetails] = useState<Reservation | null>(null)
-  const [tab, setTab] = useState<ReservationDashboardTab>('pending')
-  const [filters, setFilters] = useState(defaultReservationFilters)
+  );
+  const [details, setDetails] = useState<Reservation | null>(null);
+  const [tab, setTab] = useState<ReservationDashboardTab>("pending");
+  const [filters, setFilters] = useState(defaultReservationFilters);
 
   const {
     data: summary,
     isLoading: isSummaryLoading,
     isError: isSummaryError,
-  } = useReservationDashboardSummary()
+  } = useReservationDashboardSummary();
   const { data, isLoading, isError, refetch } = useDashboardReservations(
     tab,
     filters,
-  )
+  );
   const {
     pendingAction,
     isMutating,
@@ -62,57 +62,57 @@ export function ReservationsPage() {
     dismissAction,
     confirmApprovalOrCancellation,
     confirmRejection,
-  } = useReservationActions()
+  } = useReservationActions();
 
   const handleTabChange = (nextTab: ReservationDashboardTab) => {
-    setTab(nextTab)
-    setFilters((current) => ({ ...current, pageNumber: 1 }))
-  }
+    setTab(nextTab);
+    setFilters((current) => ({ ...current, pageNumber: 1 }));
+  };
 
   const handleTabKeyDown = (event: KeyboardEvent<HTMLButtonElement>) => {
-    const index = tabs.findIndex((item) => item.key === tab)
-    let next: number
+    const index = tabs.findIndex((item) => item.key === tab);
+    let next: number;
     switch (event.key) {
-      case 'ArrowRight':
-        next = (index + 1) % tabs.length
-        break
-      case 'ArrowLeft':
-        next = (index + tabs.length - 1) % tabs.length
-        break
-      case 'Home':
-        next = 0
-        break
-      case 'End':
-        next = tabs.length - 1
-        break
+      case "ArrowRight":
+        next = (index + 1) % tabs.length;
+        break;
+      case "ArrowLeft":
+        next = (index + tabs.length - 1) % tabs.length;
+        break;
+      case "Home":
+        next = 0;
+        break;
+      case "End":
+        next = tabs.length - 1;
+        break;
       default:
-        return
+        return;
     }
-    event.preventDefault()
-    handleTabChange(tabs[next].key)
-    document.getElementById(`reservation-tab-${tabs[next].key}`)?.focus()
-  }
+    event.preventDefault();
+    handleTabChange(tabs[next].key);
+    document.getElementById(`reservation-tab-${tabs[next].key}`)?.focus();
+  };
 
   const handleAction = (
     reservation: Reservation,
     action: ReservationAction,
   ) => {
     if (
-      (action === 'approve' && !canApprove) ||
-      (action === 'reject' && !canReject) ||
-      (action === 'cancel' && !canManageBookings)
+      (action === "approve" && !canApprove) ||
+      (action === "reject" && !canReject) ||
+      (action === "cancel" && !canManageBookings)
     )
-      return
-    setDetails(null)
-    requestAction(reservation, action)
-  }
+      return;
+    setDetails(null);
+    requestAction(reservation, action);
+  };
 
   const hasFilters = Boolean(
     filters.searchText ||
     filters.scheduledFrom ||
     filters.scheduledTo ||
     filters.status,
-  )
+  );
 
   if (editor && canManageBookings)
     return (
@@ -120,7 +120,7 @@ export function ReservationsPage() {
         reservation={editor.reservation}
         onClose={() => setEditor(null)}
       />
-    )
+    );
 
   return (
     <div className="reservation-workspace mx-auto max-w-7xl">
@@ -169,15 +169,15 @@ export function ReservationsPage() {
                 onClick={() => handleTabChange(item.key)}
                 onKeyDown={handleTabKeyDown}
                 className={cn(
-                  'flex shrink-0 items-center gap-2 border-b-2 px-0 py-4 text-sm font-medium transition-colors',
+                  "flex shrink-0 items-center gap-2 border-b-2 px-0 py-4 text-sm font-medium transition-colors",
                   tab === item.key
-                    ? 'border-brand-700 text-brand-800'
-                    : 'border-transparent text-ink-600 hover:text-ink-900',
+                    ? "border-brand-700 text-brand-800"
+                    : "border-transparent text-ink-600 hover:text-ink-900",
                 )}
               >
                 <span className="hidden sm:inline">{item.label}</span>
                 <span className="sm:hidden">{item.compact}</span>
-                {item.key === 'pending' && summary && (
+                {item.key === "pending" && summary && (
                   <span className="rounded bg-amber-50 px-1.5 py-0.5 text-xs tabular-nums text-amber-800">
                     {summary.pendingReservationsCount}
                   </span>
@@ -200,16 +200,16 @@ export function ReservationsPage() {
           <ReservationFilters
             filters={filters}
             onChange={setFilters}
-            showStatusFilter={tab === 'history'}
+            showStatusFilter={tab === "history"}
           />
         </div>
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-ink-100 px-5 py-3 sm:px-6">
           <p className="text-xs text-ink-600">
             {isLoading
-              ? 'Loading your queue…'
+              ? "Loading your queue…"
               : isError
-                ? 'Queue unavailable'
-                : `${data?.totalCount ?? 0} reservations`}{' '}
+                ? "Queue unavailable"
+                : `${data?.totalCount ?? 0} reservations`}{" "}
             · Select a row for full details
           </p>
           <span className="text-xs text-ink-600">Times in {timezoneLabel}</span>
@@ -219,7 +219,7 @@ export function ReservationsPage() {
           role="tabpanel"
           aria-labelledby={`reservation-tab-${tab}`}
         >
-          <div className="h-[38rem] overflow-auto">
+          <div className="h-152 overflow-auto">
             {isLoading ? (
               <ReservationTableSkeleton />
             ) : isError ? (
@@ -231,17 +231,17 @@ export function ReservationsPage() {
               <EmptyState
                 title={
                   hasFilters
-                    ? 'No matching reservations'
-                    : tab === 'pending'
-                      ? 'Your review queue is clear'
-                      : 'No reservations here yet'
+                    ? "No matching reservations"
+                    : tab === "pending"
+                      ? "Your review queue is clear"
+                      : "No reservations here yet"
                 }
                 description={
                   hasFilters
-                    ? 'Try a different search or clear your filters.'
-                    : tab === 'pending'
-                      ? 'New booking requests will appear here when they need approval.'
-                      : 'Reservations will appear here as bookings move through their lifecycle.'
+                    ? "Try a different search or clear your filters."
+                    : tab === "pending"
+                      ? "New booking requests will appear here when they need approval."
+                      : "Reservations will appear here as bookings move through their lifecycle."
                 }
                 icon={<ReservationIcon name="calendar" className="size-5" />}
               />
@@ -268,8 +268,8 @@ export function ReservationsPage() {
           reservation={details}
           onClose={() => setDetails(null)}
           onEdit={(reservation) => {
-            setDetails(null)
-            setEditor({ reservation })
+            setDetails(null);
+            setEditor({ reservation });
           }}
           onAction={handleAction}
         />
@@ -283,5 +283,5 @@ export function ReservationsPage() {
         onCancel={dismissAction}
       />
     </div>
-  )
+  );
 }

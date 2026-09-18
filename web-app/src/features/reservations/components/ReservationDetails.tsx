@@ -1,27 +1,27 @@
-import { useEffect, useId, useRef } from 'react'
-import type { ReactNode } from 'react'
-import { createPortal } from 'react-dom'
-import { useQuery } from '@tanstack/react-query'
-import { useAuth } from '@/auth/useAuth'
-import { getReservationPermissions } from '../permissions'
-import { Button } from '@/components/common/Button'
-import { ErrorState } from '@/components/common/QueryStates'
-import { getReservation } from '../api'
-import { reservationsKeys } from '../queryKeys'
-import { canChangeReservation } from '../bookingRules'
-import { dateTimeLabel, timezoneLabel } from '../presentation'
-import { useReservationReferences } from '../hooks/useReservationReferences'
-import type { Reservation, ReservationAction } from '../types'
-import { ReservationStatusBadge } from './ReservationStatusBadge'
-import { ReservationIcon } from './ReservationIcon'
-import { ProsumerIdentity } from './ProsumerIdentity'
-import { ReservationActivity } from './ReservationActivity'
+import { useEffect, useId, useRef } from "react";
+import type { ReactNode } from "react";
+import { createPortal } from "react-dom";
+import { useQuery } from "@tanstack/react-query";
+import { useAuth } from "@/auth/useAuth";
+import { getReservationPermissions } from "../permissions";
+import { Button } from "@/components/common/Button";
+import { ErrorState } from "@/components/common/QueryStates";
+import { getReservation } from "../api";
+import { reservationsKeys } from "../queryKeys";
+import { canChangeReservation } from "../bookingRules";
+import { dateTimeLabel, timezoneLabel } from "../presentation";
+import { useReservationReferences } from "../hooks/useReservationReferences";
+import type { Reservation, ReservationAction } from "../types";
+import { ReservationStatusBadge } from "./ReservationStatusBadge";
+import { ReservationIcon } from "./ReservationIcon";
+import { ProsumerIdentity } from "./ProsumerIdentity";
+import { ReservationActivity } from "./ReservationActivity";
 
 interface ReservationDetailsProps {
-  reservation: Reservation
-  onClose: () => void
-  onEdit: (reservation: Reservation) => void
-  onAction: (reservation: Reservation, action: ReservationAction) => void
+  reservation: Reservation;
+  onClose: () => void;
+  onEdit: (reservation: Reservation) => void;
+  onAction: (reservation: Reservation, action: ReservationAction) => void;
 }
 
 export function ReservationDetails({
@@ -30,27 +30,27 @@ export function ReservationDetails({
   onEdit,
   onAction,
 }: ReservationDetailsProps) {
-  const dialogRef = useRef<HTMLDialogElement>(null)
-  const titleId = useId()
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  const titleId = useId();
   useEffect(() => {
-    const dialog = dialogRef.current
+    const dialog = dialogRef.current;
     const previous =
       document.activeElement instanceof HTMLElement
         ? document.activeElement
-        : null
-    const overflow = document.body.style.overflow
-    dialog?.showModal()
-    document.body.style.overflow = 'hidden'
+        : null;
+    const overflow = document.body.style.overflow;
+    dialog?.showModal();
+    document.body.style.overflow = "hidden";
     return () => {
-      dialog?.close()
-      document.body.style.overflow = overflow
-      previous?.focus()
-    }
-  }, [])
+      dialog?.close();
+      document.body.style.overflow = overflow;
+      previous?.focus();
+    };
+  }, []);
   const record = useQuery({
     queryKey: reservationsKeys.detail(reservation.id),
     queryFn: () => getReservation(reservation.id),
-  })
+  });
 
   return createPortal(
     <dialog
@@ -58,19 +58,19 @@ export function ReservationDetails({
       aria-labelledby={titleId}
       className="reservation-detail-dialog reservation-workspace"
       onCancel={(event) => {
-        event.preventDefault()
-        onClose()
+        event.preventDefault();
+        onClose();
       }}
       onClick={(event) => {
         if (event.target === event.currentTarget) {
-          const box = event.currentTarget.getBoundingClientRect()
+          const box = event.currentTarget.getBoundingClientRect();
           if (
             event.clientX < box.left ||
             event.clientX > box.right ||
             event.clientY < box.top ||
             event.clientY > box.bottom
           )
-            onClose()
+            onClose();
         }
       }}
     >
@@ -118,22 +118,22 @@ export function ReservationDetails({
       </div>
     </dialog>,
     document.body,
-  )
+  );
 }
 
 function ReservationRecord({
   reservation,
   onEdit,
   onAction,
-}: Omit<ReservationDetailsProps, 'onClose'>) {
+}: Omit<ReservationDetailsProps, "onClose">) {
   const { prosumer, person, station, slot, canReadProsumer } =
-    useReservationReferences(reservation)
-  const { session } = useAuth()
+    useReservationReferences(reservation);
+  const { session } = useAuth();
   const { canManageBookings, canApprove, canReject } =
-    getReservationPermissions(session?.role)
-  const editable = canManageBookings && canChangeReservation(reservation)
+    getReservationPermissions(session?.role);
+  const editable = canManageBookings && canChangeReservation(reservation);
   const active =
-    reservation.status === 'Pending' || reservation.status === 'Approved'
+    reservation.status === "Pending" || reservation.status === "Approved";
 
   return (
     <>
@@ -162,7 +162,7 @@ function ReservationRecord({
                       {person.phoneNumber}
                     </a>
                   ) : (
-                    'Not provided'
+                    "Not provided"
                   )}
                 </DetailField>
                 <DetailField label="Email" wide>
@@ -220,10 +220,10 @@ function ReservationRecord({
               {station.data?.name ?? reservation.stationId}
             </DetailField>
             <DetailField label="Station code">
-              {station.data?.code ?? '—'}
+              {station.data?.code ?? "—"}
             </DetailField>
             <DetailField label="Address" wide>
-              {station.data?.addressLine ?? '—'}
+              {station.data?.addressLine ?? "—"}
             </DetailField>
             <DetailField label="Battery slot">
               {slot.data
@@ -231,18 +231,18 @@ function ReservationRecord({
                 : reservation.bookingSlotId}
             </DetailField>
             <DetailField label="Battery capacity">
-              {slot.data ? `${slot.data.batteryCapacityKwh} kWh` : '—'}
+              {slot.data ? `${slot.data.batteryCapacityKwh} kWh` : "—"}
             </DetailField>
             <DetailField label="Slot time window" wide>
               {slot.data
                 ? `${dateTimeLabel(slot.data.startTime)} – ${dateTimeLabel(slot.data.endTime)}`
-                : '—'}
+                : "—"}
             </DetailField>
             <DetailField label="Station capacity">
-              {station.data ? `${station.data.capacityKw} kW` : '—'}
+              {station.data ? `${station.data.capacityKw} kW` : "—"}
             </DetailField>
             <DetailField label="Station status">
-              {station.data?.status ?? '—'}
+              {station.data?.status ?? "—"}
             </DetailField>
           </dl>
           {station.data && (
@@ -274,7 +274,7 @@ function ReservationRecord({
             <h3 className="text-sm font-semibold text-ink-900">
               Rejection reason
             </h3>
-            <p className="mt-3 whitespace-pre-wrap break-words text-sm leading-6 text-red-700">
+            <p className="mt-3 whitespace-pre-wrap wrap-break-word text-sm leading-6 text-red-700">
               {reservation.rejectionReason}
             </p>
           </section>
@@ -287,25 +287,25 @@ function ReservationRecord({
           <dl className="grid grid-cols-2 gap-4">
             <DetailField label="Verification status">
               {reservation.qrVerifiedAt
-                ? 'Verified'
+                ? "Verified"
                 : reservation.hasQrVerificationToken
-                  ? 'Token issued'
-                  : 'Not issued'}
+                  ? "Token issued"
+                  : "Not issued"}
             </DetailField>
             <DetailField label="Verified at">
               {reservation.qrVerifiedAt
                 ? dateTimeLabel(reservation.qrVerifiedAt)
-                : 'Not verified'}
+                : "Not verified"}
             </DetailField>
             <DetailField label="Token issued">
               {reservation.qrVerificationTokenIssuedAt
                 ? dateTimeLabel(reservation.qrVerificationTokenIssuedAt)
-                : '—'}
+                : "—"}
             </DetailField>
             <DetailField label="Token expires">
               {reservation.qrVerificationTokenExpiresAt
                 ? dateTimeLabel(reservation.qrVerificationTokenExpiresAt)
-                : '—'}
+                : "—"}
             </DetailField>
           </dl>
         </section>
@@ -338,12 +338,12 @@ function ReservationRecord({
           {active && !canManageBookings && !canApprove && !canReject && (
             <p className="text-sm text-ink-600">View-only access</p>
           )}
-          {reservation.status === 'Pending' && (
+          {reservation.status === "Pending" && (
             <>
               {canApprove && (
                 <Button
                   className="reservation-primary"
-                  onClick={() => onAction(reservation, 'approve')}
+                  onClick={() => onAction(reservation, "approve")}
                   leftIcon={<ReservationIcon name="check" />}
                 >
                   Approve reservation
@@ -352,7 +352,7 @@ function ReservationRecord({
               {canReject && (
                 <Button
                   variant="danger"
-                  onClick={() => onAction(reservation, 'reject')}
+                  onClick={() => onAction(reservation, "reject")}
                 >
                   Reject
                 </Button>
@@ -366,7 +366,7 @@ function ReservationRecord({
               </Button>
               <Button
                 variant="ghost"
-                onClick={() => onAction(reservation, 'cancel')}
+                onClick={() => onAction(reservation, "cancel")}
               >
                 Cancel reservation
               </Button>
@@ -380,7 +380,7 @@ function ReservationRecord({
         </div>
       </footer>
     </>
-  )
+  );
 }
 
 function DetailField({
@@ -388,29 +388,27 @@ function DetailField({
   children,
   wide,
 }: {
-  label: string
-  children: ReactNode
-  wide?: boolean
+  label: string;
+  children: ReactNode;
+  wide?: boolean;
 }) {
   return (
-    <div className={wide ? 'col-span-2 min-w-0' : 'min-w-0'}>
+    <div className={wide ? "col-span-2 min-w-0" : "min-w-0"}>
       <dt className="text-xs text-ink-600">{label}</dt>
-      <dd className="mt-1.5 break-words text-sm text-ink-900 [overflow-wrap:anywhere]">
-        {children}
-      </dd>
+      <dd className="mt-1.5 wrap-anywhere text-sm text-ink-900">{children}</dd>
     </div>
-  )
+  );
 }
 function ReferenceError({
   label,
   onRetry,
 }: {
-  label: string
-  onRetry: () => void
+  label: string;
+  onRetry: () => void;
 }) {
   return (
     <p role="alert" className="mt-3 text-xs text-red-700">
-      {label}{' '}
+      {label}{" "}
       <button
         type="button"
         className="underline underline-offset-4"
@@ -419,5 +417,5 @@ function ReferenceError({
         Try again
       </button>
     </p>
-  )
+  );
 }

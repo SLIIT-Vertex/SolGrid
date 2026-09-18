@@ -1,27 +1,27 @@
-import { useRef } from 'react'
-import { Button } from '@/components/common/Button'
-import type { Reservation } from '../types'
-import { useReservationBooking } from '../hooks/useReservationBooking'
-import { getErrorMessage } from '@/lib/problemDetails'
-import { cn } from '@/lib/cn'
-import { dateTimeLabel, timezoneLabel } from '../presentation'
-import { ProsumerPicker } from './ProsumerPicker'
+import { useRef } from "react";
+import { Button } from "@/components/common/Button";
+import type { Reservation } from "../types";
+import { useReservationBooking } from "../hooks/useReservationBooking";
+import { getErrorMessage } from "@/lib/problemDetails";
+import { cn } from "@/lib/cn";
+import { dateTimeLabel, timezoneLabel } from "../presentation";
+import { ProsumerPicker } from "./ProsumerPicker";
 import {
   GridNodeStep,
   SlotTimeStep,
   ReviewStep,
-} from './ReservationBookingSteps'
-import { ReservationIcon } from './ReservationIcon'
-import { bookingStepOrder, bookingSteps } from '../bookingSteps'
+} from "./ReservationBookingSteps";
+import { ReservationIcon } from "./ReservationIcon";
+import { bookingStepOrder, bookingSteps } from "../bookingSteps";
 
 export function ReservationWorkspace({
   reservation,
   onClose,
 }: {
-  reservation?: Reservation
-  onClose: () => void
+  reservation?: Reservation;
+  onClose: () => void;
 }) {
-  const headingRef = useRef<HTMLHeadingElement>(null)
+  const headingRef = useRef<HTMLHeadingElement>(null);
   const {
     openedAt,
     step,
@@ -46,11 +46,11 @@ export function ReservationWorkspace({
     canContinue,
   } = useReservationBooking(reservation, onClose, () =>
     headingRef.current?.focus(),
-  )
-  const stepIndex = bookingStepOrder.indexOf(step)
-  const currentStep = bookingSteps[step]
-  const firstStep = reservation ? 'grid-node' : 'prosumer'
-  const canGoBack = step !== firstStep
+  );
+  const stepIndex = bookingStepOrder.indexOf(step);
+  const currentStep = bookingSteps[step];
+  const firstStep = reservation ? "grid-node" : "prosumer";
+  const canGoBack = step !== firstStep;
 
   return (
     <div className="reservation-workspace mx-auto max-w-7xl">
@@ -66,7 +66,7 @@ export function ReservationWorkspace({
       <div className="mb-7 flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight text-ink-900">
-            {reservation ? 'Edit reservation' : 'Create a reservation'}
+            {reservation ? "Edit reservation" : "Create a reservation"}
           </h1>
           <p className="mt-2 text-sm leading-6 text-ink-600">
             Connect the right prosumer with the right energy slot.
@@ -84,13 +84,13 @@ export function ReservationWorkspace({
           <li
             key={id}
             className={cn(
-              'border-r border-ink-100 last:border-0',
-              step === id && 'bg-brand-50/70',
+              "border-r border-ink-100 last:border-0",
+              step === id && "bg-brand-50/70",
             )}
           >
             <button
               type="button"
-              aria-current={step === id ? 'step' : undefined}
+              aria-current={step === id ? "step" : undefined}
               disabled={
                 index > stepIndex ||
                 save.isPending ||
@@ -101,10 +101,10 @@ export function ReservationWorkspace({
             >
               <span
                 className={cn(
-                  'flex size-7 shrink-0 items-center justify-center rounded-full text-xs font-semibold',
+                  "flex size-7 shrink-0 items-center justify-center rounded-full text-xs font-semibold",
                   stepIndex >= index
-                    ? 'bg-brand-700 text-white'
-                    : 'bg-ink-100 text-ink-600',
+                    ? "bg-brand-700 text-white"
+                    : "bg-ink-100 text-ink-600",
                 )}
               >
                 {index < stepIndex ? (
@@ -115,8 +115,8 @@ export function ReservationWorkspace({
               </span>
               <span
                 className={cn(
-                  'text-sm font-medium',
-                  step === id ? 'text-brand-900' : 'text-ink-600',
+                  "text-sm font-medium",
+                  step === id ? "text-brand-900" : "text-ink-600",
                 )}
               >
                 {bookingSteps[id].label}
@@ -143,13 +143,13 @@ export function ReservationWorkspace({
                 </p>
               </div>
               <div className="min-h-80 p-6 sm:p-7">
-                {step === 'prosumer' && (
+                {step === "prosumer" && (
                   <ProsumerPicker
                     selected={selectedPerson}
                     onSelect={setPerson}
                   />
                 )}
-                {step === 'grid-node' && (
+                {step === "grid-node" && (
                   <GridNodeStep
                     nodes={stations.data ?? []}
                     selectedStation={selectedStation}
@@ -159,7 +159,7 @@ export function ReservationWorkspace({
                     onSelect={selectStation}
                   />
                 )}
-                {step === 'slot-time' && (
+                {step === "slot-time" && (
                   <SlotTimeStep
                     sortedSlots={sortedSlots}
                     selectedStation={selectedStation}
@@ -171,12 +171,12 @@ export function ReservationWorkspace({
                     loading={slots.isPending}
                     error={slots.isError}
                     onRetry={() => void slots.refetch()}
-                    onChangeStation={() => goTo('grid-node')}
+                    onChangeStation={() => goTo("grid-node")}
                     onSelectSlot={selectSlot}
                     onTimeChange={changeScheduledAt}
                   />
                 )}
-                {step === 'review' && (
+                {step === "review" && (
                   <ReviewStep
                     selectedPerson={selectedPerson}
                     prosumerId={reservation?.prosumerId}
@@ -210,7 +210,7 @@ export function ReservationWorkspace({
                       : onClose()
                   }
                 >
-                  {canGoBack ? 'Previous step' : 'Cancel'}
+                  {canGoBack ? "Previous step" : "Cancel"}
                 </Button>
                 <Button
                   type="submit"
@@ -218,22 +218,22 @@ export function ReservationWorkspace({
                   disabled={
                     save.isPending ||
                     !canContinue ||
-                    (!stationActive && step !== 'prosumer')
+                    (!stationActive && step !== "prosumer")
                   }
                   isLoading={save.isPending}
                   leftIcon={
-                    step !== 'review' ? (
+                    step !== "review" ? (
                       <ReservationIcon name="arrow" />
                     ) : (
                       <ReservationIcon name="check" />
                     )
                   }
                 >
-                  {step !== 'review'
+                  {step !== "review"
                     ? currentStep.nextLabel
                     : reservation
-                      ? 'Save changes'
-                      : 'Create reservation'}
+                      ? "Save changes"
+                      : "Create reservation"}
                 </Button>
               </div>
             </section>
@@ -290,7 +290,7 @@ export function ReservationWorkspace({
         </fieldset>
       </form>
     </div>
-  )
+  );
 }
 
 function SummaryItem({
@@ -298,24 +298,24 @@ function SummaryItem({
   value,
   secondary,
 }: {
-  label: string
-  value?: string
-  secondary?: string
+  label: string;
+  value?: string;
+  secondary?: string;
 }) {
   return (
     <div>
       <dt className="text-xs text-ink-600">{label}</dt>
       <dd
         className={cn(
-          'mt-1 break-words text-sm',
-          value ? 'font-medium text-ink-900' : 'text-ink-600',
+          "mt-1 wrap-break-word text-sm",
+          value ? "font-medium text-ink-900" : "text-ink-600",
         )}
       >
-        {value ?? 'Not selected yet'}
+        {value ?? "Not selected yet"}
       </dd>
       {secondary && (
         <dd className="mt-1 break-all text-xs text-ink-600">{secondary}</dd>
       )}
     </div>
-  )
+  );
 }
