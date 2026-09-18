@@ -1,36 +1,36 @@
-import { useMemo, useState } from 'react'
-import type { ReactNode } from 'react'
-import { Button } from '@/components/common/Button'
-import { TextField } from '@/components/common/TextField'
-import { EmptyState, ErrorState } from '@/components/common/QueryStates'
+import { useMemo, useState } from "react";
+import type { ReactNode } from "react";
+import { Button } from "@/components/common/Button";
+import { TextField } from "@/components/common/TextField";
+import { EmptyState, ErrorState } from "@/components/common/QueryStates";
 import type {
   MicrogridNode,
   MicrogridBatterySlot,
-} from '@/features/microgrid/types'
-import type { Prosumer } from '@/features/prosumers/types'
-import { cn } from '@/lib/cn'
+} from "@/features/microgrid/types";
+import type { Prosumer } from "@/features/prosumers/types";
+import { cn } from "@/lib/cn";
 import {
   dateLabel,
   dateTimeLabel,
   localDateTime,
   timeLabel,
   timezoneLabel,
-} from '../presentation'
-import type { BookingStep } from '../bookingSteps'
-import { MAX_BOOKING_ADVANCE_MS, slotSelectable } from '../bookingRules'
-import { StationPickerMap } from './StationPickerMap'
-import { ReservationIcon } from './ReservationIcon'
-import { ProsumerIdentity } from './ProsumerIdentity'
+} from "../presentation";
+import type { BookingStep } from "../bookingSteps";
+import { MAX_BOOKING_ADVANCE_MS, slotSelectable } from "../bookingRules";
+import { StationPickerMap } from "./StationPickerMap";
+import { ReservationIcon } from "./ReservationIcon";
+import { ProsumerIdentity } from "./ProsumerIdentity";
 
 interface OptionsState {
-  loading: boolean
-  error: boolean
-  onRetry: () => void
+  loading: boolean;
+  error: boolean;
+  onRetry: () => void;
 }
 interface GridNodeStepProps extends OptionsState {
-  nodes: MicrogridNode[]
-  selectedStation?: MicrogridNode
-  onSelect: (id: string) => void
+  nodes: MicrogridNode[];
+  selectedStation?: MicrogridNode;
+  onSelect: (id: string) => void;
 }
 export function GridNodeStep({
   nodes,
@@ -40,7 +40,7 @@ export function GridNodeStep({
   onRetry,
   onSelect,
 }: GridNodeStepProps) {
-  const [stationSearch, setStationSearch] = useState('')
+  const [stationSearch, setStationSearch] = useState("");
   const visibleStations = useMemo(
     () =>
       nodes.filter((node) =>
@@ -49,7 +49,7 @@ export function GridNodeStep({
           .includes(stationSearch.toLowerCase().trim()),
       ),
     [nodes, stationSearch],
-  )
+  );
   return loading ? (
     <SelectionSkeleton />
   ) : error ? (
@@ -70,10 +70,10 @@ export function GridNodeStep({
       <div className="mt-5 grid gap-5 md:grid-cols-2">
         <div>
           <p className="mb-3 text-xs text-ink-600">
-            {visibleStations.length} active{' '}
-            {visibleStations.length === 1 ? 'station' : 'stations'}
+            {visibleStations.length} active{" "}
+            {visibleStations.length === 1 ? "station" : "stations"}
           </p>
-          <div className="max-h-[430px] space-y-3 overflow-y-auto pr-1">
+          <div className="max-h-107.5 space-y-3 overflow-y-auto pr-1">
             {visibleStations.map((node) => (
               <button
                 key={node.id}
@@ -81,10 +81,10 @@ export function GridNodeStep({
                 aria-pressed={node.id === selectedStation?.id}
                 onClick={() => onSelect(node.id)}
                 className={cn(
-                  'w-full rounded-xl border p-4 text-left transition-colors',
+                  "w-full rounded-xl border p-4 text-left transition-colors",
                   node.id === selectedStation?.id
-                    ? 'border-brand-600 bg-brand-50/60'
-                    : 'border-ink-200 hover:border-ink-300 hover:bg-ink-50',
+                    ? "border-brand-600 bg-brand-50/60"
+                    : "border-ink-200 hover:border-ink-300 hover:bg-ink-50",
                 )}
               >
                 <div className="flex items-start justify-between gap-3">
@@ -96,10 +96,10 @@ export function GridNodeStep({
                   </div>
                   <span
                     className={cn(
-                      'flex size-5 shrink-0 items-center justify-center rounded-full border',
+                      "flex size-5 shrink-0 items-center justify-center rounded-full border",
                       node.id === selectedStation?.id
-                        ? 'border-brand-700 bg-brand-700 text-white'
-                        : 'border-ink-300',
+                        ? "border-brand-700 bg-brand-700 text-white"
+                        : "border-ink-300",
                     )}
                   >
                     {node.id === selectedStation?.id && (
@@ -118,8 +118,8 @@ export function GridNodeStep({
                   <span
                     className={
                       node.availableSlotCount
-                        ? 'font-medium text-brand-800'
-                        : 'text-ink-600'
+                        ? "font-medium text-brand-800"
+                        : "text-ink-600"
                     }
                   >
                     {node.availableSlotCount} of {node.totalSlotCount} slots
@@ -144,20 +144,20 @@ export function GridNodeStep({
         />
       </div>
     </>
-  )
+  );
 }
 
 interface SlotTimeStepProps extends OptionsState {
-  sortedSlots: MicrogridBatterySlot[]
-  selectedStation?: MicrogridNode
-  selectedSlot?: MicrogridBatterySlot
-  bookingSlotId: string
-  currentSlotId?: string
-  scheduledAt: string
-  openedAt: number
-  onChangeStation: () => void
-  onSelectSlot: (id: string) => void
-  onTimeChange: (value: string) => void
+  sortedSlots: MicrogridBatterySlot[];
+  selectedStation?: MicrogridNode;
+  selectedSlot?: MicrogridBatterySlot;
+  bookingSlotId: string;
+  currentSlotId?: string;
+  scheduledAt: string;
+  openedAt: number;
+  onChangeStation: () => void;
+  onSelectSlot: (id: string) => void;
+  onTimeChange: (value: string) => void;
 }
 export function SlotTimeStep({
   sortedSlots,
@@ -174,15 +174,15 @@ export function SlotTimeStep({
   onSelectSlot,
   onTimeChange,
 }: SlotTimeStepProps) {
-  const [slotDate, setSlotDate] = useState('')
+  const [slotDate, setSlotDate] = useState("");
   const dates = [
     ...new Set(
       sortedSlots.map((slot) => localDateTime(slot.startTime).slice(0, 10)),
     ),
-  ]
+  ];
   const visibleSlots = sortedSlots.filter(
     (slot) => !slotDate || localDateTime(slot.startTime).startsWith(slotDate),
-  )
+  );
   return (
     <>
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3 border-b border-ink-100 pb-5">
@@ -230,12 +230,12 @@ export function SlotTimeStep({
               type="button"
               aria-pressed={!slotDate}
               className={cn(
-                'shrink-0 rounded-lg border px-3 py-2 text-xs font-medium',
+                "shrink-0 rounded-lg border px-3 py-2 text-xs font-medium",
                 !slotDate
-                  ? 'border-brand-600 bg-brand-50 text-brand-900'
-                  : 'border-ink-200 text-ink-600',
+                  ? "border-brand-600 bg-brand-50 text-brand-900"
+                  : "border-ink-200 text-ink-600",
               )}
-              onClick={() => setSlotDate('')}
+              onClick={() => setSlotDate("")}
             >
               All dates
             </button>
@@ -246,10 +246,10 @@ export function SlotTimeStep({
                 aria-pressed={slotDate === date}
                 onClick={() => setSlotDate(date)}
                 className={cn(
-                  'shrink-0 rounded-lg border px-3 py-2 text-xs font-medium',
+                  "shrink-0 rounded-lg border px-3 py-2 text-xs font-medium",
                   slotDate === date
-                    ? 'border-brand-600 bg-brand-50 text-brand-900'
-                    : 'border-ink-200 text-ink-600',
+                    ? "border-brand-600 bg-brand-50 text-brand-900"
+                    : "border-ink-200 text-ink-600",
                 )}
               >
                 {dateLabel(`${date}T12:00:00`)}
@@ -258,8 +258,8 @@ export function SlotTimeStep({
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
             {visibleSlots.map((slot) => {
-              const available = slotSelectable(slot, currentSlotId)
-              const selected = slot.id === bookingSlotId
+              const available = slotSelectable(slot, currentSlotId);
+              const selected = slot.id === bookingSlotId;
               return (
                 <button
                   type="button"
@@ -267,15 +267,15 @@ export function SlotTimeStep({
                   disabled={!available}
                   aria-pressed={selected}
                   onClick={() => {
-                    onSelectSlot(slot.id)
+                    onSelectSlot(slot.id);
                   }}
                   className={cn(
-                    'rounded-xl border p-4 text-left transition-colors disabled:cursor-not-allowed',
+                    "rounded-xl border p-4 text-left transition-colors disabled:cursor-not-allowed",
                     selected
-                      ? 'border-brand-600 bg-brand-50/60'
+                      ? "border-brand-600 bg-brand-50/60"
                       : available
-                        ? 'border-ink-200 hover:border-ink-300 hover:bg-ink-50'
-                        : 'border-ink-100 bg-ink-50',
+                        ? "border-ink-200 hover:border-ink-300 hover:bg-ink-50"
+                        : "border-ink-100 bg-ink-50",
                   )}
                 >
                   <div className="flex items-center justify-between gap-2">
@@ -288,23 +288,23 @@ export function SlotTimeStep({
                     </span>
                     <span
                       className={cn(
-                        'text-xs font-medium',
-                        available ? 'text-brand-800' : 'text-ink-600',
+                        "text-xs font-medium",
+                        available ? "text-brand-800" : "text-ink-600",
                       )}
                     >
                       {selected
-                        ? 'Selected'
+                        ? "Selected"
                         : available
-                          ? 'Available'
+                          ? "Available"
                           : !slot.isActive
-                            ? 'Out of service'
-                            : slot.status === 'Available'
-                              ? 'Unavailable'
+                            ? "Out of service"
+                            : slot.status === "Available"
+                              ? "Unavailable"
                               : slot.status}
                     </span>
                   </div>
                   <p className="mt-4 text-lg font-semibold tabular-nums text-ink-900">
-                    {slot.batteryCapacityKwh}{' '}
+                    {slot.batteryCapacityKwh}{" "}
                     <span className="text-xs font-normal text-ink-600">
                       kWh capacity
                     </span>
@@ -318,7 +318,7 @@ export function SlotTimeStep({
                     </p>
                   </div>
                 </button>
-              )
+              );
             })}
           </div>
           {selectedSlot && (
@@ -334,7 +334,7 @@ export function SlotTimeStep({
                 )}
                 value={scheduledAt}
                 onChange={(event) => {
-                  onTimeChange(event.target.value)
+                  onTimeChange(event.target.value);
                 }}
                 hint={`Slot window: ${dateTimeLabel(selectedSlot.startTime)} – ${dateTimeLabel(selectedSlot.endTime)}. Times use ${timezoneLabel}.`}
               />
@@ -347,17 +347,17 @@ export function SlotTimeStep({
         </>
       )}
     </>
-  )
+  );
 }
 
 interface ReviewStepProps {
-  selectedPerson: Prosumer | null
-  prosumerId?: string
-  selectedStation?: MicrogridNode
-  selectedSlot?: MicrogridBatterySlot
-  scheduledAt: string
-  isEditing: boolean
-  goTo: (step: BookingStep) => void
+  selectedPerson: Prosumer | null;
+  prosumerId?: string;
+  selectedStation?: MicrogridNode;
+  selectedSlot?: MicrogridBatterySlot;
+  scheduledAt: string;
+  isEditing: boolean;
+  goTo: (step: BookingStep) => void;
 }
 export function ReviewStep({
   selectedPerson,
@@ -372,7 +372,7 @@ export function ReviewStep({
     <div>
       <ReviewSection
         title="Prosumer"
-        onChange={!isEditing ? () => goTo('prosumer') : undefined}
+        onChange={!isEditing ? () => goTo("prosumer") : undefined}
       >
         {selectedPerson ? (
           <ProsumerIdentity prosumer={selectedPerson} />
@@ -380,7 +380,7 @@ export function ReviewStep({
           <p className="text-sm text-ink-800">{prosumerId}</p>
         )}
       </ReviewSection>
-      <ReviewSection title="Grid node" onChange={() => goTo('grid-node')}>
+      <ReviewSection title="Grid node" onChange={() => goTo("grid-node")}>
         <p className="text-sm font-semibold text-ink-900">
           {selectedStation?.name}
         </p>
@@ -394,7 +394,7 @@ export function ReviewStep({
       </ReviewSection>
       <ReviewSection
         title="Battery slot & time"
-        onChange={() => goTo('slot-time')}
+        onChange={() => goTo("slot-time")}
       >
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
@@ -414,7 +414,7 @@ export function ReviewStep({
         </div>
         {selectedSlot && (
           <p className="mt-4 text-xs leading-5 text-ink-600">
-            Slot window: {dateTimeLabel(selectedSlot.startTime)} –{' '}
+            Slot window: {dateTimeLabel(selectedSlot.startTime)} –{" "}
             {dateTimeLabel(selectedSlot.endTime)}
           </p>
         )}
@@ -423,13 +423,13 @@ export function ReviewStep({
         <ReservationIcon name="info" className="mt-1 size-4 shrink-0" />
         <p>
           {isEditing
-            ? 'Your changes will be saved to this reservation.'
-            : 'This reservation will be pending until an operator approves it.'}{' '}
+            ? "Your changes will be saved to this reservation."
+            : "This reservation will be pending until an operator approves it."}{" "}
           Updates and cancellations need at least twelve hours’ notice.
         </p>
       </div>
     </div>
-  )
+  );
 }
 
 function ReviewSection({
@@ -437,9 +437,9 @@ function ReviewSection({
   children,
   onChange,
 }: {
-  title: string
-  children: ReactNode
-  onChange?: () => void
+  title: string;
+  children: ReactNode;
+  onChange?: () => void;
 }) {
   return (
     <section className="border-b border-ink-100 py-5 first:pt-0">
@@ -457,7 +457,7 @@ function ReviewSection({
       </div>
       {children}
     </section>
-  )
+  );
 }
 function SelectionSkeleton() {
   return (
@@ -470,5 +470,5 @@ function SelectionSkeleton() {
         />
       ))}
     </div>
-  )
+  );
 }
