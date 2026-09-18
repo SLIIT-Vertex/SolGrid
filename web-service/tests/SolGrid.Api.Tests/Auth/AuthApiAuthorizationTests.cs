@@ -17,6 +17,8 @@ using SolGrid.Application.Auth.Interfaces;
 using SolGrid.Application.Auth.Services;
 using SolGrid.Application.Common.Models;
 using SolGrid.Application.Prosumers.Interfaces;
+using SolGrid.Application.Prosumers.Responses;
+using SolGrid.Application.Reservations.Responses;
 using SolGrid.Application.Reservations.Interfaces;
 using SolGrid.Application.SolarStations.Interfaces;
 using SolGrid.Application.Users.Interfaces;
@@ -161,6 +163,38 @@ public sealed class AuthApiAuthorizationTests
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
 
+    [Theory]
+    [InlineData("POST", "/api/v1/reservations")]
+    [InlineData("PUT", "/api/v1/reservations/reservation-1")]
+    [InlineData("PATCH", "/api/v1/reservations/reservation-1/cancel")]
+    [InlineData("PATCH", "/api/v1/reservations/reservation-1/approve")]
+    [InlineData("PATCH", "/api/v1/reservations/reservation-1/reject")]
+    [InlineData("POST", "/api/v1/reservations/reservation-1/qr")]
+    [InlineData("POST", "/api/v1/reservations/verify-qr")]
+    [InlineData("POST", "/api/v1/reservations/reservation-1/complete")]
+    public async Task ReservationMutation_WithGridOperatorJwt_ReturnsForbidden(string method, string path)
+    {
+        await using var factory = CreateFactory();
+        var client = factory.CreateClient();
+        var token = await LoginAsync(client, "operator@example.com", "operator-password");
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        using var request = new HttpRequestMessage(new HttpMethod(method), path)
+        {
+            Content = JsonContent.Create(new
+            {
+                ProsumerId = "prosumer-1",
+                StationId = "station-1",
+                BookingSlotId = "slot-1",
+                ScheduledAt = DateTimeOffset.UtcNow.AddHours(13),
+                ReservationId = "reservation-1",
+                VerificationToken = "valid-token",
+                RejectionReason = "Maintenance"
+            })
+        };
+
+        Assert.Equal(HttpStatusCode.Forbidden, (await client.SendAsync(request)).StatusCode);
+    }
+
     [Fact]
     public async Task ReservationDashboard_WithoutJwt_ReturnsUnauthorized()
     {
@@ -260,7 +294,31 @@ public sealed class AuthApiAuthorizationTests
         Assert.Contains("http://localhost:5173", origins);
     }
 
-    private static WebApplicationFactory<Program> CreateFactory()
+    [Fact]
+    public async Task GridOperator_CanReadLinkedProsumerOnlyThroughReservationDetails()
+    {
+        var now = DateTimeOffset.UtcNow;
+        var reservation = EnergyReservation.Create("reservation-1", "199012345678", "station-1", "slot-1", now.AddDays(1), now);
+        await using var factory = CreateFactory(new TestReservationReadRepository(reservation));
+        var client = factory.CreateClient();
+        var token = await LoginAsync(client, "operator@example.com", "operator-password");
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        var response = await client.GetAsync($"/api/v1/reservations/{reservation.Id}");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var details = await response.Content.ReadFromJsonAsync<ReservationResponse>();
+        Assert.NotNull(details?.ProsumerDetails);
+        Assert.Equal(reservation.ProsumerId, details.ProsumerDetails.Nic);
+        Assert.Equal("Nimal", details.ProsumerDetails.FirstName);
+        Assert.Equal("nimal@example.com", details.ProsumerDetails.Email);
+        var body = await response.Content.ReadAsStringAsync();
+        Assert.DoesNotContain("passwordHash", body, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(HttpStatusCode.Forbidden, (await client.GetAsync($"/api/v1/prosumers/{reservation.ProsumerId}")).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync("/api/v1/reservations/unknown")).StatusCode);
+    }
+
+    private static WebApplicationFactory<Program> CreateFactory(IReservationRepository? reservationRepository = null)
     {
         // Create an API test host with deterministic auth configuration and users.
         return new WebApplicationFactory<Program>()
@@ -289,6 +347,11 @@ public sealed class AuthApiAuthorizationTests
                     services.AddScoped<IAuthService, AuthService>();
                     services.RemoveAll<IUserService>();
                     services.AddScoped<IUserService, UserService>();
+                    if (reservationRepository is not null)
+                    {
+                        services.RemoveAll<IReservationRepository>();
+                        services.AddSingleton(reservationRepository);
+                    }
                     services.AddSingleton<IReservationProsumerReadService>(new TestProsumerReadService());
                     services.AddSingleton<IReservationStationReadService>(new TestStationReadService());
                     services.AddSingleton<IReservationBookingSlotReadService>(new TestBookingSlotReadService());
@@ -407,6 +470,21 @@ public sealed class AuthApiAuthorizationTests
         }
     }
 
+    private sealed class TestReservationReadRepository(EnergyReservation reservation) : IReservationRepository
+    {
+        public Task<EnergyReservation?> GetByIdAsync(string id, CancellationToken cancellationToken = default) =>
+            Task.FromResult<EnergyReservation?>(id == reservation.Id ? reservation : null);
+
+        public Task<IReadOnlyList<EnergyReservation>> GetByProsumerIdAsync(string prosumerId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<PagedResult<EnergyReservation>> GetPagedAsync(ReservationQuery query, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<PagedResult<EnergyReservation>> GetDashboardReservationsAsync(ReservationDashboardView view, ReservationQuery query, DateTimeOffset nowUtc, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<ReservationDashboardCounts> GetDashboardCountsAsync(DateTimeOffset nowUtc, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<bool> HasActiveReservationForBookingSlotAsync(string bookingSlotId, string? excludingReservationId = null, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<bool> HasActiveReservationsForStationAsync(string stationId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task AddAsync(EnergyReservation reservation, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task UpdateAsync(EnergyReservation reservation, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+    }
+
     private sealed class TestProsumerReadService : IReservationProsumerReadService
     {
         public Task<ReservationProsumerSnapshot?> GetByIdAsync(
@@ -417,7 +495,16 @@ public sealed class AuthApiAuthorizationTests
             return Task.FromResult<ReservationProsumerSnapshot?>(new ReservationProsumerSnapshot
             {
                 Id = prosumerId,
-                IsActive = true
+                IsActive = true,
+                Nic = prosumerId,
+                FullName = "Nimal Perera",
+                Details = new ProsumerResponse
+                {
+                    Nic = prosumerId, FirstName = "Nimal", LastName = "Perera",
+                    Email = "nimal@example.com", PhoneNumber = "0712345678",
+                    Status = ProsumerAccountStatus.Active,
+                    CreatedAt = DateTimeOffset.UtcNow, UpdatedAt = DateTimeOffset.UtcNow
+                }
             });
         }
     }

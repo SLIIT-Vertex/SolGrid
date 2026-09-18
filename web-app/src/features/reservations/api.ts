@@ -1,4 +1,5 @@
 import { apiClient } from '@/lib/apiClient'
+import { toProsumer } from '@/features/prosumers/api'
 import { reservationStatusFromValue, ReservationStatusValue } from '@/features/reservations/types'
 import type {
   PagedResultDto,
@@ -13,7 +14,9 @@ import type {
 function toReservation(dto: ReservationDto): Reservation {
   return {
     id: dto.id,
+    referenceCode: dto.referenceCode,
     prosumerId: dto.prosumerId,
+    prosumerDetails: dto.prosumerDetails ? toProsumer(dto.prosumerDetails) : null,
     stationId: dto.stationId,
     bookingSlotId: dto.bookingSlotId,
     scheduledAt: dto.scheduledAt,

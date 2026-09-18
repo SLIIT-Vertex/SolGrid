@@ -6,6 +6,7 @@
  * Contributor: Dilshan Yapa S Y C T
  */
 
+using SolGrid.Application.Prosumers.Responses;
 using SolGrid.Domain.Enums;
 
 namespace SolGrid.Application.Reservations.Responses;
@@ -23,6 +24,9 @@ public sealed class ReservationResponse
 
     /// <summary>Prosumer full name — populated on single-reservation reads for operator confirmation.</summary>
     public string? ProsumerName { get; init; }
+
+    /// <summary>Linked profile, available only through an authorized single-reservation read.</summary>
+    public ProsumerResponse? ProsumerDetails { get; init; }
 
     public string StationId { get; init; } = string.Empty;
 

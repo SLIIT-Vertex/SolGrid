@@ -6,6 +6,7 @@ interface ConfirmDialogProps {
   title: string
   description?: string
   confirmLabel?: string
+  confirmClassName?: string
   cancelLabel?: string
   isDestructive?: boolean
   isLoading?: boolean
@@ -18,6 +19,7 @@ export function ConfirmDialog({
   title,
   description,
   confirmLabel = 'Confirm',
+  confirmClassName,
   cancelLabel = 'Cancel',
   isDestructive = false,
   isLoading = false,
@@ -40,6 +42,7 @@ export function ConfirmDialog({
           </Button>
           <Button
             type="button"
+            className={confirmClassName}
             variant={isDestructive ? 'danger' : 'primary'}
             onClick={onConfirm}
             isLoading={isLoading}

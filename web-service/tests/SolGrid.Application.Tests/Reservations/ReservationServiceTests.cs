@@ -10,6 +10,7 @@ using SolGrid.Application.Common.Exceptions;
 using SolGrid.Application.Common.Identity;
 using SolGrid.Application.Common.Models;
 using SolGrid.Application.Reservations.Interfaces;
+using SolGrid.Application.Prosumers.Responses;
 using SolGrid.Application.Reservations.Requests;
 using SolGrid.Application.Reservations.Services;
 using SolGrid.Application.Users.Interfaces;
@@ -22,6 +23,69 @@ namespace SolGrid.Application.Tests.Reservations;
 public sealed class ReservationServiceTests
 {
     private static readonly DateTimeOffset CurrentTime = new(2026, 9, 15, 8, 0, 0, TimeSpan.Zero);
+
+    [Theory]
+    [InlineData("operator-1")]
+    [InlineData("prosumer-1")]
+    public async Task GridOperator_CannotMutateReservations_EvenWithOwnerSubject(string subject)
+    {
+        var reservation = CreateReservation("reservation-1", "prosumer-1", "station-1", "slot-1", CurrentTime.AddHours(13));
+        var service = CreateService(new InMemoryReservationRepository(reservation), currentUserContext: new FakeCurrentUserContext(subject, UserRole.GridOperator));
+
+        await Assert.ThrowsAsync<ForbiddenException>(() => service.CreateReservationAsync(CreateRequest(CurrentTime.AddHours(2))));
+        await Assert.ThrowsAsync<ForbiddenException>(() => service.UpdateReservationAsync(reservation.Id, CreateUpdateRequest(CurrentTime.AddHours(14))));
+        await Assert.ThrowsAsync<ForbiddenException>(() => service.CancelReservationAsync(reservation.Id));
+        await Assert.ThrowsAsync<ForbiddenException>(() => service.ApproveReservationAsync(reservation.Id, new ApproveReservationRequest()));
+        await Assert.ThrowsAsync<ForbiddenException>(() => service.RejectReservationAsync(reservation.Id, new RejectReservationRequest { RejectionReason = "Maintenance" }));
+        await Assert.ThrowsAsync<ForbiddenException>(() => service.IssueReservationQrAsync(reservation.Id));
+        await Assert.ThrowsAsync<ForbiddenException>(() => service.VerifyReservationQrAsync(new VerifyReservationQrRequest { ReservationId = reservation.Id, VerificationToken = "valid-token" }));
+        await Assert.ThrowsAsync<ForbiddenException>(() => service.CompleteReservationAsync(reservation.Id, new CompleteReservationRequest { VerificationToken = "valid-token" }));
+
+        Assert.Equal(ReservationStatus.Pending, reservation.Status);
+        Assert.Equal(CurrentTime.AddHours(13), reservation.ScheduledAt);
+        Assert.Null(reservation.QrVerificationTokenHash);
+    }
+
+    [Fact]
+    public async Task GridOperator_CanReadReservationDetailsAndList()
+    {
+        var reservation = CreateReservation("reservation-1", "prosumer-1", "station-1", "slot-1", CurrentTime.AddHours(13));
+        var profile = new ProsumerResponse
+        {
+            Nic = reservation.ProsumerId, FirstName = "Nimal", LastName = "Perera",
+            Email = "nimal@example.com", PhoneNumber = "0712345678",
+            Status = ProsumerAccountStatus.Active, CreatedAt = CurrentTime, UpdatedAt = CurrentTime
+        };
+        var service = CreateService(new InMemoryReservationRepository(reservation),
+            currentUserContext: new FakeCurrentUserContext("operator-1", UserRole.GridOperator),
+            prosumerReadService: new FakeProsumerReadService(new ReservationProsumerSnapshot
+            {
+                Id = profile.Nic, Nic = profile.Nic, FullName = "Nimal Perera", IsActive = true, Details = profile
+            }));
+
+        var details = await service.GetReservationByIdAsync(reservation.Id);
+        Assert.Equal(reservation.Id, details.Id);
+        Assert.Equal(reservation.ProsumerId, details.ProsumerDetails!.Nic);
+        Assert.Equal(profile.Email, details.ProsumerDetails.Email);
+        Assert.Equal(profile.PhoneNumber, details.ProsumerDetails.PhoneNumber);
+        var listed = Assert.Single((await service.GetReservationsAsync(new ReservationQuery())).Items);
+        Assert.Equal(reservation.Id, listed.Id);
+        Assert.Null(listed.ProsumerDetails);
+    }
+
+    [Fact]
+    public async Task Backoffice_CanCreateEditAndCancelBookings()
+    {
+        var repository = new InMemoryReservationRepository();
+        var service = CreateService(repository, currentUserContext: new FakeCurrentUserContext("backoffice-1", UserRole.Backoffice));
+
+        var created = await service.CreateReservationAsync(CreateRequest(CurrentTime.AddHours(13)));
+        Assert.Equal("prosumer-1", created.ProsumerId);
+        var updated = await service.UpdateReservationAsync(created.Id, CreateUpdateRequest(CurrentTime.AddHours(14)));
+        Assert.Equal(CurrentTime.AddHours(14), updated.ScheduledAt);
+        await service.CancelReservationAsync(created.Id);
+        Assert.Equal(ReservationStatus.Cancelled, (await repository.GetByIdAsync(created.Id))!.Status);
+    }
 
     [Fact]
     public async Task CreateReservationAsync_WithValidRequest_CreatesPendingReservation()
@@ -402,16 +466,16 @@ public sealed class ReservationServiceTests
     [Fact]
     public async Task ApproveReservationAsync_WithPendingReservation_ApprovesReservation()
     {
-        // Verify operational users can approve pending reservations.
+        // Verify Backoffice users can approve pending reservations.
         var reservation = CreateReservation("reservation-1", "prosumer-1", "station-1", "slot-1", CurrentTime.AddHours(13));
         var service = CreateService(
             new InMemoryReservationRepository(reservation),
-            currentUserContext: new FakeCurrentUserContext("operator-1", UserRole.GridOperator));
+            currentUserContext: new FakeCurrentUserContext("backoffice-1", UserRole.Backoffice));
 
         var response = await service.ApproveReservationAsync("reservation-1", new ApproveReservationRequest());
 
         Assert.Equal(ReservationStatus.Approved, response.Status);
-        Assert.Equal("operator-1", response.ApprovedBy);
+        Assert.Equal("backoffice-1", response.ApprovedBy);
         Assert.Equal(CurrentTime, response.ApprovedAt);
     }
 
@@ -453,7 +517,7 @@ public sealed class ReservationServiceTests
         reservation.Cancel(CurrentTime);
         var service = CreateService(
             new InMemoryReservationRepository(reservation),
-            currentUserContext: new FakeCurrentUserContext("operator-1", UserRole.GridOperator));
+            currentUserContext: new FakeCurrentUserContext("backoffice-1", UserRole.Backoffice));
 
         await Assert.ThrowsAsync<ConflictException>(() =>
             service.ApproveReservationAsync("reservation-1", new ApproveReservationRequest()));
@@ -477,9 +541,9 @@ public sealed class ReservationServiceTests
         var repository = new InMemoryReservationRepository(reservation);
         var ownerService = CreateService(repository);
         var qr = await ownerService.IssueReservationQrAsync("reservation-1");
-        var operatorService = CreateService(repository, currentUserContext: new FakeCurrentUserContext("operator-1", UserRole.GridOperator));
+        var backofficeService = CreateService(repository, currentUserContext: new FakeCurrentUserContext("backoffice-1", UserRole.Backoffice));
 
-        var response = await operatorService.VerifyReservationQrAsync(new VerifyReservationQrRequest
+        var response = await backofficeService.VerifyReservationQrAsync(new VerifyReservationQrRequest
         {
             ReservationId = "reservation-1",
             VerificationToken = qr.VerificationToken
@@ -496,9 +560,9 @@ public sealed class ReservationServiceTests
         var reservation = CreateApprovedReservation();
         var repository = new InMemoryReservationRepository(reservation);
         await CreateService(repository).IssueReservationQrAsync("reservation-1");
-        var operatorService = CreateService(repository, currentUserContext: new FakeCurrentUserContext("operator-1", UserRole.GridOperator));
+        var backofficeService = CreateService(repository, currentUserContext: new FakeCurrentUserContext("backoffice-1", UserRole.Backoffice));
 
-        var response = await operatorService.VerifyReservationQrAsync(new VerifyReservationQrRequest
+        var response = await backofficeService.VerifyReservationQrAsync(new VerifyReservationQrRequest
         {
             ReservationId = "reservation-1",
             VerificationToken = "wrong-token"
@@ -514,7 +578,7 @@ public sealed class ReservationServiceTests
         var reservation = CreateRestoredReservationWithQrToken(ReservationStatus.Pending);
         var service = CreateService(
             new InMemoryReservationRepository(reservation),
-            currentUserContext: new FakeCurrentUserContext("operator-1", UserRole.GridOperator));
+            currentUserContext: new FakeCurrentUserContext("backoffice-1", UserRole.Backoffice));
 
         var response = await service.VerifyReservationQrAsync(new VerifyReservationQrRequest
         {
@@ -533,7 +597,7 @@ public sealed class ReservationServiceTests
         var repository = new InMemoryReservationRepository(reservation);
         var qr = await CreateService(repository).IssueReservationQrAsync("reservation-1");
         reservation.Cancel(CurrentTime);
-        var service = CreateService(repository, currentUserContext: new FakeCurrentUserContext("operator-1", UserRole.GridOperator));
+        var service = CreateService(repository, currentUserContext: new FakeCurrentUserContext("backoffice-1", UserRole.Backoffice));
 
         var response = await service.VerifyReservationQrAsync(new VerifyReservationQrRequest
         {
@@ -551,8 +615,8 @@ public sealed class ReservationServiceTests
         var reservation = CreateApprovedReservation();
         var repository = new InMemoryReservationRepository(reservation);
         var qr = await CreateService(repository).IssueReservationQrAsync("reservation-1");
-        reservation.Complete("operator-1", CurrentTime);
-        var service = CreateService(repository, currentUserContext: new FakeCurrentUserContext("operator-1", UserRole.GridOperator));
+        reservation.Complete("backoffice-1", CurrentTime);
+        var service = CreateService(repository, currentUserContext: new FakeCurrentUserContext("backoffice-1", UserRole.Backoffice));
 
         var response = await service.VerifyReservationQrAsync(new VerifyReservationQrRequest
         {
@@ -566,19 +630,19 @@ public sealed class ReservationServiceTests
     [Fact]
     public async Task CompleteReservationAsync_WithValidToken_CompletesReservation()
     {
-        // Verify operational users can complete approved reservations with a valid QR token.
+        // Verify Backoffice users can complete approved reservations with a valid QR token.
         var reservation = CreateApprovedReservation();
         var repository = new InMemoryReservationRepository(reservation);
         var qr = await CreateService(repository).IssueReservationQrAsync("reservation-1");
-        var operatorService = CreateService(repository, currentUserContext: new FakeCurrentUserContext("operator-1", UserRole.GridOperator));
+        var backofficeService = CreateService(repository, currentUserContext: new FakeCurrentUserContext("backoffice-1", UserRole.Backoffice));
 
-        var response = await operatorService.CompleteReservationAsync("reservation-1", new CompleteReservationRequest
+        var response = await backofficeService.CompleteReservationAsync("reservation-1", new CompleteReservationRequest
         {
             VerificationToken = qr.VerificationToken
         });
 
         Assert.Equal(ReservationStatus.Completed, response.Status);
-        Assert.Equal("operator-1", response.CompletedBy);
+        Assert.Equal("backoffice-1", response.CompletedBy);
         Assert.Equal(CurrentTime, response.CompletedAt);
     }
 
@@ -605,15 +669,15 @@ public sealed class ReservationServiceTests
         var reservation = CreateApprovedReservation();
         var repository = new InMemoryReservationRepository(reservation);
         var qr = await CreateService(repository).IssueReservationQrAsync("reservation-1");
-        var operatorService = CreateService(repository, currentUserContext: new FakeCurrentUserContext("operator-1", UserRole.GridOperator));
+        var backofficeService = CreateService(repository, currentUserContext: new FakeCurrentUserContext("backoffice-1", UserRole.Backoffice));
 
-        await operatorService.CompleteReservationAsync("reservation-1", new CompleteReservationRequest
+        await backofficeService.CompleteReservationAsync("reservation-1", new CompleteReservationRequest
         {
             VerificationToken = qr.VerificationToken
         });
 
         await Assert.ThrowsAsync<ConflictException>(() =>
-            operatorService.CompleteReservationAsync("reservation-1", new CompleteReservationRequest
+            backofficeService.CompleteReservationAsync("reservation-1", new CompleteReservationRequest
             {
                 VerificationToken = qr.VerificationToken
             }));
@@ -670,7 +734,10 @@ public sealed class ReservationServiceTests
                 Id = "slot-1",
                 StationId = "station-1",
                 IsActive = true,
-                IsAvailable = true
+                IsAvailable = true,
+                // Include the fixed clock so completion tests can exercise token and state checks.
+                StartTime = CurrentTime,
+                EndTime = CurrentTime.AddDays(7)
             }),
             new FakeReservationQrTokenService(),
             currentUserContext ?? new FakeCurrentUserContext("prosumer-1"),

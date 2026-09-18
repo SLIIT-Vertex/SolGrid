@@ -2,29 +2,42 @@ import { useEffect, useState } from 'react'
 import { Button } from '@/components/common/Button'
 import { SelectField } from '@/components/common/SelectField'
 import { TextField } from '@/components/common/TextField'
-import type { ReservationFilters as ReservationFiltersState, ReservationStatus } from '@/features/reservations/types'
+import type {
+  ReservationFilters as ReservationFiltersState,
+  ReservationStatus,
+} from '@/features/reservations/types'
 
 interface ReservationFiltersProps {
   filters: ReservationFiltersState
-  onChange: (updater: (current: ReservationFiltersState) => ReservationFiltersState) => void
+  onChange: (
+    updater: (current: ReservationFiltersState) => ReservationFiltersState,
+  ) => void
   showStatusFilter?: boolean
 }
 
-export function ReservationFilters({ filters, onChange, showStatusFilter = true }: ReservationFiltersProps) {
+export function ReservationFilters({
+  filters,
+  onChange,
+  showStatusFilter = true,
+}: ReservationFiltersProps) {
   const [searchDraft, setSearchDraft] = useState(filters.searchText)
 
   useEffect(() => {
     const handle = setTimeout(() => {
       onChange((current) =>
-        current.searchText === searchDraft ? current : { ...current, searchText: searchDraft, pageNumber: 1 },
+        current.searchText === searchDraft
+          ? current
+          : { ...current, searchText: searchDraft, pageNumber: 1 },
       )
     }, 350)
     return () => clearTimeout(handle)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchDraft])
+  }, [searchDraft, onChange])
 
   const hasFilters = Boolean(
-    filters.searchText.trim() || filters.status || filters.scheduledFrom || filters.scheduledTo,
+    filters.searchText.trim() ||
+    filters.status ||
+    filters.scheduledFrom ||
+    filters.scheduledTo,
   )
 
   return (
@@ -32,7 +45,9 @@ export function ReservationFilters({ filters, onChange, showStatusFilter = true 
       <div className="min-w-48 flex-1">
         <TextField
           label="Search"
-          placeholder="Search by prosumer or station"
+          id="reservation-filter-search"
+          placeholder="Prosumer NIC or station ID"
+          className="placeholder:text-ink-600"
           value={searchDraft}
           onChange={(event) => setSearchDraft(event.target.value)}
         />
@@ -41,6 +56,7 @@ export function ReservationFilters({ filters, onChange, showStatusFilter = true 
         <div className="w-full md:w-44">
           <SelectField
             label="Status"
+            id="reservation-filter-status"
             value={filters.status}
             onChange={(event) =>
               onChange((current) => ({
@@ -61,21 +77,32 @@ export function ReservationFilters({ filters, onChange, showStatusFilter = true 
       ) : null}
       <div className="w-full md:w-44">
         <TextField
-          label="From"
+          label="Scheduled from"
+          id="reservation-filter-from"
           type="date"
           value={filters.scheduledFrom}
           onChange={(event) =>
-            onChange((current) => ({ ...current, scheduledFrom: event.target.value, pageNumber: 1 }))
+            onChange((current) => ({
+              ...current,
+              scheduledFrom: event.target.value,
+              pageNumber: 1,
+            }))
           }
         />
       </div>
       <div className="w-full md:w-44">
         <TextField
-          label="To"
+          label="Scheduled to"
+          id="reservation-filter-to"
+          min={filters.scheduledFrom || undefined}
           type="date"
           value={filters.scheduledTo}
           onChange={(event) =>
-            onChange((current) => ({ ...current, scheduledTo: event.target.value, pageNumber: 1 }))
+            onChange((current) => ({
+              ...current,
+              scheduledTo: event.target.value,
+              pageNumber: 1,
+            }))
           }
         />
       </div>

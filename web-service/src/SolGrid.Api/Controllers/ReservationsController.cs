@@ -284,7 +284,7 @@ public sealed class ReservationsController : ControllerBase
     }
 
     [HttpPatch("{id}/approve")]
-    [Authorize(Roles = "Backoffice,GridOperator")]
+    [Authorize(Roles = "Backoffice")]
     [ProducesResponseType(typeof(ReservationResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
@@ -302,7 +302,7 @@ public sealed class ReservationsController : ControllerBase
     }
 
     [HttpPatch("{id}/reject")]
-    [Authorize(Roles = "Backoffice,GridOperator")]
+    [Authorize(Roles = "Backoffice")]
     [ProducesResponseType(typeof(ReservationResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
@@ -336,7 +336,7 @@ public sealed class ReservationsController : ControllerBase
     }
 
     [HttpPost("verify-qr")]
-    [Authorize(Roles = "Backoffice,GridOperator")]
+    [Authorize(Roles = "Backoffice")]
     [ProducesResponseType(typeof(VerifyReservationQrResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
@@ -352,7 +352,7 @@ public sealed class ReservationsController : ControllerBase
     }
 
     [HttpPost("{id}/complete")]
-    [Authorize(Roles = "Backoffice,GridOperator")]
+    [Authorize(Roles = "Backoffice")]
     [ProducesResponseType(typeof(ReservationResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]

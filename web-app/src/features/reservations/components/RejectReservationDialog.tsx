@@ -47,6 +47,7 @@ export function RejectReservationDialog({ open, isLoading = false, onConfirm, on
       }
     >
       <TextField
+        name="reservationRejectionReason"
         label="Rejection reason"
         value={reason}
         onChange={(event) => {

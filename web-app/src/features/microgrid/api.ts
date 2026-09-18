@@ -34,6 +34,11 @@ function toBatterySlot(dto: EnergyBookingSlotDto): MicrogridBatterySlot {
   }
 }
 
+export async function getSlot(id: string): Promise<MicrogridBatterySlot> {
+  const { data } = await apiClient.get<EnergyBookingSlotDto>(`/api/v1/slots/${encodeURIComponent(id)}`)
+  return toBatterySlot(data)
+}
+
 function toMicrogridNode(dto: SolarStationDto): MicrogridNode {
   return {
     id: dto.id,
