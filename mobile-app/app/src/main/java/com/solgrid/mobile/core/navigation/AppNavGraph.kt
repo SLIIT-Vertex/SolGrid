@@ -162,7 +162,8 @@ fun AppNavGraph(onThemeModeChange: (AppThemeMode) -> Unit) {
                     NodesMapScreen(
                         viewModel = nodeViewModel,
                         onBack = { navController.popBackStack() },
-                        onNodeClick = { id -> navController.navigate(Routes.nodeDetail(id)) }
+                        onNodeClick = { id -> navController.navigate(Routes.nodeDetail(id)) },
+                        onBookSlot = { id -> navController.navigate(Routes.createReservation(id)) }
                     )
                 }
                 composable(
