@@ -72,7 +72,9 @@ data class BookingSlotDto(
  * Rejected=3, Cancelled=4, Completed=5). */
 @Serializable
 data class ReservationDto(
-    val id: String, val prosumerId: String, val stationId: String, val bookingSlotId: String,
+    val id: String, val referenceCode: String? = null,
+    val prosumerId: String, val prosumerNic: String? = null, val prosumerName: String? = null,
+    val stationId: String, val bookingSlotId: String,
     val scheduledAt: String, val status: Int, val createdAt: String, val updatedAt: String = createdAt,
     val approvedAt: String? = null, val approvedBy: String? = null,
     val rejectedAt: String? = null, val rejectedBy: String? = null, val rejectionReason: String? = null,

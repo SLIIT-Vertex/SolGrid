@@ -12,6 +12,8 @@ import com.solgrid.mobile.core.network.ReservationListOutcome
 import com.solgrid.mobile.core.network.ReservationOutcome
 import com.solgrid.mobile.core.network.ReservationRepository
 import com.solgrid.mobile.core.network.VerifyQrOutcome
+import com.solgrid.mobile.feature.microgrid.NodeRepository
+import com.solgrid.mobile.feature.microgrid.NodeResult
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
@@ -36,7 +38,7 @@ private fun ReservationDto.toEnergyReservation(): EnergyReservation {
     val created = OffsetDateTime.parse(createdAt).atZoneSameInstant(ZoneId.systemDefault())
     return EnergyReservation(
         id = id,
-        prosumerNic = prosumerId,
+        prosumerNic = prosumerNic ?: prosumerId,
         nodeId = stationId,
         nodeName = stationId,
         bookingSlotId = bookingSlotId,
@@ -47,6 +49,8 @@ private fun ReservationDto.toEnergyReservation(): EnergyReservation {
         status = reservationStatusByOrdinal[status] ?: ReservationStatus.PENDING,
         createdAt = created.format(displayDateFormatter),
         rejectionReason = rejectionReason,
+        referenceCode = referenceCode,
+        prosumerName = prosumerName,
     )
 }
 
@@ -59,7 +63,10 @@ data class OperatorUiState(
     val lastVerificationToken: String? = null,
     val verifying: Boolean = false,
     val operationError: String? = null,
-    val finalizing: Boolean = false
+    val finalizing: Boolean = false,
+    val selected: EnergyReservation? = null,
+    val selectedLoading: Boolean = false,
+    val selectedError: String? = null,
 )
 
 /**
@@ -67,9 +74,29 @@ data class OperatorUiState(
  * finalize the energy transfer via POST /api/v1/reservations/verify-qr and .../complete. The scanned
  * payload is "{reservationId}|{verificationToken}", matching what ReservationQrScreen encodes.
  */
-class OperatorViewModel(private val reservationRepository: ReservationRepository = ReservationRepository()) : ViewModel() {
+class OperatorViewModel(
+    private val reservationRepository: ReservationRepository = ReservationRepository(),
+    private val nodeRepository: NodeRepository = NodeRepository(),
+) : ViewModel() {
     private val _uiState = MutableStateFlow(OperatorUiState())
     val uiState: StateFlow<OperatorUiState> = _uiState
+
+    private val stationNameCache = mutableMapOf<String, String>()
+
+    /** The reservation feed only carries station/slot ids; resolve the human-readable station name
+     * and the slot's real end time so the operator sees meaningful details, not raw GUIDs. */
+    private suspend fun enrich(reservation: EnergyReservation): EnergyReservation {
+        val name = stationNameCache[reservation.nodeId] ?: when (val result = nodeRepository.station(reservation.nodeId)) {
+            is NodeResult.Success -> result.value.name.also { stationNameCache[reservation.nodeId] = it }
+            is NodeResult.Failure -> nodeRepository.cachedStation(reservation.nodeId)?.name ?: reservation.nodeName
+        }
+        val endTime = when (val result = nodeRepository.allSlots(reservation.nodeId)) {
+            is NodeResult.Success -> result.value.find { it.id == reservation.bookingSlotId }
+                ?.let { OffsetDateTime.parse(it.endTime).atZoneSameInstant(ZoneId.systemDefault()).format(displayTimeFormatter) }
+            is NodeResult.Failure -> null
+        }
+        return reservation.copy(nodeName = name, endTime = endTime ?: reservation.endTime)
+    }
 
     /** Loads the global pending/approved queue (GET /reservations/current) — the backend has no
      * per-operator station assignment, so every Backoffice/GridOperator caller sees the same queue. */
@@ -78,9 +105,23 @@ class OperatorViewModel(private val reservationRepository: ReservationRepository
             _uiState.update { it.copy(queueLoading = true, queueError = null, profile = it.profile.copy(operatorId = com.solgrid.mobile.core.network.SessionStore.userId.orEmpty(), fullName = com.solgrid.mobile.core.network.SessionStore.userDisplayName.orEmpty())) }
             when (val outcome = reservationRepository.getAllCurrent()) {
                 is ReservationListOutcome.Success -> {
-                    _uiState.update { it.copy(queue = outcome.response.items.map { dto -> dto.toEnergyReservation() }, queueLoading = false) }
+                    val mapped = outcome.response.items.map { dto -> enrich(dto.toEnergyReservation()) }
+                    _uiState.update { it.copy(queue = mapped, queueLoading = false) }
                 }
                 is ReservationListOutcome.Failure -> _uiState.update { it.copy(queue = emptyList(), queueError = outcome.message, queueLoading = false) }
+            }
+        }
+    }
+
+    /** Load one reservation's full details (incl. prosumer NIC + name) for the operator to review
+     * from the booking queue, without needing to scan a QR. */
+    fun loadReservationDetail(reservationId: String) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(selected = null, selectedLoading = true, selectedError = null) }
+            val reservation = fetchReservation(reservationId)
+            _uiState.update {
+                if (reservation == null) it.copy(selectedLoading = false, selectedError = "Could not load this booking. Please try again.")
+                else it.copy(selected = reservation, selectedLoading = false)
             }
         }
     }
@@ -128,7 +169,7 @@ class OperatorViewModel(private val reservationRepository: ReservationRepository
 
     private suspend fun fetchReservation(reservationId: String): EnergyReservation? {
         return when (val outcome = reservationRepository.getById(reservationId)) {
-            is ReservationOutcome.Success -> outcome.response.toEnergyReservation()
+            is ReservationOutcome.Success -> enrich(outcome.response.toEnergyReservation())
             is ReservationOutcome.Failure -> null
         }
     }
@@ -140,7 +181,7 @@ class OperatorViewModel(private val reservationRepository: ReservationRepository
             _uiState.update { it.copy(finalizing = true, operationError = null) }
             when (val outcome = reservationRepository.complete(reservation.id, token)) {
                 is ReservationOutcome.Success -> {
-                    val updated = outcome.response.toEnergyReservation()
+                    val updated = enrich(outcome.response.toEnergyReservation())
                     _uiState.update {
                         it.copy(
                             finalizing = false,

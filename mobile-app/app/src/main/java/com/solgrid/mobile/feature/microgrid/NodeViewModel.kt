@@ -19,6 +19,11 @@ data class NodeState(
     val searchLatitude: Double? = null, val searchLongitude: Double? = null,
     val searchAreaLabel: String? = null, val changingSlot: String? = null,
     val locationUnavailable: Boolean = false,
+    // Separate from `selected`/`slots`/`loading` above (which back the full node-detail screen) —
+    // this backs the lightweight "tap a marker, peek its slots inline" panel on the nearby-nodes
+    // map screen, so peeking a node never disturbs the map's own search results/loading/error state.
+    val peekedNode: SolarStationDto? = null, val peekedSlots: List<BookingSlotDto> = emptyList(),
+    val peekLoading: Boolean = false,
 )
 
 class NodeViewModel(private val repository: NodeRepository = NodeRepository()) : ViewModel() {
@@ -32,6 +37,13 @@ class NodeViewModel(private val repository: NodeRepository = NodeRepository()) :
             is NodeResult.Failure -> _state.update { it.copy(loading = false, error = result.message) }
         }
     }
+    /** Call as soon as a nearby search is requested, before the device's GPS position is even
+     * resolved — otherwise the loading indicator doesn't appear until after that fetch completes,
+     * leaving a gap where the screen looks idle/empty while waiting on location. */
+    fun beginLocationSearch() {
+        _state.update { it.copy(loading = true, error = null, locationUnavailable = false) }
+    }
+
     fun loadNearby(latitude: Double, longitude: Double, areaLabel: String? = null) = viewModelScope.launch {
         _state.update {
             it.copy(
@@ -78,6 +90,36 @@ class NodeViewModel(private val repository: NodeRepository = NodeRepository()) :
             page++
         }
     }
+    /** Loads one node plus its slots into `peekedNode`/`peekedSlots` for the nearby-map screen's
+     * inline "tap a marker to see its slots" panel — kept separate from `loadDetail` so it never
+     * disturbs the map's own `nodes`/`loading`/`error` search state. */
+    fun peekNode(id: String) = viewModelScope.launch {
+        _state.update { it.copy(peekLoading = true, peekedNode = null, peekedSlots = emptyList()) }
+        when (val result = repository.station(id)) {
+            is NodeResult.Success -> _state.update { it.copy(peekedNode = result.value) }
+            is NodeResult.Failure -> { _state.update { it.copy(peekLoading = false) }; return@launch }
+        }
+        val slots = mutableListOf<BookingSlotDto>()
+        var page = 1
+        while (true) {
+            when (val result = repository.slots(id, page)) {
+                is NodeResult.Success -> {
+                    slots.addAll(result.value.items)
+                    if (slots.size >= result.value.totalCount || result.value.items.isEmpty()) {
+                        _state.update { it.copy(peekedSlots = slots, peekLoading = false) }
+                        break
+                    }
+                }
+                is NodeResult.Failure -> { _state.update { it.copy(peekedSlots = emptyList(), peekLoading = false) }; break }
+            }
+            page++
+        }
+    }
+
+    fun clearPeekedNode() {
+        _state.update { it.copy(peekedNode = null, peekedSlots = emptyList(), peekLoading = false) }
+    }
+
     fun loadBookings(id: String) = viewModelScope.launch { when (val result = repository.allBookings(id)) { is NodeResult.Success -> _state.update { it.copy(bookings = result.value, bookingTotalCount = result.value.size.toLong()) }; is NodeResult.Failure -> _state.update { it.copy(error = result.message) } } }
     fun setSlotAvailability(nodeId: String, slotId: String, active: Boolean) = viewModelScope.launch {
         _state.update { it.copy(changingSlot = slotId, error = null) }

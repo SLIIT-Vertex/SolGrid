@@ -14,7 +14,15 @@ public sealed class ReservationResponse
 {
     public string Id { get; init; } = string.Empty;
 
+    public string ReferenceCode { get; init; } = string.Empty;
+
     public string ProsumerId { get; init; } = string.Empty;
+
+    /// <summary>Prosumer NIC — populated on single-reservation reads so operators can confirm identity.</summary>
+    public string? ProsumerNic { get; init; }
+
+    /// <summary>Prosumer full name — populated on single-reservation reads for operator confirmation.</summary>
+    public string? ProsumerName { get; init; }
 
     public string StationId { get; init; } = string.Empty;
 

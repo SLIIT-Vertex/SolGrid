@@ -14,6 +14,7 @@ public sealed class EnergyReservation
 {
     private EnergyReservation(
         string id,
+        string referenceCode,
         string prosumerId,
         string stationId,
         string bookingSlotId,
@@ -37,6 +38,7 @@ public sealed class EnergyReservation
     {
         // Initialize a reservation from validated creation or persistence values.
         Id = RequireValue(id, nameof(id));
+        ReferenceCode = RequireValue(referenceCode, nameof(referenceCode));
         ProsumerId = RequireValue(prosumerId, nameof(prosumerId));
         StationId = RequireValue(stationId, nameof(stationId));
         BookingSlotId = RequireValue(bookingSlotId, nameof(bookingSlotId));
@@ -61,6 +63,10 @@ public sealed class EnergyReservation
     }
 
     public string Id { get; }
+
+    /** Short, human-friendly booking reference (e.g. "SG-3F9A2C10") shown to prosumers and operators
+     * instead of the raw 32-char id. Generated once at creation and stable for the reservation's life. */
+    public string ReferenceCode { get; }
 
     public string ProsumerId { get; }
 
@@ -112,9 +118,10 @@ public sealed class EnergyReservation
         DateTimeOffset scheduledAt,
         DateTimeOffset createdAt)
     {
-        // Create a new pending reservation with required references.
+        // Create a new pending reservation with required references and a fresh booking reference.
         return new EnergyReservation(
             id,
+            GenerateReferenceCode(),
             prosumerId,
             stationId,
             bookingSlotId,
@@ -158,11 +165,14 @@ public sealed class EnergyReservation
         DateTimeOffset? qrVerificationTokenIssuedAt,
         DateTimeOffset? qrVerificationTokenExpiresAt,
         DateTimeOffset? qrVerifiedAt,
-        int version = 0)
+        int version = 0,
+        string? referenceCode = null)
     {
         // Rehydrate a reservation without leaking persistence-specific types into Domain.
+        // Legacy rows persisted before booking references derive a stable code from the id.
         return new EnergyReservation(
             id,
+            string.IsNullOrWhiteSpace(referenceCode) ? DeriveReferenceCode(id) : referenceCode,
             prosumerId,
             stationId,
             bookingSlotId,
@@ -320,6 +330,21 @@ public sealed class EnergyReservation
         }
 
         return value.Trim();
+    }
+
+    private static string GenerateReferenceCode()
+    {
+        // Produce a compact, readable booking reference (e.g. "SG-3F9A2C10") for display to users.
+        return "SG-" + Guid.NewGuid().ToString("N")[..8].ToUpperInvariant();
+    }
+
+    private static string DeriveReferenceCode(string id)
+    {
+        // Fallback used when rehydrating legacy reservations stored before references existed.
+        var cleaned = new string((id ?? string.Empty).Where(char.IsLetterOrDigit).ToArray());
+        return cleaned.Length == 0
+            ? GenerateReferenceCode()
+            : "SG-" + cleaned[^Math.Min(8, cleaned.Length)..].ToUpperInvariant();
     }
 
     private static string? TrimOptional(string? value)

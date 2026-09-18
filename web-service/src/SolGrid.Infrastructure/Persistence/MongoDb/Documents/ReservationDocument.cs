@@ -17,6 +17,9 @@ internal sealed class ReservationDocument
     [BsonId]
     public string Id { get; init; } = string.Empty;
 
+    [BsonIgnoreIfNull]
+    public string? ReferenceCode { get; init; }
+
     public string ProsumerId { get; init; } = string.Empty;
 
     public string StationId { get; init; } = string.Empty;
@@ -65,6 +68,7 @@ internal sealed class ReservationDocument
         return new ReservationDocument
         {
             Id = reservation.Id,
+            ReferenceCode = reservation.ReferenceCode,
             ProsumerId = reservation.ProsumerId,
             StationId = reservation.StationId,
             BookingSlotId = reservation.BookingSlotId,
@@ -113,7 +117,8 @@ internal sealed class ReservationDocument
             ToNullableUtcOffset(QrVerificationTokenIssuedAtUtc),
             ToNullableUtcOffset(QrVerificationTokenExpiresAtUtc),
             ToNullableUtcOffset(QrVerifiedAtUtc),
-            Version);
+            Version,
+            ReferenceCode);
     }
 
     private static DateTime? ToNullableUtcDateTime(DateTimeOffset? value)

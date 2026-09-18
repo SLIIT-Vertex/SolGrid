@@ -12,13 +12,20 @@ namespace SolGrid.Application.Reservations.Responses;
 
 public static class ReservationResponseMapper
 {
-    public static ReservationResponse ToResponse(EnergyReservation reservation)
+    public static ReservationResponse ToResponse(
+        EnergyReservation reservation,
+        string? prosumerNic = null,
+        string? prosumerName = null)
     {
-        // Map a reservation without exposing QR token hash details.
+        // Map a reservation without exposing QR token hash details. Prosumer identity fields are
+        // optional and only populated on single-reservation reads where the operator needs them.
         return new ReservationResponse
         {
             Id = reservation.Id,
+            ReferenceCode = reservation.ReferenceCode,
             ProsumerId = reservation.ProsumerId,
+            ProsumerNic = prosumerNic,
+            ProsumerName = prosumerName,
             StationId = reservation.StationId,
             BookingSlotId = reservation.BookingSlotId,
             ScheduledAt = reservation.ScheduledAt,

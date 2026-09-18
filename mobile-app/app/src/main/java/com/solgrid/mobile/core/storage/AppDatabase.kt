@@ -27,11 +27,31 @@ class AppDatabase private constructor(context: Context) :
             """.trimIndent(),
         )
         createReferenceCache(db)
+        createQrCache(db)
     }
 
     private fun createReferenceCache(db: SQLiteDatabase) {
         db.execSQL("CREATE TABLE IF NOT EXISTS reference_cache (cacheKey TEXT PRIMARY KEY, payload TEXT NOT NULL, savedAt INTEGER NOT NULL)")
     }
+
+    private fun createQrCache(db: SQLiteDatabase) {
+        // Per-reservation transaction QR so re-opening a booking reuses the same code until it expires.
+        db.execSQL("CREATE TABLE IF NOT EXISTS qr_cache (reservationId TEXT PRIMARY KEY, payload TEXT NOT NULL, expiresAt TEXT NOT NULL, savedAt INTEGER NOT NULL)")
+    }
+
+    fun cacheQr(reservationId: String, payload: String, expiresAt: String) {
+        val values = ContentValues().apply {
+            put("reservationId", reservationId); put("payload", payload)
+            put("expiresAt", expiresAt); put("savedAt", System.currentTimeMillis())
+        }
+        writableDatabase.insertWithOnConflict("qr_cache", null, values, SQLiteDatabase.CONFLICT_REPLACE)
+    }
+
+    fun loadQr(reservationId: String): CachedQr? = readableDatabase.query(
+        "qr_cache", arrayOf("payload", "expiresAt"), "reservationId = ?", arrayOf(reservationId), null, null, null,
+    ).use { if (it.moveToFirst()) CachedQr(it.getString(0), it.getString(1)) else null }
+
+    fun clearQrCache() { writableDatabase.delete("qr_cache", null, null) }
 
     fun cacheReference(key: String, payload: String) {
         val values = ContentValues().apply { put("cacheKey", key); put("payload", payload); put("savedAt", System.currentTimeMillis()) }
@@ -46,6 +66,7 @@ class AppDatabase private constructor(context: Context) :
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
         if (oldVersion < 2) createReferenceCache(db)
+        if (oldVersion < 3) createQrCache(db)
     }
 
     fun saveSession(accessToken: String, userId: String, displayName: String, role: String) {
@@ -90,7 +111,7 @@ class AppDatabase private constructor(context: Context) :
 
     companion object {
         private const val DATABASE_NAME = "solgrid_local.db"
-        private const val DATABASE_VERSION = 2
+        private const val DATABASE_VERSION = 3
         private const val TABLE_SESSION = "session"
 
         @Volatile
@@ -108,4 +129,9 @@ data class StoredSession(
     val userId: String,
     val displayName: String,
     val role: String,
+)
+
+data class CachedQr(
+    val payload: String,
+    val expiresAt: String,
 )

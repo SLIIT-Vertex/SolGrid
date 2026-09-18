@@ -2,6 +2,7 @@ package com.solgrid.mobile.core.network
 
 import android.content.Context
 import com.solgrid.mobile.core.storage.AppDatabase
+import com.solgrid.mobile.core.storage.CachedQr
 
 /**
  * Holds the authenticated Grid Operator's session. Backed by AppDatabase (SQLite) so sign-in
@@ -38,6 +39,12 @@ object SessionStore {
         database?.saveSession(accessToken, userId, displayName, role)
     }
 
+    /** Persist the last issued transaction QR for a reservation so re-opening reuses it until expiry. */
+    fun cacheQr(reservationId: String, payload: String, expiresAt: String) =
+        database?.cacheQr(reservationId, payload, expiresAt)
+
+    fun cachedQr(reservationId: String): CachedQr? = database?.loadQr(reservationId)
+
     fun clear() {
         accessToken = null
         userId = null
@@ -45,5 +52,6 @@ object SessionStore {
         role = null
         database?.clearSession()
         database?.clearReferences()
+        database?.clearQrCache()
     }
 }
