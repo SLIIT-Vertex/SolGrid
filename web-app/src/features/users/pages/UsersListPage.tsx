@@ -7,9 +7,13 @@ import { Pagination } from '@/components/common/Pagination'
 import { useToast } from '@/components/common/useToast'
 import { UserCreateDialog } from '@/features/users/components/UserCreateDialog'
 import { UserFilters } from '@/features/users/components/UserFilters'
+import { UserRoleTabs } from '@/features/users/components/UserRoleTabs'
 import { UserTable } from '@/features/users/components/UserTable'
 import { useUsers } from '@/features/users/hooks/useUsers'
+import { useUserRoleCounts } from '@/features/users/hooks/useUserRoleCounts'
 import { useDeactivateUser, useReactivateUser } from '@/features/users/hooks/useSetUserActive'
+import { findUserRoleTab, roleForTabId, tabIdForRole } from '@/features/users/roleTabs'
+import type { UserRoleTabId } from '@/features/users/roleTabs'
 import { defaultUserFilters } from '@/features/users/types'
 import type { User } from '@/features/users/types'
 import { getErrorMessage } from '@/lib/problemDetails'
@@ -22,12 +26,19 @@ export function UsersListPage() {
   )
 
   const { data, isLoading, isError, refetch } = useUsers(filters)
+  const roleCounts = useUserRoleCounts(filters)
   const deactivateUser = useDeactivateUser()
   const reactivateUser = useReactivateUser()
   const { showToast } = useToast()
   const { session } = useAuth()
 
   const isMutating = deactivateUser.isPending || reactivateUser.isPending
+  const activeTabId = tabIdForRole(filters.role)
+  const activeTab = findUserRoleTab(activeTabId)
+
+  const handleTabChange = (tabId: UserRoleTabId) => {
+    setFilters((current) => ({ ...current, role: roleForTabId(tabId), pageNumber: 1 }))
+  }
 
   const handleConfirm = async () => {
     if (!pendingAction) return
@@ -66,35 +77,43 @@ export function UsersListPage() {
       </div>
 
       <div className="rounded-2xl border border-ink-100 bg-white">
-        <div className="border-b border-ink-100 p-4">
-          <UserFilters filters={filters} onChange={setFilters} />
+        <div className="px-4 pt-2">
+          <UserRoleTabs value={activeTabId} counts={roleCounts} onChange={handleTabChange} />
         </div>
 
-        {isLoading ? (
-          <LoadingState label="Loading users…" />
-        ) : isError ? (
-          <ErrorState message="Couldn't load users." onRetry={() => refetch()} />
-        ) : !data || data.items.length === 0 ? (
-          <EmptyState
-            title="No users found"
-            description="Try adjusting your filters, or create a new Backoffice or Grid Operator account."
-          />
-        ) : (
-          <>
-            <UserTable
-              users={data.items}
-              currentUserId={session?.userId}
-              onDeactivate={(user) => setPendingAction({ user, kind: 'deactivate' })}
-              onReactivate={(user) => setPendingAction({ user, kind: 'reactivate' })}
-            />
-            <Pagination
-              pageNumber={data.pageNumber}
-              pageSize={data.pageSize}
-              totalCount={data.totalCount}
-              onPageChange={(page) => setFilters((current) => ({ ...current, pageNumber: page }))}
-            />
-          </>
-        )}
+        <div
+          role="tabpanel"
+          id="user-role-panel"
+          aria-labelledby={`user-role-tab-${activeTabId}`}
+          tabIndex={-1}
+        >
+          <div className="border-b border-ink-100 p-4">
+            <UserFilters filters={filters} onChange={setFilters} />
+          </div>
+
+          {isLoading ? (
+            <LoadingState label="Loading users…" />
+          ) : isError ? (
+            <ErrorState message="Couldn't load users." onRetry={() => refetch()} />
+          ) : !data || data.items.length === 0 ? (
+            <EmptyState title="No users found" description={activeTab.emptyDescription} />
+          ) : (
+            <>
+              <UserTable
+                users={data.items}
+                currentUserId={session?.userId}
+                onDeactivate={(user) => setPendingAction({ user, kind: 'deactivate' })}
+                onReactivate={(user) => setPendingAction({ user, kind: 'reactivate' })}
+              />
+              <Pagination
+                pageNumber={data.pageNumber}
+                pageSize={data.pageSize}
+                totalCount={data.totalCount}
+                onPageChange={(page) => setFilters((current) => ({ ...current, pageNumber: page }))}
+              />
+            </>
+          )}
+        </div>
       </div>
 
       <ConfirmDialog

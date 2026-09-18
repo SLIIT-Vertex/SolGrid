@@ -1,13 +1,20 @@
 package com.solgrid.mobile.core.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bolt
@@ -19,20 +26,26 @@ import androidx.compose.material.icons.outlined.EvStation
 import androidx.compose.material.icons.outlined.EventAvailable
 import androidx.compose.material.icons.outlined.PersonPin
 import androidx.compose.material3.Icon
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.solgrid.mobile.core.design.AppType
 import com.solgrid.mobile.core.design.Radius
+import com.solgrid.mobile.core.design.Sizing
 import com.solgrid.mobile.core.design.SolGridTheme
 import com.solgrid.mobile.core.navigation.ProsumerBottomNav
 
 /**
- * Floating pill-style bottom navigation (dark bar, single highlighted active icon) matching the
- * reference UI's nav treatment, rebuilt with our navy/copper palette instead of a stock
- * Material NavigationBar.
+ * Floating bottom navigation on a white surface with the brand-green active tab. Every tab shows its label
+ * under the icon, because icon-only tabs left users guessing what each one opened.
  */
 @Composable
 fun ProsumerBottomNavigation(
@@ -44,22 +57,25 @@ fun ProsumerBottomNavigation(
         modifier = Modifier
             .fillMaxWidth()
             .background(colors.background)
-            .padding(horizontal = 20.dp, vertical = 12.dp)
+            .padding(horizontal = 16.dp, vertical = 10.dp)
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(64.dp)
-                .clip(RoundedCornerShape(Radius.pill))
-                .background(colors.textPrimary)
-                .padding(horizontal = 8.dp),
-            horizontalArrangement = androidx.compose.foundation.layout.Arrangement.SpaceEvenly,
+                .height(72.dp)
+                .clip(RoundedCornerShape(Radius.xl))
+                .background(colors.surface)
+                .border(Sizing.borderThin, colors.border, RoundedCornerShape(Radius.xl))
+                .padding(horizontal = 6.dp)
+                .selectableGroup(),
+            horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.CenterVertically
         ) {
             ProsumerBottomNav.entries.forEach { dest ->
                 val selected = dest == current
-                NavPillItem(
+                NavTabItem(
                     icon = iconFor(dest, selected),
+                    label = dest.label,
                     selected = selected,
                     onClick = { onSelect(dest) }
                 )
@@ -69,21 +85,42 @@ fun ProsumerBottomNavigation(
 }
 
 @Composable
-private fun NavPillItem(icon: ImageVector, selected: Boolean, onClick: () -> Unit) {
+private fun RowScope.NavTabItem(icon: ImageVector, label: String, selected: Boolean, onClick: () -> Unit) {
     val colors = SolGridTheme.colors
-    Box(
+    val labelColor = if (selected) colors.accent else colors.textSecondary
+    Column(
         modifier = Modifier
-            .size(if (selected) 46.dp else 40.dp)
-            .clip(CircleShape)
-            .background(if (selected) colors.accent else androidx.compose.ui.graphics.Color.Transparent)
-            .clickableNoRipple(onClick),
-        contentAlignment = Alignment.Center
+            .weight(1f)
+            .fillMaxHeight()
+            .clip(RoundedCornerShape(Radius.lg))
+            // The label Text below is the accessible name, so the icon stays decorative.
+            .selectable(selected = selected, onClick = onClick, role = Role.Tab),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
     ) {
-        Icon(
-            icon,
-            contentDescription = null,
-            tint = if (selected) colors.onAccent else colors.textTertiary.copy(alpha = 0.9f),
-            modifier = Modifier.size(20.dp)
+        Box(
+            modifier = Modifier
+                .width(52.dp)
+                .height(30.dp)
+                .clip(RoundedCornerShape(Radius.pill))
+                .background(if (selected) colors.accent else Color.Transparent),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                icon,
+                contentDescription = null,
+                tint = if (selected) colors.onAccent else colors.textSecondary,
+                modifier = Modifier.size(20.dp)
+            )
+        }
+        Text(
+            text = label,
+            style = AppType.caption,
+            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
+            color = labelColor,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(top = 4.dp)
         )
     }
 }

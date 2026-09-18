@@ -13,6 +13,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -57,6 +58,25 @@ import com.solgrid.mobile.feature.operator.OperatorNodeDetailScreen
 
 private val prosumerBottomNavRoutes = ProsumerBottomNav.entries.map { it.route }.toSet()
 
+/**
+ * Switches prosumer tabs. Dashboard is the root every tab sits on, so going home just unwinds to it.
+ * It must not use restoreState: the other tabs are saved *under the Dashboard entry*, so restoring
+ * Dashboard would bring back whichever tab was open (e.g. Profile) instead of the dashboard.
+ */
+private fun NavHostController.navigateToProsumerTab(route: String) {
+    if (route == Routes.PROSUMER_DASHBOARD) {
+        if (!popBackStack(Routes.PROSUMER_DASHBOARD, inclusive = false)) {
+            navigate(Routes.PROSUMER_DASHBOARD) { launchSingleTop = true }
+        }
+        return
+    }
+    navigate(route) {
+        popUpTo(Routes.PROSUMER_DASHBOARD) { saveState = true }
+        launchSingleTop = true
+        restoreState = true
+    }
+}
+
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun AppNavGraph(onThemeModeChange: (AppThemeMode) -> Unit) {
@@ -86,11 +106,7 @@ fun AppNavGraph(onThemeModeChange: (AppThemeMode) -> Unit) {
             if (showBottomBar) {
                 val currentDest = ProsumerBottomNav.entries.find { it.route == currentRoute } ?: ProsumerBottomNav.DASHBOARD
                 ProsumerBottomNavigation(current = currentDest) { dest ->
-                    navController.navigate(dest.route) {
-                        popUpTo(Routes.PROSUMER_DASHBOARD) { saveState = true }
-                        launchSingleTop = true
-                        restoreState = true
-                    }
+                    navController.navigateToProsumerTab(dest.route)
                 }
             }
         }
@@ -154,10 +170,10 @@ fun AppNavGraph(onThemeModeChange: (AppThemeMode) -> Unit) {
                 composable(Routes.PROSUMER_DASHBOARD) {
                     DashboardScreen(
                         viewModel = prosumerViewModel,
-                        onProfileClick = { navController.navigate(Routes.PROSUMER_PROFILE) },
-                        onFindNodesClick = { navController.navigate(Routes.PROSUMER_NODES_MAP) },
+                        onProfileClick = { navController.navigateToProsumerTab(Routes.PROSUMER_PROFILE) },
+                        onFindNodesClick = { navController.navigateToProsumerTab(Routes.PROSUMER_NODES_MAP) },
                         onBookingClick = { id -> navController.navigate(Routes.bookingDetail(id)) },
-                        onViewAllBookings = { navController.navigate(Routes.BOOKINGS) }
+                        onViewAllBookings = { navController.navigateToProsumerTab(Routes.BOOKINGS) }
                     )
                 }
                 composable(Routes.PROSUMER_NODES_MAP) {
