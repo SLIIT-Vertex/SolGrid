@@ -11,6 +11,7 @@ interface UserFiltersProps {
   onChange: (updater: (current: UserFiltersState) => UserFiltersState) => void
 }
 
+/** Search and status only — the role dimension is chosen with the tabs above this row. */
 export function UserFilters({ filters, onChange }: UserFiltersProps) {
   const [searchDraft, setSearchDraft] = useState(filters.searchText)
 
@@ -23,11 +24,11 @@ export function UserFilters({ filters, onChange }: UserFiltersProps) {
     return () => clearTimeout(handle)
   }, [searchDraft, onChange])
 
-  const hasActiveFilters = Boolean(filters.searchText || filters.role || filters.status)
+  const hasActiveFilters = Boolean(filters.searchText || filters.status)
 
   const clearFilters = () => {
     setSearchDraft('')
-    onChange(() => ({ ...defaultUserFilters }))
+    onChange((current) => ({ ...defaultUserFilters, role: current.role }))
   }
 
   return (
@@ -40,23 +41,6 @@ export function UserFilters({ filters, onChange }: UserFiltersProps) {
           value={searchDraft}
           onChange={(event) => setSearchDraft(event.target.value)}
         />
-      </div>
-      <div className="w-full sm:w-44">
-        <SelectField
-          label="Role"
-          value={filters.role}
-          onChange={(event) =>
-            onChange((current) => ({
-              ...current,
-              role: event.target.value as UserFiltersState['role'],
-              pageNumber: 1,
-            }))
-          }
-        >
-          <option value="">All roles</option>
-          <option value="Backoffice">Backoffice</option>
-          <option value="GridOperator">Grid Operator</option>
-        </SelectField>
       </div>
       <div className="w-full sm:w-44">
         <SelectField
@@ -76,12 +60,7 @@ export function UserFilters({ filters, onChange }: UserFiltersProps) {
         </SelectField>
       </div>
       {hasActiveFilters ? (
-        <Button
-          type="button"
-          variant="ghost"
-          onClick={clearFilters}
-          className="sm:self-end"
-        >
+        <Button type="button" variant="ghost" onClick={clearFilters} className="sm:self-end">
           Clear filters
         </Button>
       ) : null}

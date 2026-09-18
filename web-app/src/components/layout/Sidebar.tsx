@@ -1,12 +1,9 @@
 import { NavLink } from 'react-router-dom'
+import { useAuth } from '@/auth/useAuth'
 import { Logo } from '@/components/layout/Logo'
+import { visibleNavItems } from '@/components/layout/navItems'
+import type { NavItemId } from '@/components/layout/navItems'
 import { cn } from '@/lib/cn'
-
-interface NavItem {
-  to: string
-  label: string
-  icon: (props: { className?: string }) => React.JSX.Element
-}
 
 function DashboardIcon({ className }: { className?: string }) {
   return (
@@ -48,15 +45,18 @@ function ReservationsIcon({ className }: { className?: string }) {
   )
 }
 
-const navItems: NavItem[] = [
-  { to: '/', label: 'Dashboard', icon: DashboardIcon },
-  { to: '/reservations', label: 'Reservations', icon: ReservationsIcon },
-  { to: '/microgrid', label: 'Microgrid Nodes', icon: MicrogridIcon },
-  { to: '/users', label: 'Web Users', icon: UsersIcon },
-  { to: '/prosumers', label: 'Prosumers', icon: ProsumersIcon },
-]
+const navIcons: Record<NavItemId, (props: { className?: string }) => React.JSX.Element> = {
+  dashboard: DashboardIcon,
+  reservations: ReservationsIcon,
+  microgrid: MicrogridIcon,
+  users: UsersIcon,
+  prosumers: ProsumersIcon,
+}
 
 export function Sidebar() {
+  const { session } = useAuth()
+  const items = visibleNavItems(session?.role)
+
   return (
     <aside className="hidden w-64 shrink-0 flex-col border-r border-ink-100 bg-white lg:flex">
       <div className="flex h-16 items-center gap-2.5 px-6">
@@ -67,24 +67,27 @@ export function Sidebar() {
         </div>
       </div>
       <nav className="flex flex-1 flex-col gap-1 px-3 py-4">
-        {navItems.map((item) => (
-          <NavLink
-            key={item.to}
-            to={item.to}
-            end={item.to === '/'}
-            className={({ isActive }) =>
-              cn(
-                'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
-                isActive
-                  ? 'bg-brand-50 text-brand-700'
-                  : 'text-ink-600 hover:bg-ink-100 hover:text-ink-900',
-              )
-            }
-          >
-            <item.icon className="size-4.5 shrink-0" />
-            {item.label}
-          </NavLink>
-        ))}
+        {items.map((item) => {
+          const Icon = navIcons[item.id]
+          return (
+            <NavLink
+              key={item.id}
+              to={item.to}
+              end={item.to === '/'}
+              className={({ isActive }) =>
+                cn(
+                  'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
+                  isActive
+                    ? 'bg-brand-50 text-brand-700'
+                    : 'text-ink-600 hover:bg-ink-100 hover:text-ink-900',
+                )
+              }
+            >
+              <Icon className="size-4.5 shrink-0" />
+              {item.label}
+            </NavLink>
+          )
+        })}
       </nav>
     </aside>
   )
