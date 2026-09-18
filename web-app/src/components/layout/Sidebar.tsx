@@ -1,11 +1,15 @@
 import { NavLink } from 'react-router-dom'
 import { Logo } from '@/components/layout/Logo'
+import { useAuth } from '@/auth/useAuth'
+import { roleLabel, type UserRole } from '@/auth/types'
 import { cn } from '@/lib/cn'
 
 interface NavItem {
   to: string
   label: string
   icon: (props: { className?: string }) => React.JSX.Element
+  /** Must mirror the route's allowedRoles. */
+  allowedRoles?: UserRole[]
 }
 
 function DashboardIcon({ className }: { className?: string }) {
@@ -52,22 +56,29 @@ const navItems: NavItem[] = [
   { to: '/', label: 'Dashboard', icon: DashboardIcon },
   { to: '/reservations', label: 'Reservations', icon: ReservationsIcon },
   { to: '/microgrid', label: 'Microgrid Nodes', icon: MicrogridIcon },
-  { to: '/users', label: 'Web Users', icon: UsersIcon },
-  { to: '/prosumers', label: 'Prosumers', icon: ProsumersIcon },
+  { to: '/users', label: 'Web Users', icon: UsersIcon, allowedRoles: ['Backoffice'] },
+  { to: '/prosumers', label: 'Prosumers', icon: ProsumersIcon, allowedRoles: ['Backoffice'] },
 ]
 
 export function Sidebar() {
+  const { session } = useAuth()
+  if (!session) return null
+
+  const visibleNavItems = navItems.filter(
+    (item) => !item.allowedRoles || item.allowedRoles.includes(session.role),
+  )
+
   return (
     <aside className="hidden w-64 shrink-0 flex-col border-r border-ink-100 bg-white lg:flex">
       <div className="flex h-16 items-center gap-2.5 px-6">
         <Logo />
         <div>
           <p className="text-sm font-semibold text-ink-900">SolGrid</p>
-          <p className="text-xs text-ink-400">Backoffice Console</p>
+          <p className="text-xs text-ink-400">{roleLabel(session.role)} Console</p>
         </div>
       </div>
       <nav className="flex flex-1 flex-col gap-1 px-3 py-4">
-        {navItems.map((item) => (
+        {visibleNavItems.map((item) => (
           <NavLink
             key={item.to}
             to={item.to}

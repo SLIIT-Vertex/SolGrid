@@ -20,6 +20,10 @@ export function accountStatusFromValue(value: number): AccountStatus {
   return value === AccountStatusValue.Active ? 'Active' : 'Inactive'
 }
 
+export function roleLabel(role: UserRole): string {
+  return role === 'Backoffice' ? 'Backoffice' : 'Grid Operator'
+}
+
 export interface LoginRequest {
   email: string
   password: string
