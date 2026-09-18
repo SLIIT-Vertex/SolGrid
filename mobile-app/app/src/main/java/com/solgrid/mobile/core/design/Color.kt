@@ -13,6 +13,7 @@ val Navy = Color(0xFF181511) // near-black ink used for primary text + the botto
 val NavyLight = Color(0xFF2A251E) // lifted ink for elevated dark surfaces
 val Copper = Color(0xFF139A68) // brand green accent, matches the web app's brand-600
 val CopperLight = Color(0xFF139A68) // same green used consistently on dark backgrounds too
+val CopperDeep = Color(0xFF0B6E4B) // darker end of the brand-green gradient on hero cards
 
 // Light theme — soft cream background matching the reference UI set
 val LightBackground = Color(0xFFFBF8F2)
