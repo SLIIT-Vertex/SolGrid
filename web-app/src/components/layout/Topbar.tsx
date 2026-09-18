@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '@/auth/useAuth'
+import { roleLabel } from '@/auth/types'
 
 function initials(firstName: string, lastName: string): string {
   return `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase()
@@ -29,7 +30,7 @@ export function Topbar({ title }: { title: string }) {
             <span className="block text-sm font-medium text-ink-900">
               {session.firstName} {session.lastName}
             </span>
-            <span className="block text-xs text-ink-400">{session.role}</span>
+            <span className="block text-xs text-ink-400">{roleLabel(session.role)}</span>
           </span>
         </button>
         {menuOpen ? (

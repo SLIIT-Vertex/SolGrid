@@ -63,7 +63,7 @@ export function Sidebar() {
         <Logo />
         <div>
           <p className="text-sm font-semibold text-ink-900">SolGrid</p>
-          <p className="text-xs text-ink-400">Backoffice Console</p>
+          <p className="text-xs text-ink-400">{roleLabel(session.role)} Console</p>
         </div>
       </div>
       <nav className="flex flex-1 flex-col gap-1 px-3 py-4">

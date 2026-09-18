@@ -3,8 +3,10 @@ import { prosumerStatusFromValue, ProsumerAccountStatusValue } from '@/features/
 import type {
   PagedResultDto,
   Prosumer,
+  ProsumerAccountStatus,
   ProsumerDto,
   ProsumerFilters,
+  ProsumerStatusCounts,
 } from '@/features/prosumers/types'
 
 function toProsumer(dto: ProsumerDto): Prosumer {
@@ -48,6 +50,28 @@ export async function getProsumers(filters: ProsumerFilters): Promise<ProsumerPa
 export async function getProsumer(nic: string): Promise<Prosumer> {
   const { data } = await apiClient.get<ProsumerDto>(`/api/v1/prosumers/${nic}`)
   return toProsumer(data)
+}
+
+const statusCountOrder: ProsumerAccountStatus[] = [
+  'Pending',
+  'Active',
+  'DeactivationRequested',
+  'Deactivated',
+]
+
+export async function getProsumerStatusCounts(): Promise<ProsumerStatusCounts> {
+  const pages = await Promise.all(
+    statusCountOrder.map((status) =>
+      getProsumers({ searchText: '', status, pageNumber: 1, pageSize: 1 }),
+    ),
+  )
+
+  return {
+    Pending: pages[0].totalCount,
+    Active: pages[1].totalCount,
+    DeactivationRequested: pages[2].totalCount,
+    Deactivated: pages[3].totalCount,
+  }
 }
 
 export async function activateProsumer(nic: string): Promise<void> {
