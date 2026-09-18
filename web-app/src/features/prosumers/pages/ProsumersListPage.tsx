@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { Button } from '@/components/common/Button'
 import { ProsumerDialog } from '@/features/prosumers/components/ProsumerDialog'
 import { ConfirmDialog } from '@/components/common/ConfirmDialog'
@@ -6,8 +7,10 @@ import { EmptyState, ErrorState, LoadingState } from '@/components/common/QueryS
 import { Pagination } from '@/components/common/Pagination'
 import { useToast } from '@/components/common/useToast'
 import { ProsumerFilters } from '@/features/prosumers/components/ProsumerFilters'
+import { ProsumerSummaryCards } from '@/features/prosumers/components/ProsumerSummaryCards'
 import { ProsumerTable } from '@/features/prosumers/components/ProsumerTable'
 import type { ProsumerAction } from '@/features/prosumers/components/ProsumerTable'
+import { useProsumerStatusCounts } from '@/features/prosumers/hooks/useProsumerStatusCounts'
 import { useProsumers } from '@/features/prosumers/hooks/useProsumers'
 import {
   useActivateProsumer,
@@ -15,7 +18,7 @@ import {
   useReactivateProsumer,
 } from '@/features/prosumers/hooks/useSetProsumerStatus'
 import { defaultProsumerFilters } from '@/features/prosumers/types'
-import type { Prosumer } from '@/features/prosumers/types'
+import type { Prosumer, ProsumerAccountStatus } from '@/features/prosumers/types'
 import { getErrorMessage } from '@/lib/problemDetails'
 
 const actionCopy: Record<
@@ -27,14 +30,25 @@ const actionCopy: Record<
   reactivate: { title: 'Reactivate prosumer', verb: 'reactivated' },
 }
 
+function statusFromQuery(value: string | null): ProsumerAccountStatus | '' {
+  return value === 'Pending' || value === 'Active' || value === 'DeactivationRequested' || value === 'Deactivated'
+    ? value
+    : ''
+}
+
 export function ProsumersListPage() {
+  const [searchParams] = useSearchParams()
   const [editor, setEditor] = useState<{ prosumer?: Prosumer } | null>(null)
-  const [filters, setFilters] = useState(defaultProsumerFilters)
+  const [filters, setFilters] = useState(() => ({
+    ...defaultProsumerFilters,
+    status: statusFromQuery(searchParams.get('status')),
+  }))
   const [pendingAction, setPendingAction] = useState<{ prosumer: Prosumer; action: ProsumerAction } | null>(
     null,
   )
 
   const { data, isLoading, isError, refetch } = useProsumers(filters)
+  const { data: counts, isLoading: isCountsLoading } = useProsumerStatusCounts()
   const activateProsumer = useActivateProsumer()
   const deactivateProsumer = useDeactivateProsumer()
   const reactivateProsumer = useReactivateProsumer()
@@ -62,16 +76,20 @@ export function ProsumersListPage() {
   }
 
   return (
-    <div className="mx-auto max-w-5xl">
-      <div className="mb-6">
-        <p className="text-sm text-ink-500">
-          Manage registered Solar Prosumer accounts. Prosumers self-register from the mobile app.
-        </p>
+    <div className="mx-auto max-w-6xl">
+      <div className="mb-4 flex justify-end">
+        <Button type="button" onClick={() => setEditor({})}>
+          Create prosumer
+        </Button>
       </div>
-
-      <div className="mb-4 flex justify-end"><Button onClick={() => setEditor({})}>Create prosumer</Button></div>
       {editor && <ProsumerDialog prosumer={editor.prosumer} onClose={() => setEditor(null)} />}
-      <div className="rounded-2xl border border-ink-100 bg-white">
+      <ProsumerSummaryCards
+        counts={counts}
+        isLoading={isCountsLoading}
+        selectedStatus={filters.status}
+        onSelect={(status) => setFilters((current) => ({ ...current, status, pageNumber: 1 }))}
+      />
+      <div className="mt-6 rounded-2xl border border-ink-100 bg-white">
         <div className="border-b border-ink-100 p-4">
           <ProsumerFilters filters={filters} onChange={setFilters} />
         </div>
@@ -83,7 +101,7 @@ export function ProsumersListPage() {
         ) : !data || data.items.length === 0 ? (
           <EmptyState
             title="No prosumers found"
-            description="Try adjusting your filters."
+            description="Try adjusting your filters, or create a profile if needed."
           />
         ) : (
           <>

@@ -9,6 +9,7 @@ function useProsumerStatusMutation(mutationFn: (nic: string) => Promise<void>) {
     mutationFn,
     onSuccess: (_, nic) => {
       queryClient.invalidateQueries({ queryKey: prosumersKeys.lists() })
+      queryClient.invalidateQueries({ queryKey: prosumersKeys.summary() })
       queryClient.invalidateQueries({ queryKey: prosumersKeys.detail(nic) })
     },
   })

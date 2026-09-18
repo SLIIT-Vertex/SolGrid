@@ -2,7 +2,7 @@ import { useForm } from 'react-hook-form'
 import { Button } from '@/components/common/Button'
 import { TextField } from '@/components/common/TextField'
 import { SelectField } from '@/components/common/SelectField'
-import type { UserRole } from '@/auth/types'
+import { roleLabel, type UserRole } from '@/auth/types'
 import {
   normalizeUserFormValues,
   USER_EMAIL_MAX_LENGTH,
@@ -96,7 +96,7 @@ export function UserForm({
         <>
           <TextField
             label="Role"
-            value={defaultValues?.role === 'Backoffice' ? 'Backoffice' : 'Grid Operator'}
+            value={defaultValues?.role ? roleLabel(defaultValues.role) : ''}
             hint="You cannot change your own role."
             readOnly
           />

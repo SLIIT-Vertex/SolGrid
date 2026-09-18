@@ -48,6 +48,13 @@ export interface PagedResultDto<T> {
   pageSize: number
 }
 
+export interface ProsumerStatusCounts {
+  Pending: number
+  Active: number
+  DeactivationRequested: number
+  Deactivated: number
+}
+
 export interface ProsumerFilters {
   searchText: string
   status: ProsumerAccountStatus | ''
@@ -59,12 +66,12 @@ export const defaultProsumerFilters: ProsumerFilters = {
   searchText: '',
   status: '',
   pageNumber: 1,
-  pageSize: 10,
+  pageSize: 5,
 }
 
 export const defaultPendingProsumerFilters: ProsumerFilters = {
   searchText: '',
   status: 'Pending',
   pageNumber: 1,
-  pageSize: 10,
+  pageSize: 5,
 }
