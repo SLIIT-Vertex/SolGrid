@@ -170,13 +170,13 @@ private fun SelectedNodePanel(
                     modifier = Modifier
                         .fillMaxWidth()
                         .then(if (isBookable) Modifier.clickableNoRipple(onBookSlot) else Modifier)
-                        .padding(vertical = Spacing.md),
+                        .padding(vertical = Spacing.lg),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween,
                 ) {
-                    Column {
+                    Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
                         Text("Slot ${slot.slotNumber} · ${slot.batteryCapacityKwh} kWh", style = AppType.bodyStrong, color = colors.textPrimary)
-                        Text(formatSlotTimeRange(slot.startTime, slot.endTime), style = AppType.supporting, color = colors.textSecondary)
+                        Text(formatSlotTimeRange(slot.startTime, slot.endTime), style = AppType.body, color = colors.textSecondary)
                     }
                     com.solgrid.mobile.core.components.StatusBadge(
                         text = slotStatusLabel(slot.status, slot.isAvailable),
@@ -209,15 +209,15 @@ private fun BareIconRow(
         modifier = modifier
             .fillMaxWidth()
             .then(if (onClick != null) Modifier.clickableNoRipple(onClick) else Modifier)
-            .padding(vertical = Spacing.md),
+            .padding(vertical = Spacing.lg),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(Spacing.md),
     ) {
-        Icon(Icons.Outlined.LocationOn, contentDescription = null, tint = colors.accent, modifier = Modifier.size(22.dp))
-        Column(modifier = Modifier.weight(1f)) {
+        Icon(Icons.Outlined.LocationOn, contentDescription = null, tint = colors.accent, modifier = Modifier.size(28.dp))
+        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
             Text(title, style = AppType.bodyStrong, color = colors.textPrimary, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
             if (subtitle != null) {
-                Text(subtitle, style = AppType.supporting, color = colors.textSecondary, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                Text(subtitle, style = AppType.body, color = colors.textSecondary, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
             }
         }
         if (showChevron) {
@@ -470,13 +470,14 @@ fun NodesMapScreen(viewModel: NodeViewModel, onBack: () -> Unit, onNodeClick: (S
                         .clip(RoundedCornerShape(Radius.lg))
                         .background(colors.surface),
                 ) {
-                    suggestions.forEach { prediction ->
+                    suggestions.forEachIndexed { index, prediction ->
                         BareIconRow(
                             title = prediction.getPrimaryText(null).toString(),
                             subtitle = prediction.getSecondaryText(null).toString().ifBlank { null },
                             modifier = Modifier.padding(horizontal = Spacing.md),
                             onClick = { selectPrediction(prediction) },
                         )
+                        if (index != suggestions.lastIndex) com.solgrid.mobile.core.components.AppDivider()
                     }
                 }
             }
@@ -534,7 +535,7 @@ fun NodesMapScreen(viewModel: NodeViewModel, onBack: () -> Unit, onNodeClick: (S
                     }
                     LazyColumn(
                         modifier = Modifier.fillMaxWidth().padding(horizontal = Spacing.lg),
-                        contentPadding = PaddingValues(bottom = Spacing.sm),
+                        contentPadding = PaddingValues(bottom = Spacing.md),
                     ) {
                         items(state.nodes, key = { it.id }) { node ->
                             BareIconRow(
@@ -546,6 +547,7 @@ fun NodesMapScreen(viewModel: NodeViewModel, onBack: () -> Unit, onNodeClick: (S
                                     viewModel.peekNode(node.id)
                                 },
                             )
+                            com.solgrid.mobile.core.components.AppDivider()
                         }
                     }
                 }
