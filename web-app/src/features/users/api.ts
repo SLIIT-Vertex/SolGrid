@@ -1,5 +1,5 @@
 import { apiClient } from '@/lib/apiClient'
-import { UserRoleValue, accountStatusFromValue, userRoleFromValue } from '@/auth/types'
+import { AccountStatusValue, UserRoleValue, accountStatusFromValue, userRoleFromValue } from '@/auth/types'
 import type {
   CreateUserInput,
   PagedResultDto,
@@ -34,7 +34,7 @@ export async function getUsers(filters: UserFilters): Promise<UserPage> {
     params: {
       searchText: filters.searchText.trim() || undefined,
       role: filters.role ? UserRoleValue[filters.role] : undefined,
-      status: filters.status || undefined,
+      status: filters.status ? AccountStatusValue[filters.status] : undefined,
       pageNumber: filters.pageNumber,
       pageSize: filters.pageSize,
     },
@@ -67,6 +67,10 @@ export async function updateUser(id: string, input: UpdateUserInput): Promise<Us
     role: UserRoleValue[input.role],
   })
   return toUser(data)
+}
+
+export async function resetUserPassword(id: string, newPassword: string): Promise<void> {
+  await apiClient.patch(`/api/v1/users/${id}/password`, { newPassword })
 }
 
 export async function deactivateUser(id: string): Promise<void> {

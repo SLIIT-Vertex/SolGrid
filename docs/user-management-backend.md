@@ -43,6 +43,7 @@ Tokens do not include password hashes or unnecessary personal data.
 | GET | `/api/v1/users` | Backoffice | `200 OK` |
 | GET | `/api/v1/users/{id}` | Backoffice | `200 OK` |
 | PUT | `/api/v1/users/{id}` | Backoffice | `200 OK` |
+| PATCH | `/api/v1/users/{id}/password` | Backoffice | `204 No Content` |
 | PATCH | `/api/v1/users/{id}/deactivate` | Backoffice | `204 No Content` |
 | PATCH | `/api/v1/users/{id}/reactivate` | Backoffice | `204 No Content` |
 
@@ -55,6 +56,12 @@ Tokens do not include password hashes or unnecessary personal data.
 | `status` | enum | `Active` or `Inactive`. |
 | `pageNumber` | integer | Must be greater than zero. |
 | `pageSize` | integer | Must be greater than zero. Repository caps excessive page sizes. |
+
+`PATCH /api/v1/users/{id}/password` takes `{ "newPassword": "..." }` and applies the same length rules as
+account creation (8-128 characters). It replaces the stored hash directly; it does not require the caller's
+current password, since only Backoffice can reach it and it exists for administrators to set or recover a
+Backoffice/GridOperator account's credential. A Backoffice user may reset their own password with this
+endpoint — only role changes and deactivation are blocked for the current user.
 
 ## Configuration
 

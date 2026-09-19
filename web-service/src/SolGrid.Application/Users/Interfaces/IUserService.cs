@@ -18,6 +18,8 @@ public interface IUserService
 
     Task<UserResponse> UpdateUserAsync(string id, UpdateUserRequest request, CancellationToken cancellationToken = default);
 
+    Task ResetPasswordAsync(string id, ResetPasswordRequest request, CancellationToken cancellationToken = default);
+
     Task<UserResponse> GetUserByIdAsync(string id, CancellationToken cancellationToken = default);
 
     Task<IReadOnlyList<UserResponse>> GetUsersAsync(CancellationToken cancellationToken = default);

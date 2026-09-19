@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom'
 import { Button } from '@/components/common/Button'
 import { RoleBadge } from '@/features/users/components/RoleBadge'
 import { AccountStatusBadge } from '@/features/users/components/AccountStatusBadge'
+import { isCurrentUser as checkIsCurrentUser } from '@/features/users/permissions'
 import type { User } from '@/features/users/types'
 import { cn } from '@/lib/cn'
 
@@ -10,6 +11,7 @@ interface UserTableProps {
   currentUserId?: string
   onDeactivate: (user: User) => void
   onReactivate: (user: User) => void
+  onResetPassword: (user: User) => void
 }
 
 const dateFormatter = new Intl.DateTimeFormat('en-GB', {
@@ -27,11 +29,13 @@ function UserActions({
   isCurrentUser,
   onDeactivate,
   onReactivate,
+  onResetPassword,
 }: {
   user: User
   isCurrentUser: boolean
   onDeactivate: (user: User) => void
   onReactivate: (user: User) => void
+  onResetPassword: (user: User) => void
 }) {
   const fullName = getFullName(user)
 
@@ -47,6 +51,14 @@ function UserActions({
       >
         Edit
       </Link>
+      <Button
+        variant="secondary"
+        size="sm"
+        aria-label={`Reset password for ${fullName}`}
+        onClick={() => onResetPassword(user)}
+      >
+        Reset password
+      </Button>
       {isCurrentUser ? (
         <span className="px-2 text-xs font-medium text-ink-400" title="You cannot deactivate your own account">
           Current account
@@ -74,12 +86,12 @@ function UserActions({
   )
 }
 
-export function UserTable({ users, currentUserId, onDeactivate, onReactivate }: UserTableProps) {
+export function UserTable({ users, currentUserId, onDeactivate, onReactivate, onResetPassword }: UserTableProps) {
   return (
     <>
       <div className="divide-y divide-ink-100 lg:hidden">
         {users.map((user) => {
-          const isCurrentUser = user.id === currentUserId
+          const isCurrentUser = checkIsCurrentUser(currentUserId, user)
           return (
             <article key={user.id} className="space-y-4 p-4">
               <div className="min-w-0">
@@ -117,6 +129,7 @@ export function UserTable({ users, currentUserId, onDeactivate, onReactivate }: 
                 isCurrentUser={isCurrentUser}
                 onDeactivate={onDeactivate}
                 onReactivate={onReactivate}
+                onResetPassword={onResetPassword}
               />
             </article>
           )
@@ -137,7 +150,7 @@ export function UserTable({ users, currentUserId, onDeactivate, onReactivate }: 
           </thead>
           <tbody className="divide-y divide-ink-100">
             {users.map((user) => {
-              const isCurrentUser = user.id === currentUserId
+              const isCurrentUser = checkIsCurrentUser(currentUserId, user)
               return (
                 <tr key={user.id} className="hover:bg-ink-50/60">
                   <td className="px-4 py-3">
@@ -167,6 +180,7 @@ export function UserTable({ users, currentUserId, onDeactivate, onReactivate }: 
                       isCurrentUser={isCurrentUser}
                       onDeactivate={onDeactivate}
                       onReactivate={onReactivate}
+                      onResetPassword={onResetPassword}
                     />
                   </td>
                 </tr>

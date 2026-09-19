@@ -5,11 +5,6 @@ import { defaultPendingProsumerFilters, defaultProsumerFilters } from '@/feature
 import { useUsers } from '@/features/users/hooks/useUsers'
 import { defaultUserFilters } from '@/features/users/types'
 
-/**
- * Users and prosumers are Backoffice-only on the API, so this component is rendered only for that
- * role. Keeping the queries here (rather than behind an `enabled` flag on the page) means a Grid
- * Operator never mounts them and never triggers a 403.
- */
 export function BackofficeMetrics() {
   const users = useUsers({ ...defaultUserFilters, pageSize: 1 })
   const backofficeUsers = useUsers({ ...defaultUserFilters, role: 'Backoffice', pageSize: 1 })

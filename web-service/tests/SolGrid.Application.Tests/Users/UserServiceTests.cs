@@ -221,6 +221,72 @@ public sealed class UserServiceTests
     }
 
     [Fact]
+    public async Task ResetPasswordAsync_WithValidPassword_ReplacesHashAndRejectsOldPassword()
+    {
+        // Verify a reset password hashes and stores the new credential and old credentials stop working.
+        var user = CreateUser("user-id", "user@example.com", "old-password", UserRole.GridOperator);
+        var repository = new InMemoryUserRepository(user);
+        var userService = CreateUserService(repository);
+        var authService = CreateAuthService(repository);
+
+        await userService.ResetPasswordAsync("user-id", new ResetPasswordRequest { NewPassword = "new-password" });
+
+        Assert.Equal("hash:new-password", user.PasswordHash);
+        await Assert.ThrowsAsync<AuthenticationFailedException>(() => authService.LoginAsync(new LoginRequest
+        {
+            Email = "user@example.com",
+            Password = "old-password"
+        }));
+
+        var response = await authService.LoginAsync(new LoginRequest
+        {
+            Email = "user@example.com",
+            Password = "new-password"
+        });
+        Assert.Equal("token-user-id-GridOperator", response.AccessToken);
+    }
+
+    [Fact]
+    public async Task ResetPasswordAsync_ForCurrentUser_Succeeds()
+    {
+        // Verify resetting your own password is allowed, unlike role changes and deactivation.
+        var user = CreateUser("current-user-id", "admin@example.com", "password", UserRole.Backoffice);
+        var service = CreateUserService(
+            new InMemoryUserRepository(user),
+            new FakeCurrentUserContext("current-user-id"));
+
+        await service.ResetPasswordAsync("current-user-id", new ResetPasswordRequest { NewPassword = "new-password" });
+
+        Assert.Equal("hash:new-password", user.PasswordHash);
+    }
+
+    [Fact]
+    public async Task ResetPasswordAsync_WithMissingUser_ThrowsNotFound()
+    {
+        // Verify resetting a nonexistent account reports a client-safe not-found error.
+        var service = CreateUserService();
+
+        await Assert.ThrowsAsync<NotFoundException>(
+            () => service.ResetPasswordAsync("missing-id", new ResetPasswordRequest { NewPassword = "new-password" }));
+    }
+
+    [Theory]
+    [InlineData("short")]
+    [InlineData("1234567")]
+    public async Task ResetPasswordAsync_WithShortPassword_ThrowsValidation(string password)
+    {
+        // Keep the reset password rules aligned with account creation.
+        var user = CreateUser("user-id", "user@example.com", "old-password", UserRole.GridOperator);
+        var repository = new InMemoryUserRepository(user);
+        var service = CreateUserService(repository);
+
+        await Assert.ThrowsAsync<ValidationException>(
+            () => service.ResetPasswordAsync("user-id", new ResetPasswordRequest { NewPassword = password }));
+
+        Assert.Equal("hash:old-password", user.PasswordHash);
+    }
+
+    [Fact]
     public async Task UpdateUserAsync_ChangingCurrentUserRole_ThrowsForbidden()
     {
         // Verify a Backoffice administrator cannot remove their own administrative role.

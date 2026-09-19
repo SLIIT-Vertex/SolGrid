@@ -7,6 +7,7 @@ import { UserForm } from '@/features/users/components/UserForm'
 import type { UserFormValues } from '@/features/users/components/UserForm'
 import { useUser } from '@/features/users/hooks/useUser'
 import { useUpdateUser } from '@/features/users/hooks/useUpdateUser'
+import { canChangeRole } from '@/features/users/permissions'
 import { getErrorMessage } from '@/lib/problemDetails'
 
 export function UserEditPage() {
@@ -53,11 +54,12 @@ export function UserEditPage() {
           <ErrorState message="Couldn't load this user." onRetry={() => refetch()} />
         ) : (
           <UserForm
+            key={user.id}
             mode="edit"
             defaultValues={user}
             isSubmitting={updateUser.isPending}
             submitError={submitError}
-            lockRole={session?.userId === user.id}
+            lockRole={!canChangeRole(session?.userId, user)}
             onSubmit={handleSubmit}
             onCancel={() => navigate('/users')}
           />

@@ -102,6 +102,22 @@ public sealed class UsersController : ControllerBase
         return Ok(response);
     }
 
+    [HttpPatch("{id}/password")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> ResetPassword(
+        string id,
+        [FromBody] ResetPasswordRequest request,
+        CancellationToken cancellationToken)
+    {
+        // Replace a web user's password after Backoffice authorization has succeeded.
+        await userService.ResetPasswordAsync(id, request, cancellationToken).ConfigureAwait(false);
+        return NoContent();
+    }
+
     [HttpPatch("{id}/deactivate")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]

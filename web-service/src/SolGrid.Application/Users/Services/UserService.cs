@@ -94,6 +94,22 @@ public sealed class UserService : IUserService
         return UserResponseMapper.ToResponse(user);
     }
 
+    public async Task ResetPasswordAsync(
+        string id,
+        ResetPasswordRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        // Validate and replace a web user's password hash without ever persisting plaintext.
+        ValidateId(id);
+        ValidateResetPasswordRequest(request);
+
+        var user = await GetRequiredUserAsync(id, cancellationToken).ConfigureAwait(false);
+        var updatedAt = DateTimeOffset.UtcNow;
+        user.ChangePasswordHash(passwordHasher.HashPassword(request.NewPassword), updatedAt);
+
+        await userRepository.UpdateAsync(user, cancellationToken).ConfigureAwait(false);
+    }
+
     public async Task<UserResponse> GetUserByIdAsync(string id, CancellationToken cancellationToken = default)
     {
         // Return one web user by id without exposing password hash details.
@@ -188,6 +204,27 @@ public sealed class UserService : IUserService
     {
         // Validate editable profile fields and supported role updates.
         ThrowIfInvalid(ValidateProfileFields(request.FirstName, request.LastName, request.Email, request.Role));
+    }
+
+    private static void ValidateResetPasswordRequest(ResetPasswordRequest request)
+    {
+        // Apply the same password strength rules used at account creation.
+        var errors = new List<string>();
+
+        if (!UserRequestValidationRules.HasValue(request.NewPassword))
+        {
+            errors.Add("Password is required.");
+        }
+        else if (request.NewPassword.Length < UserRequestValidationRules.PasswordMinimumLength)
+        {
+            errors.Add($"Password must be at least {UserRequestValidationRules.PasswordMinimumLength} characters.");
+        }
+        else if (request.NewPassword.Length > UserRequestValidationRules.PasswordMaximumLength)
+        {
+            errors.Add($"Password must be no more than {UserRequestValidationRules.PasswordMaximumLength} characters.");
+        }
+
+        ThrowIfInvalid(errors);
     }
 
     private static IEnumerable<string> ValidateProfileFields(

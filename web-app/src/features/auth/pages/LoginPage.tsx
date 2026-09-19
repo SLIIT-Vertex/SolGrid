@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useForm } from 'react-hook-form'
-import { Navigate, useLocation, useNavigate } from 'react-router-dom'
+import { Navigate, useNavigate } from 'react-router-dom'
 import { useAuth } from '@/auth/useAuth'
 import type { LoginRequest } from '@/auth/types'
 import loginIllustration from '@/assets/login.png'
@@ -12,7 +12,6 @@ import { getErrorMessage } from '@/lib/problemDetails'
 export function LoginPage() {
   const { isAuthenticated, login } = useAuth()
   const navigate = useNavigate()
-  const location = useLocation()
   const [formError, setFormError] = useState<string | null>(null)
 
   const {
@@ -22,8 +21,7 @@ export function LoginPage() {
   } = useForm<LoginRequest>({ defaultValues: { email: '', password: '' } })
 
   if (isAuthenticated) {
-    const redirectTo = (location.state as { from?: Location })?.from?.pathname ?? '/'
-    return <Navigate to={redirectTo} replace />
+    return <Navigate to="/" replace />
   }
 
   const onSubmit = async (values: LoginRequest) => {
