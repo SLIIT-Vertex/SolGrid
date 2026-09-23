@@ -1,0 +1,31 @@
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+WORKDIR /src
+
+COPY src/SolGrid.Domain/SolGrid.Domain.csproj src/SolGrid.Domain/
+COPY src/SolGrid.Application/SolGrid.Application.csproj src/SolGrid.Application/
+COPY src/SolGrid.Infrastructure/SolGrid.Infrastructure.csproj src/SolGrid.Infrastructure/
+COPY src/SolGrid.Api/SolGrid.Api.csproj src/SolGrid.Api/
+
+RUN dotnet restore src/SolGrid.Api/SolGrid.Api.csproj
+
+COPY src/ src/
+RUN dotnet publish src/SolGrid.Api/SolGrid.Api.csproj \
+    --configuration Release \
+    --no-restore \
+    --output /app/publish \
+    /p:UseAppHost=false
+
+FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
+WORKDIR /app
+
+ENV DOTNET_EnableDiagnostics=0
+
+RUN groupadd --system solgrid \
+    && useradd --system --gid solgrid --create-home solgrid
+
+COPY --from=build /app/publish .
+
+USER solgrid
+EXPOSE 8080
+
+CMD ["sh", "-c", "export ASPNETCORE_URLS=\"http://0.0.0.0:${PORT:-8080}\"; export MongoDb__ConnectionString=\"${MongoDb__ConnectionString:-${MONGO_CONNECTION_STRING:-${MONGO_URL:-}}}\"; export MongoDb__DatabaseName=\"${MongoDb__DatabaseName:-${MONGO_DATABASE:-SolGrid}}\"; export Jwt__SigningKey=\"${Jwt__SigningKey:-${JWT_SIGNING_KEY:-}}\"; exec dotnet SolGrid.Api.dll"]
