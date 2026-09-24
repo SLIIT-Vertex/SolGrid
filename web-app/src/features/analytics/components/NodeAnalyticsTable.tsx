@@ -1,8 +1,11 @@
-import { Fragment, useMemo, useState } from 'react'
+import { Fragment, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { Pagination } from '@/components/common/Pagination'
 import { NodeStatusBadge } from '@/features/microgrid/components/NodeStatusBadge'
 import { formatCoordinate, formatGenerationKw, formatStorageKwh } from '@/features/microgrid/format'
 import type { NodeAnalytics } from '@/features/analytics/types'
+
+const PAGE_SIZE = 10
 
 const reservationLabels = [
   ['Pending', 'pendingReservations'],
@@ -15,6 +18,7 @@ const reservationLabels = [
 export function NodeAnalyticsTable({ nodes }: { nodes: NodeAnalytics[] }) {
   const [query, setQuery] = useState('')
   const [openId, setOpenId] = useState<string | null>(null)
+  const [page, setPage] = useState(1)
   const visible = useMemo(() => {
     const text = query.trim().toLowerCase()
     if (!text) return nodes
@@ -22,6 +26,15 @@ export function NodeAnalyticsTable({ nodes }: { nodes: NodeAnalytics[] }) {
       [node.name, node.code, node.addressLine].some((value) => value.toLowerCase().includes(text)),
     )
   }, [nodes, query])
+
+  const pageCount = Math.max(1, Math.ceil(visible.length / PAGE_SIZE))
+  const safePage = Math.min(page, pageCount)
+  const paged = visible.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE)
+
+  // Return to the first page whenever the filtered result set changes.
+  useEffect(() => {
+    setPage(1)
+  }, [query])
 
   return (
     <section className="space-y-3">
@@ -64,7 +77,7 @@ export function NodeAnalyticsTable({ nodes }: { nodes: NodeAnalytics[] }) {
                 </tr>
               </thead>
               <tbody>
-                {visible.map((node) => {
+                {paged.map((node) => {
                   const open = openId === node.id
                   return (
                     <Fragment key={node.id}>
@@ -100,6 +113,12 @@ export function NodeAnalyticsTable({ nodes }: { nodes: NodeAnalytics[] }) {
               </tbody>
             </table>
           </div>
+          <Pagination
+            pageNumber={safePage}
+            pageSize={PAGE_SIZE}
+            totalCount={visible.length}
+            onPageChange={setPage}
+          />
         </div>
       )}
     </section>
