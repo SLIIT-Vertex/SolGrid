@@ -1,6 +1,7 @@
 import { formatStorageKwh } from '@/features/microgrid/format'
 import { BarChart, ChartCard, DonutChart } from '@/features/analytics/components/charts'
 import { NodeAnalyticsTable } from '@/features/analytics/components/NodeAnalyticsTable'
+import { NodeMap } from '@/features/analytics/components/NodeMap'
 import { chartColors } from '@/features/analytics/palette'
 import type { AnalyticsSnapshot } from '@/features/analytics/types'
 
@@ -41,6 +42,8 @@ export function NodesTab({ snapshot }: { snapshot: AnalyticsSnapshot }) {
           )}
         </ChartCard>
       </div>
+
+      <NodeMap nodes={nodes} />
 
       {capacity.length > 0 ? (
         <ChartCard title="Battery capacity" description="Installed storage per node, largest first.">
