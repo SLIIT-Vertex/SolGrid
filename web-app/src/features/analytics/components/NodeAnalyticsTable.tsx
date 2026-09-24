@@ -27,9 +27,9 @@ export function NodeAnalyticsTable({ nodes }: { nodes: NodeAnalytics[] }) {
     <section className="space-y-3">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h2 className="text-sm font-semibold text-ink-900">Every node</h2>
+          <h2 className="text-sm font-semibold text-ink-900">Node detail</h2>
           <p className="text-sm text-ink-500">
-            Capacity, battery slots, and reservations for each microgrid hub.
+            Search any hub and open a row for its slots and reservation mix.
           </p>
         </div>
         <label className="block text-sm text-ink-600">

@@ -287,7 +287,7 @@ public sealed class MongoReservationRepository : IReservationRepository
         return view switch
         {
             ReservationDashboardView.Current => builder.And(
-                builder.In(reservation => reservation.Status, ActiveStatuses),
+                builder.Eq(reservation => reservation.Status, ReservationStatus.Approved),
                 scheduledAfterNow),
             ReservationDashboardView.Pending => builder.Eq(reservation => reservation.Status, ReservationStatus.Pending),
             ReservationDashboardView.History => builder.Or(
