@@ -236,7 +236,7 @@ public sealed class ReservationService : IReservationService
             PendingReservationsCount = pending.TotalCount,
             ApprovedFutureReservationsCount = approvedFuture.TotalCount,
             CurrentReservationsCount = pendingFuture.TotalCount + approvedFuture.TotalCount,
-            BookingHistoryCount = all.TotalCount - pendingFuture.TotalCount - approvedFuture.TotalCount
+            BookingHistoryCount = all.TotalCount - pending.TotalCount - approvedFuture.TotalCount
         };
     }
 

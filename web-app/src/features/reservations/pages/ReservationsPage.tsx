@@ -66,7 +66,7 @@ export function ReservationsPage() {
 
   const handleTabChange = (nextTab: ReservationDashboardTab) => {
     setTab(nextTab);
-    setFilters((current) => ({ ...current, pageNumber: 1 }));
+    setFilters((current) => ({ ...current, status: "", pageNumber: 1 }));
   };
 
   const handleTabKeyDown = (event: KeyboardEvent<HTMLButtonElement>) => {

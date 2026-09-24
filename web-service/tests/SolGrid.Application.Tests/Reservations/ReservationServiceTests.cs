@@ -436,22 +436,45 @@ public sealed class ReservationServiceTests
     }
 
     [Fact]
+    public async Task GetDashboardReservationsAsync_HistoryView_ExcludesPendingReservations()
+    {
+        // Verify overdue pending requests remain in review instead of appearing in booking history.
+        var pending = CreateReservation("reservation-pending", "prosumer-1", "station-1", "slot-1", CurrentTime.AddHours(-2));
+        var approved = CreateReservation("reservation-approved", "prosumer-2", "station-1", "slot-2", CurrentTime.AddHours(-1));
+        approved.Approve("backoffice-1", CurrentTime.AddHours(-3));
+        var completed = CreateReservation("reservation-completed", "prosumer-3", "station-1", "slot-3", CurrentTime.AddHours(13));
+        completed.Approve("backoffice-1", CurrentTime);
+        completed.Complete("operator-1", CurrentTime);
+        var service = CreateService(
+            new InMemoryReservationRepository(pending, approved, completed),
+            currentUserContext: new FakeCurrentUserContext("operator-1", UserRole.GridOperator));
+
+        var response = await service.GetDashboardReservationsAsync(
+            ReservationDashboardView.History,
+            new ReservationQuery { PageNumber = 1, PageSize = 10 });
+
+        Assert.Equal(2, response.TotalCount);
+        Assert.DoesNotContain(response.Items, reservation => reservation.Status == ReservationStatus.Pending);
+    }
+
+    [Fact]
     public async Task GetDashboardSummaryAsync_ReturnsAuthoritativeCounts()
     {
         // Verify dashboard counts are computed from reservation state without returning all records.
         var pending = CreateReservation("reservation-pending", "prosumer-1", "station-1", "slot-1", CurrentTime.AddHours(13));
+        var overduePending = CreateReservation("reservation-overdue", "prosumer-4", "station-1", "slot-4", CurrentTime.AddHours(-1));
         var approved = CreateReservation("reservation-approved", "prosumer-2", "station-1", "slot-2", CurrentTime.AddHours(14));
         approved.Approve("backoffice-1", CurrentTime);
         var completed = CreateReservation("reservation-completed", "prosumer-3", "station-1", "slot-3", CurrentTime.AddHours(13));
         completed.Approve("backoffice-1", CurrentTime);
         completed.Complete("operator-1", CurrentTime);
         var service = CreateService(
-            new InMemoryReservationRepository(pending, approved, completed),
+            new InMemoryReservationRepository(pending, overduePending, approved, completed),
             currentUserContext: new FakeCurrentUserContext("backoffice-1", UserRole.Backoffice));
 
         var response = await service.GetDashboardSummaryAsync();
 
-        Assert.Equal(1, response.PendingReservationsCount);
+        Assert.Equal(2, response.PendingReservationsCount);
         Assert.Equal(1, response.ApprovedFutureReservationsCount);
         Assert.Equal(2, response.CurrentReservationsCount);
         Assert.Equal(1, response.BookingHistoryCount);
@@ -687,18 +710,19 @@ public sealed class ReservationServiceTests
     }
 
     [Fact]
-    public async Task GetMyDashboardSummary_CountsOnlyOwnerAndFutureApprovedReservations()
+    public async Task GetMyDashboardSummary_ExcludesPendingReservationsFromHistory()
     {
-        // Verify ownership and the exact now boundary in server-calculated mobile counts.
+        // Verify ownership, the exact now boundary, and that overdue pending requests stay out of history.
         var future = CreateReservation("future", "prosumer-1", "station-1", "slot-1", CurrentTime);
         future.Approve("operator", CurrentTime);
         var past = CreateReservation("past", "prosumer-1", "station-1", "slot-2", CurrentTime.AddHours(-1));
         past.Approve("operator", CurrentTime);
         var pending = CreateReservation("pending", "prosumer-1", "station-1", "slot-3", CurrentTime.AddHours(2));
+        var overduePending = CreateReservation("overdue-pending", "prosumer-1", "station-1", "slot-5", CurrentTime.AddHours(-2));
         var other = CreateReservation("other", "prosumer-2", "station-1", "slot-4", CurrentTime.AddHours(2));
         other.Approve("operator", CurrentTime);
-        var summary = await CreateService(new InMemoryReservationRepository(future, past, pending, other)).GetMyDashboardSummaryAsync();
-        Assert.Equal(1, summary.PendingReservationsCount);
+        var summary = await CreateService(new InMemoryReservationRepository(future, past, pending, overduePending, other)).GetMyDashboardSummaryAsync();
+        Assert.Equal(2, summary.PendingReservationsCount);
         Assert.Equal(1, summary.ApprovedFutureReservationsCount);
         Assert.Equal(2, summary.CurrentReservationsCount);
         Assert.Equal(1, summary.BookingHistoryCount);
@@ -1009,7 +1033,8 @@ public sealed class ReservationServiceTests
                 ReservationDashboardView.Pending => reservations.Where(reservation =>
                     reservation.Status == ReservationStatus.Pending),
                 ReservationDashboardView.History => reservations.Where(reservation =>
-                    !reservation.IsActive || reservation.ScheduledAt < nowUtc),
+                    reservation.Status != ReservationStatus.Pending
+                    && (!reservation.IsActive || reservation.ScheduledAt < nowUtc)),
                 _ => throw new ArgumentOutOfRangeException(nameof(view))
             };
 
@@ -1029,7 +1054,8 @@ public sealed class ReservationServiceTests
                 CurrentReservationsCount = reservations.LongCount(reservation =>
                     reservation.IsActive && reservation.ScheduledAt >= nowUtc),
                 BookingHistoryCount = reservations.LongCount(reservation =>
-                    !reservation.IsActive || reservation.ScheduledAt < nowUtc)
+                    reservation.Status != ReservationStatus.Pending
+                    && (!reservation.IsActive || reservation.ScheduledAt < nowUtc))
             });
         }
 
