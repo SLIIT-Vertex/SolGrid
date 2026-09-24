@@ -107,10 +107,6 @@ export interface AnalyticsSnapshot {
   accounts: AccountAnalytics | null
 }
 
-export interface NetworkAnalyticsDto extends Omit<NetworkAnalytics, never> {}
-
-export interface ReservationAnalyticsDto extends Omit<ReservationAnalytics, never> {}
-
 export interface NodeAnalyticsDto extends Omit<NodeAnalytics, 'status'> {
   status: number
 }
