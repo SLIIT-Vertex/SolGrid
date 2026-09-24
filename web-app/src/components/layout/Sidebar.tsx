@@ -6,6 +6,14 @@ import { visibleNavItems } from '@/components/layout/navItems'
 import type { NavItemId } from '@/components/layout/navItems'
 import { cn } from '@/lib/cn'
 
+function AnalyticsIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 20 20" fill="currentColor" className={className}>
+      <path d="M4.75 3A1.75 1.75 0 0 0 3 4.75v10.5C3 16.216 3.784 17 4.75 17h10.5A1.75 1.75 0 0 0 17 15.25V4.75A1.75 1.75 0 0 0 15.25 3H4.75ZM8 13.25a.75.75 0 0 1-1.5 0v-3.5a.75.75 0 0 1 1.5 0v3.5Zm3 0a.75.75 0 0 1-1.5 0V6.75a.75.75 0 0 1 1.5 0v6.5Zm3 0a.75.75 0 0 1-1.5 0v-2a.75.75 0 0 1 1.5 0v2Z" />
+    </svg>
+  )
+}
+
 function DashboardIcon({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 20 20" fill="currentColor" className={className}>
@@ -48,6 +56,7 @@ function ReservationsIcon({ className }: { className?: string }) {
 
 const navIcons: Record<NavItemId, (props: { className?: string }) => React.JSX.Element> = {
   dashboard: DashboardIcon,
+  analytics: AnalyticsIcon,
   reservations: ReservationsIcon,
   microgrid: MicrogridIcon,
   users: UsersIcon,

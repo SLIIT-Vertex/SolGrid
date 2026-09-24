@@ -12,6 +12,12 @@ export interface QuickAction extends RoleRestricted {
 /** Every `to` must stay reachable for the roles listed, or the action becomes a link to /403. */
 export const quickActions: QuickAction[] = [
   {
+    id: 'open-analytics',
+    to: '/analytics',
+    label: 'Open trading analytics',
+    description: 'Review every node, reservation, and business rule.',
+  },
+  {
     id: 'review-reservations',
     to: '/reservations',
     label: 'Review pending reservations',

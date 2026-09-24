@@ -16,7 +16,7 @@ describe('dashboard quick actions', () => {
 
   it('hides Backoffice-only shortcuts from Grid Operators', () => {
     const ids = visibleQuickActions('GridOperator').map((action) => action.id)
-    expect(ids).toEqual(['review-reservations', 'slot-availability'])
+    expect(ids).toEqual(['open-analytics', 'review-reservations', 'slot-availability'])
   })
 
   it('shows nothing without a session', () => {
