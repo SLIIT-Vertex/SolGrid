@@ -2,6 +2,7 @@ import { createBrowserRouter } from 'react-router-dom'
 import { ProtectedRoute } from '@/auth/ProtectedRoute'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { LoginPage } from '@/features/auth/pages/LoginPage'
+import { AnalyticsPage } from '@/features/analytics/pages/AnalyticsPage'
 import { DashboardPage } from '@/features/dashboard/pages/DashboardPage'
 import { ForbiddenPage } from '@/features/shared/pages/ForbiddenPage'
 import { CreateMicrogridNodePage } from '@/features/microgrid/pages/CreateMicrogridNodePage'
@@ -23,6 +24,10 @@ export const router = createBrowserRouter([
         element: <AppLayout />,
         children: [
           { path: '/', element: <DashboardPage /> },
+          {
+            element: <ProtectedRoute allowedRoles={['Backoffice', 'GridOperator']} />,
+            children: [{ path: '/analytics', element: <AnalyticsPage /> }],
+          },
           {
             element: <ProtectedRoute allowedRoles={['Backoffice', 'GridOperator']} />,
             children: [{ path: '/reservations', element: <ReservationsPage /> }],
