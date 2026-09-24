@@ -67,7 +67,6 @@ export function ReservationFilters({
             }
           >
             <option value="">All statuses</option>
-            <option value="Pending">Pending</option>
             <option value="Approved">Approved</option>
             <option value="Rejected">Rejected</option>
             <option value="Cancelled">Cancelled</option>

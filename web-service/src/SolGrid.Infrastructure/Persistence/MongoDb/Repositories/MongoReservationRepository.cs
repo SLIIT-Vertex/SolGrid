@@ -107,7 +107,11 @@ public sealed class MongoReservationRepository : IReservationRepository
         var currentCountTask = reservationsCollection.CountDocumentsAsync(
             builder.And(activeStatuses, scheduledAfterNow), cancellationToken: cancellationToken);
         var historyCountTask = reservationsCollection.CountDocumentsAsync(
-            builder.Or(terminalStatuses, scheduledBeforeNow), cancellationToken: cancellationToken);
+            builder.Or(
+                terminalStatuses,
+                builder.And(
+                    builder.Eq(reservation => reservation.Status, ReservationStatus.Approved),
+                    scheduledBeforeNow)), cancellationToken: cancellationToken);
 
         await Task.WhenAll(pendingCountTask, approvedFutureCountTask, currentCountTask, historyCountTask)
             .ConfigureAwait(false);
@@ -294,7 +298,9 @@ public sealed class MongoReservationRepository : IReservationRepository
                 builder.In(
                     reservation => reservation.Status,
                     [ReservationStatus.Rejected, ReservationStatus.Cancelled, ReservationStatus.Completed]),
-                builder.Lt(reservation => reservation.ScheduledAtUtc, nowUtc.UtcDateTime)),
+                builder.And(
+                    builder.Eq(reservation => reservation.Status, ReservationStatus.Approved),
+                    builder.Lt(reservation => reservation.ScheduledAtUtc, nowUtc.UtcDateTime))),
             _ => throw new ArgumentOutOfRangeException(nameof(view), view, "Reservation dashboard view is not supported.")
         };
     }
