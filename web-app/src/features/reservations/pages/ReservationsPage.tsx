@@ -31,7 +31,7 @@ import type {
 const tabs: { key: ReservationDashboardTab; label: string; compact: string }[] =
   [
     { key: "pending", label: "Awaiting review", compact: "Review" },
-    { key: "current", label: "Current reservations", compact: "Current" },
+    { key: "current", label: "Approved Reservations", compact: "Approved" },
     { key: "history", label: "Booking history", compact: "History" },
   ];
 

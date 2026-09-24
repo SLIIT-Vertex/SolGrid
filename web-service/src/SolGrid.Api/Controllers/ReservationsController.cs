@@ -138,7 +138,7 @@ public sealed class ReservationsController : ControllerBase
         [FromQuery] int pageSize = 20,
         CancellationToken cancellationToken = default)
     {
-        // Return current pending or approved reservations through a bounded server-side page.
+        // Return upcoming approved reservations through a bounded server-side page.
         var response = await reservationService.GetDashboardReservationsAsync(
             ReservationDashboardView.Current,
             BuildQuery(prosumerId, stationId, bookingSlotId, null, searchText, scheduledFrom, scheduledTo, pageNumber, pageSize),

@@ -412,15 +412,18 @@ public sealed class ReservationServiceTests
     }
 
     [Fact]
-    public async Task GetDashboardReservationsAsync_CurrentView_ReturnsOnlyFutureActiveReservations()
+    public async Task GetDashboardReservationsAsync_CurrentView_ReturnsOnlyFutureApprovedReservations()
     {
-        // Verify the current dashboard view is filtered and paged by the server-side definition.
-        var current = CreateReservation("reservation-current", "prosumer-1", "station-1", "slot-1", CurrentTime.AddHours(13));
-        var historical = CreateReservation("reservation-history", "prosumer-2", "station-1", "slot-2", CurrentTime.AddHours(-1));
-        var cancelled = CreateReservation("reservation-cancelled", "prosumer-3", "station-1", "slot-3", CurrentTime.AddHours(13));
+        // Verify the approved dashboard view excludes pending, historical, and closed reservations.
+        var approved = CreateReservation("reservation-approved", "prosumer-1", "station-1", "slot-1", CurrentTime.AddHours(13));
+        approved.Approve("backoffice-1", CurrentTime);
+        var pending = CreateReservation("reservation-pending", "prosumer-2", "station-1", "slot-2", CurrentTime.AddHours(14));
+        var historical = CreateReservation("reservation-history", "prosumer-3", "station-1", "slot-3", CurrentTime.AddHours(-1));
+        historical.Approve("backoffice-1", CurrentTime.AddHours(-2));
+        var cancelled = CreateReservation("reservation-cancelled", "prosumer-4", "station-1", "slot-4", CurrentTime.AddHours(13));
         cancelled.Cancel(CurrentTime);
         var service = CreateService(
-            new InMemoryReservationRepository(current, historical, cancelled),
+            new InMemoryReservationRepository(approved, pending, historical, cancelled),
             currentUserContext: new FakeCurrentUserContext("operator-1", UserRole.GridOperator));
 
         var response = await service.GetDashboardReservationsAsync(
@@ -428,7 +431,7 @@ public sealed class ReservationServiceTests
             new ReservationQuery { PageNumber = 1, PageSize = 10 });
 
         var reservation = Assert.Single(response.Items);
-        Assert.Equal("reservation-current", reservation.Id);
+        Assert.Equal("reservation-approved", reservation.Id);
         Assert.Equal(1, response.TotalCount);
     }
 
@@ -1002,7 +1005,7 @@ public sealed class ReservationServiceTests
             var dashboardReservations = view switch
             {
                 ReservationDashboardView.Current => reservations.Where(reservation =>
-                    reservation.IsActive && reservation.ScheduledAt >= nowUtc),
+                    reservation.Status == ReservationStatus.Approved && reservation.ScheduledAt >= nowUtc),
                 ReservationDashboardView.Pending => reservations.Where(reservation =>
                     reservation.Status == ReservationStatus.Pending),
                 ReservationDashboardView.History => reservations.Where(reservation =>
