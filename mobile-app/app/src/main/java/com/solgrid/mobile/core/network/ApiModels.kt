@@ -69,7 +69,7 @@ data class BookingSlotDto(
 )
 
 /** `status` is a raw ordinal — see SolGrid.Domain.Enums.ReservationStatus (Pending=1, Approved=2,
- * Rejected=3, Cancelled=4, Completed=5). */
+ * Rejected=3, Cancelled=4, Completed=5, Expired=6). */
 @Serializable
 data class ReservationDto(
     val id: String, val referenceCode: String? = null,
@@ -79,6 +79,7 @@ data class ReservationDto(
     val approvedAt: String? = null, val approvedBy: String? = null,
     val rejectedAt: String? = null, val rejectedBy: String? = null, val rejectionReason: String? = null,
     val cancelledAt: String? = null,
+    val expiredAt: String? = null,
     val completedAt: String? = null, val completedBy: String? = null,
     val hasQrVerificationToken: Boolean = false,
     val qrVerificationTokenIssuedAt: String? = null, val qrVerificationTokenExpiresAt: String? = null,

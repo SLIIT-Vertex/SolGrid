@@ -8,7 +8,7 @@ export interface PendingReservationAction {
 }
 
 export type ReservationStatus =
-  'Pending' | 'Approved' | 'Rejected' | 'Cancelled' | 'Completed'
+  'Pending' | 'Approved' | 'Rejected' | 'Cancelled' | 'Completed' | 'Expired'
 
 export const ReservationStatusValue = {
   Pending: 1,
@@ -16,6 +16,7 @@ export const ReservationStatusValue = {
   Rejected: 3,
   Cancelled: 4,
   Completed: 5,
+  Expired: 6,
 } as const satisfies Record<ReservationStatus, number>
 
 const statusByValue: Record<number, ReservationStatus> = {
@@ -24,6 +25,7 @@ const statusByValue: Record<number, ReservationStatus> = {
   3: 'Rejected',
   4: 'Cancelled',
   5: 'Completed',
+  6: 'Expired',
 }
 
 export function reservationStatusFromValue(value: number): ReservationStatus {
@@ -49,6 +51,7 @@ export interface Reservation {
   rejectedBy: string | null
   rejectionReason: string | null
   cancelledAt: string | null
+  expiredAt: string | null
   completedAt: string | null
   completedBy: string | null
   hasQrVerificationToken: boolean
@@ -75,6 +78,7 @@ export interface ReservationDto {
   rejectedBy: string | null
   rejectionReason: string | null
   cancelledAt: string | null
+  expiredAt: string | null
   completedAt: string | null
   completedBy: string | null
   hasQrVerificationToken: boolean

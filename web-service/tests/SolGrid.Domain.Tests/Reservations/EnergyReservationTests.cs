@@ -114,6 +114,22 @@ public sealed class EnergyReservationTests
     }
 
     [Fact]
+    public void Expire_FromApproved_ChangesStatusAndStoresTimestamp()
+    {
+        // Verify an unfulfilled approved reservation becomes terminal and releases its active state.
+        var now = DateTimeOffset.UtcNow;
+        var reservation = CreateReservation(now);
+        reservation.Approve("operator-1", now.AddMinutes(5));
+
+        reservation.Expire(now.AddHours(1));
+
+        Assert.Equal(ReservationStatus.Expired, reservation.Status);
+        Assert.Equal(now.AddHours(1), reservation.ExpiredAt);
+        Assert.False(reservation.IsActive);
+        Assert.Throws<InvalidOperationException>(() => reservation.Complete("operator-1", now.AddHours(2)));
+    }
+
+    [Fact]
     public void Complete_WhenAlreadyCompleted_ThrowsInvalidOperationException()
     {
         // Verify completed reservations cannot be completed twice.

@@ -104,11 +104,12 @@ public static class AnalyticsComposer
             Rejected = reservations.Count(reservation => reservation.Status == ReservationStatus.Rejected),
             Cancelled = reservations.Count(reservation => reservation.Status == ReservationStatus.Cancelled),
             Completed = reservations.Count(reservation => reservation.Status == ReservationStatus.Completed),
+            Expired = reservations.Count(reservation => reservation.Status == ReservationStatus.Expired),
             ApprovedFuture = reservations.Count(reservation =>
                 reservation.Status == ReservationStatus.Approved && reservation.ScheduledAt.ToUniversalTime() >= now),
             Current = futureActive.Length,
             History = reservations.Count(reservation =>
-                reservation.Status is ReservationStatus.Rejected or ReservationStatus.Cancelled or ReservationStatus.Completed
+                reservation.Status is ReservationStatus.Rejected or ReservationStatus.Cancelled or ReservationStatus.Completed or ReservationStatus.Expired
                 || reservation.ScheduledAt.ToUniversalTime() < now),
             InsideSevenDayWindow = futureActive.Count(reservation => reservation.ScheduledAt.ToUniversalTime() <= windowEnd),
             BeyondSevenDayWindow = active.Count(reservation => reservation.ScheduledAt.ToUniversalTime() > windowEnd),
@@ -161,6 +162,7 @@ public static class AnalyticsComposer
             RejectedReservations = stationReservations.Count(reservation => reservation.Status == ReservationStatus.Rejected),
             CancelledReservations = stationReservations.Count(reservation => reservation.Status == ReservationStatus.Cancelled),
             CompletedReservations = stationReservations.Count(reservation => reservation.Status == ReservationStatus.Completed),
+            ExpiredReservations = stationReservations.Count(reservation => reservation.Status == ReservationStatus.Expired),
             ActiveReservations = activeCount,
             DeactivationBlocked = station.IsActive && activeCount > 0,
             SlotStateDrift = station.Slots.Count(slot => IsSlotDrift(slot, activeBySlot)),

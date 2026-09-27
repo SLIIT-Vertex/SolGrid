@@ -231,6 +231,7 @@ private fun StatusHero(status: ReservationStatus, modifier: Modifier = Modifier)
         ReservationStatus.REJECTED -> Hero(Icons.Outlined.Cancel, colors.error, colors.errorSurface, "Declined", "This request wasn't approved. You can book another slot.")
         ReservationStatus.CANCELLED -> Hero(Icons.Outlined.Cancel, colors.textSecondary, colors.surfaceAlt, "Cancelled", "This booking was cancelled and the slot released.")
         ReservationStatus.COMPLETED -> Hero(Icons.Outlined.CheckCircle, colors.success, colors.successSurface, "Completed", "Energy transfer finished. Thanks for trading on SolGrid.")
+        ReservationStatus.EXPIRED -> Hero(Icons.Outlined.Schedule, colors.textSecondary, colors.surfaceAlt, "Expired", "This booking was not completed before its expiry time.")
     }
     Row(
         modifier = modifier

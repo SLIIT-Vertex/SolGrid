@@ -52,6 +52,8 @@ public sealed class ReservationResponse
 
     public DateTimeOffset? CancelledAt { get; init; }
 
+    public DateTimeOffset? ExpiredAt { get; init; }
+
     public DateTimeOffset? CompletedAt { get; init; }
 
     public string? CompletedBy { get; init; }

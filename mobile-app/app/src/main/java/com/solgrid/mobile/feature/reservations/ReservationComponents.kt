@@ -242,6 +242,7 @@ fun statusLabel(status: ReservationStatus): String = when (status) {
     ReservationStatus.REJECTED -> "Rejected"
     ReservationStatus.CANCELLED -> "Cancelled"
     ReservationStatus.COMPLETED -> "Completed"
+    ReservationStatus.EXPIRED -> "Expired"
 }
 
 /** Badge tone mapping for a reservation status. Shared across reservation and dashboard UI. */
@@ -251,4 +252,5 @@ fun statusTone(status: ReservationStatus): BadgeTone = when (status) {
     ReservationStatus.REJECTED -> BadgeTone.ERROR
     ReservationStatus.CANCELLED -> BadgeTone.ERROR
     ReservationStatus.COMPLETED -> BadgeTone.NEUTRAL
+    ReservationStatus.EXPIRED -> BadgeTone.NEUTRAL
 }

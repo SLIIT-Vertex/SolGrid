@@ -14,5 +14,6 @@ public enum ReservationStatus
     Approved = 2,
     Rejected = 3,
     Cancelled = 4,
-    Completed = 5
+    Completed = 5,
+    Expired = 6
 }

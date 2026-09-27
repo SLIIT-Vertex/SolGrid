@@ -67,7 +67,7 @@ data class BookingSlot(
     val status: SlotStatus
 )
 
-enum class ReservationStatus { PENDING, APPROVED, REJECTED, CANCELLED, COMPLETED }
+enum class ReservationStatus { PENDING, APPROVED, REJECTED, CANCELLED, COMPLETED, EXPIRED }
 
 /** Mirrors an Energy Reservation document (SolGrid.Application.Reservations.Responses.ReservationResponse). */
 data class EnergyReservation(

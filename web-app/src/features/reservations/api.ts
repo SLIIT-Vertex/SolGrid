@@ -29,6 +29,7 @@ function toReservation(dto: ReservationDto): Reservation {
     rejectedBy: dto.rejectedBy,
     rejectionReason: dto.rejectionReason,
     cancelledAt: dto.cancelledAt,
+    expiredAt: dto.expiredAt,
     completedAt: dto.completedAt,
     completedBy: dto.completedBy,
     hasQrVerificationToken: dto.hasQrVerificationToken,

@@ -50,6 +50,8 @@ internal sealed class ReservationDocument
 
     public DateTime? CancelledAtUtc { get; init; }
 
+    public DateTime? ExpiredAtUtc { get; init; }
+
     public DateTime? CompletedAtUtc { get; init; }
 
     public string? CompletedBy { get; init; }
@@ -84,6 +86,7 @@ internal sealed class ReservationDocument
             RejectedBy = reservation.RejectedBy,
             RejectionReason = reservation.RejectionReason,
             CancelledAtUtc = ToNullableUtcDateTime(reservation.CancelledAt),
+            ExpiredAtUtc = ToNullableUtcDateTime(reservation.ExpiredAt),
             CompletedAtUtc = ToNullableUtcDateTime(reservation.CompletedAt),
             CompletedBy = reservation.CompletedBy,
             QrVerificationTokenHash = reservation.QrVerificationTokenHash,
@@ -111,6 +114,7 @@ internal sealed class ReservationDocument
             RejectedBy,
             RejectionReason,
             ToNullableUtcOffset(CancelledAtUtc),
+            ToNullableUtcOffset(ExpiredAtUtc),
             ToNullableUtcOffset(CompletedAtUtc),
             CompletedBy,
             QrVerificationTokenHash,
