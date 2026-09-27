@@ -445,16 +445,19 @@ public sealed class ReservationServiceTests
         var completed = CreateReservation("reservation-completed", "prosumer-3", "station-1", "slot-3", CurrentTime.AddHours(13));
         completed.Approve("backoffice-1", CurrentTime);
         completed.Complete("operator-1", CurrentTime);
+        var expired = CreateReservation("reservation-expired", "prosumer-4", "station-1", "slot-4", CurrentTime.AddHours(-1));
+        expired.Expire(CurrentTime);
         var service = CreateService(
-            new InMemoryReservationRepository(pending, approved, completed),
+            new InMemoryReservationRepository(pending, approved, completed, expired),
             currentUserContext: new FakeCurrentUserContext("operator-1", UserRole.GridOperator));
 
         var response = await service.GetDashboardReservationsAsync(
             ReservationDashboardView.History,
             new ReservationQuery { PageNumber = 1, PageSize = 10 });
 
-        Assert.Equal(2, response.TotalCount);
+        Assert.Equal(3, response.TotalCount);
         Assert.DoesNotContain(response.Items, reservation => reservation.Status == ReservationStatus.Pending);
+        Assert.Contains(response.Items, reservation => reservation.Status == ReservationStatus.Expired);
     }
 
     [Fact]

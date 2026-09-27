@@ -20,6 +20,7 @@ export function ReservationActivity({
       actor: reservation.rejectedBy,
     },
     { label: 'Cancelled', at: reservation.cancelledAt, actor: null },
+    { label: 'Expired', at: reservation.expiredAt, actor: null },
     { label: 'QR verified', at: reservation.qrVerifiedAt, actor: null },
     {
       label: 'Completed',
