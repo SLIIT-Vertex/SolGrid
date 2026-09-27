@@ -66,6 +66,8 @@ public sealed class ReservationAnalyticsResponse
 
     public int Completed { get; init; }
 
+    public int Expired { get; init; }
+
     public int ApprovedFuture { get; init; }
 
     public int Current { get; init; }
@@ -134,6 +136,8 @@ public sealed class NodeAnalyticsResponse
     public int CancelledReservations { get; init; }
 
     public int CompletedReservations { get; init; }
+
+    public int ExpiredReservations { get; init; }
 
     public int ActiveReservations { get; init; }
 

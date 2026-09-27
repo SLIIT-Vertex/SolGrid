@@ -7,6 +7,7 @@ const toneByStatus: Record<ReservationStatus, 'brand' | 'ink' | 'red' | 'amber'>
   Rejected: 'red',
   Cancelled: 'ink',
   Completed: 'brand',
+  Expired: 'ink',
 }
 
 export function ReservationStatusBadge({ status }: { status: ReservationStatus }) {

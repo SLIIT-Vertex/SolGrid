@@ -161,6 +161,34 @@ public sealed class MongoReservationRepositoryTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task ExpireDueReservationsAsync_ExpiresPendingAndApprovedReservationsAtomically()
+    {
+        // Verify due records become terminal and no longer reserve their booking slots.
+        if (ShouldSkipWithoutMongo())
+        {
+            return;
+        }
+
+        var now = DateTimeOffset.UtcNow;
+        var pending = EnergyReservation.Create("reservation-expired-pending", "prosumer-1", "station-1", "slot-pending", now.AddMinutes(-1), now.AddHours(-1));
+        var approved = EnergyReservation.Create("reservation-expired-approved", "prosumer-2", "station-1", "slot-approved", now.AddHours(-1), now.AddHours(-2));
+        approved.Approve("backoffice-1", now.AddHours(-2));
+        await repository!.AddAsync(pending);
+        await repository.AddAsync(approved);
+
+        var affected = await repository.ExpireDueReservationsAsync(now, now.AddMinutes(-30), now);
+        var expiredPending = await repository.GetByIdAsync(pending.Id);
+        var expiredApproved = await repository.GetByIdAsync(approved.Id);
+
+        Assert.Equal(2, affected);
+        Assert.Equal(ReservationStatus.Expired, expiredPending!.Status);
+        Assert.Equal(ReservationStatus.Expired, expiredApproved!.Status);
+        Assert.Equal(now, expiredPending.ExpiredAt);
+        Assert.False(await repository.HasActiveReservationForBookingSlotAsync("slot-pending"));
+        Assert.False(await repository.HasActiveReservationForBookingSlotAsync("slot-approved"));
+    }
+
+    [Fact]
     public async Task AddAsync_WhenConcurrentActiveReservationsUseSameSlot_AllowsOnlyOne()
     {
         // Verify the database uniqueness constraint closes the check-then-insert race window.

@@ -96,7 +96,7 @@ public sealed class MongoReservationRepository : IReservationRepository
         var activeStatuses = builder.In(reservation => reservation.Status, ActiveStatuses);
         var terminalStatuses = builder.In(
             reservation => reservation.Status,
-            [ReservationStatus.Rejected, ReservationStatus.Cancelled, ReservationStatus.Completed]);
+            [ReservationStatus.Rejected, ReservationStatus.Cancelled, ReservationStatus.Completed, ReservationStatus.Expired]);
 
         var pendingCountTask = reservationsCollection.CountDocumentsAsync(
             builder.Eq(reservation => reservation.Status, ReservationStatus.Pending), cancellationToken: cancellationToken);
@@ -144,6 +144,34 @@ public sealed class MongoReservationRepository : IReservationRepository
             .Find(filter)
             .AnyAsync(cancellationToken)
             .ConfigureAwait(false);
+    }
+
+    public async Task<long> ExpireDueReservationsAsync(
+        DateTimeOffset pendingExpiryCutoffUtc,
+        DateTimeOffset approvedExpiryCutoffUtc,
+        DateTimeOffset expiredAtUtc,
+        CancellationToken cancellationToken = default)
+    {
+        // Atomically expire due active reservations so duplicate workers remain safe and idempotent.
+        var builder = Builders<ReservationDocument>.Filter;
+        var update = Builders<ReservationDocument>.Update
+            .Set(reservation => reservation.Status, ReservationStatus.Expired)
+            .Set(reservation => reservation.ExpiredAtUtc, expiredAtUtc.UtcDateTime)
+            .Set(reservation => reservation.UpdatedAtUtc, expiredAtUtc.UtcDateTime)
+            .Set(reservation => reservation.IsActiveForBookingSlot, false)
+            .Inc(reservation => reservation.Version, 1);
+        var pendingFilter = builder.And(
+            builder.Eq(reservation => reservation.Status, ReservationStatus.Pending),
+            builder.Lte(reservation => reservation.ScheduledAtUtc, pendingExpiryCutoffUtc.UtcDateTime));
+        var approvedFilter = builder.And(
+            builder.Eq(reservation => reservation.Status, ReservationStatus.Approved),
+            builder.Lte(reservation => reservation.ScheduledAtUtc, approvedExpiryCutoffUtc.UtcDateTime));
+
+        var pendingResult = await reservationsCollection.UpdateManyAsync(pendingFilter, update, cancellationToken: cancellationToken)
+            .ConfigureAwait(false);
+        var approvedResult = await reservationsCollection.UpdateManyAsync(approvedFilter, update, cancellationToken: cancellationToken)
+            .ConfigureAwait(false);
+        return pendingResult.ModifiedCount + approvedResult.ModifiedCount;
     }
 
     public async Task<bool> HasActiveReservationsForStationAsync(
@@ -297,7 +325,7 @@ public sealed class MongoReservationRepository : IReservationRepository
             ReservationDashboardView.History => builder.Or(
                 builder.In(
                     reservation => reservation.Status,
-                    [ReservationStatus.Rejected, ReservationStatus.Cancelled, ReservationStatus.Completed]),
+                    [ReservationStatus.Rejected, ReservationStatus.Cancelled, ReservationStatus.Completed, ReservationStatus.Expired]),
                 builder.And(
                     builder.Eq(reservation => reservation.Status, ReservationStatus.Approved),
                     builder.Lt(reservation => reservation.ScheduledAtUtc, nowUtc.UtcDateTime))),

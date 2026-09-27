@@ -39,6 +39,7 @@ public static class ReservationResponseMapper
             RejectedBy = reservation.RejectedBy,
             RejectionReason = reservation.RejectionReason,
             CancelledAt = reservation.CancelledAt,
+            ExpiredAt = reservation.ExpiredAt,
             CompletedAt = reservation.CompletedAt,
             CompletedBy = reservation.CompletedBy,
             HasQrVerificationToken = !string.IsNullOrWhiteSpace(reservation.QrVerificationTokenHash),

@@ -50,6 +50,7 @@ private val reservationStatusByOrdinal: Map<Int, ReservationStatus> = mapOf(
     3 to ReservationStatus.REJECTED,
     4 to ReservationStatus.CANCELLED,
     5 to ReservationStatus.COMPLETED,
+    6 to ReservationStatus.EXPIRED,
 )
 
 private val displayDateFormatter = DateTimeFormatter.ofPattern("MMM d, yyyy")
@@ -90,7 +91,7 @@ data class ProsumerUiState(
     val currentAndPending: List<EnergyReservation>
         get() = reservations.filter { (it.status == ReservationStatus.PENDING || it.status == ReservationStatus.APPROVED) && it.scheduledAt?.let { time -> !Instant.parse(time).isBefore(Instant.now()) } == true }
     val history: List<EnergyReservation>
-        get() = reservations.filter { it.status == ReservationStatus.COMPLETED || it.status == ReservationStatus.CANCELLED || it.status == ReservationStatus.REJECTED || it.scheduledAt?.let { time -> Instant.parse(time).isBefore(Instant.now()) } == true }
+        get() = reservations.filter { it.status == ReservationStatus.COMPLETED || it.status == ReservationStatus.CANCELLED || it.status == ReservationStatus.REJECTED || it.status == ReservationStatus.EXPIRED || it.scheduledAt?.let { time -> Instant.parse(time).isBefore(Instant.now()) } == true }
     val pendingCount: Long get() = summary?.pendingReservationsCount ?: 0
     val approvedFutureCount: Long get() = summary?.approvedFutureReservationsCount ?: 0
 }

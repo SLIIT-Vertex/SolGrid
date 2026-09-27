@@ -31,6 +31,7 @@ private val reservationStatusByOrdinal: Map<Int, ReservationStatus> = mapOf(
     3 to ReservationStatus.REJECTED,
     4 to ReservationStatus.CANCELLED,
     5 to ReservationStatus.COMPLETED,
+    6 to ReservationStatus.EXPIRED,
 )
 
 private fun ReservationDto.toEnergyReservation(): EnergyReservation {

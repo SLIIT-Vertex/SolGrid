@@ -849,6 +849,7 @@ public sealed class ReservationServiceTests
             rejectedBy: null,
             rejectionReason: null,
             cancelledAt: null,
+            expiredAt: null,
             completedAt: null,
             completedBy: null,
             qrVerificationTokenHash: "hash:valid-token",
@@ -1057,6 +1058,25 @@ public sealed class ReservationServiceTests
                     reservation.Status != ReservationStatus.Pending
                     && (!reservation.IsActive || reservation.ScheduledAt < nowUtc))
             });
+        }
+
+        public Task<long> ExpireDueReservationsAsync(
+            DateTimeOffset pendingExpiryCutoffUtc,
+            DateTimeOffset approvedExpiryCutoffUtc,
+            DateTimeOffset expiredAtUtc,
+            CancellationToken cancellationToken = default)
+        {
+            // Apply the same due-status transition semantics as the MongoDB repository.
+            var dueReservations = reservations.Where(reservation =>
+                (reservation.Status == ReservationStatus.Pending && reservation.ScheduledAt <= pendingExpiryCutoffUtc)
+                || (reservation.Status == ReservationStatus.Approved && reservation.ScheduledAt <= approvedExpiryCutoffUtc))
+                .ToArray();
+            foreach (var reservation in dueReservations)
+            {
+                reservation.Expire(expiredAtUtc);
+            }
+
+            return Task.FromResult((long)dueReservations.Length);
         }
 
         private static PagedResult<EnergyReservation> CreatePage(

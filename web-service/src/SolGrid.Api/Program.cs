@@ -8,6 +8,7 @@
 
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Extensions.Options;
+using SolGrid.Api.BackgroundServices;
 using SolGrid.Api.Middleware;
 using SolGrid.Api.Security;
 using SolGrid.Application.Analytics.Interfaces;
@@ -57,6 +58,7 @@ builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<IProsumerService, ProsumerService>();
 builder.Services.AddScoped<IReservationProsumerReadService, ReservationProsumerReadService>();
 builder.Services.AddScoped<IReservationService, ReservationService>();
+builder.Services.AddScoped<IReservationExpiryService, ReservationExpiryService>();
 builder.Services.AddScoped<IAnalyticsService, AnalyticsService>();
 builder.Services.AddScoped<ISolarStationService, SolarStationService>();
 builder.Services.AddScoped<IBookingSlotService, BookingSlotService>();
@@ -65,6 +67,7 @@ builder.Services.AddScoped<IReservationStationReadService, ReservationStationRea
 builder.Services.AddScoped<IReservationBookingSlotReadService, ReservationBookingSlotReadService>();
 builder.Services.AddScoped<ICurrentUserContext, HttpCurrentUserContext>();
 builder.Services.AddSingleton(TimeProvider.System);
+builder.Services.AddHostedService<ReservationExpiryWorker>();
 builder.Services.AddSolGridInfrastructure(
     mongoDbOptions => builder.Configuration.GetSection("MongoDb").Bind(mongoDbOptions),
     jwtOptions => builder.Configuration.GetSection("Jwt").Bind(jwtOptions));

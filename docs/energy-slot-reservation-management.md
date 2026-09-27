@@ -23,11 +23,13 @@ The component does not duplicate User, Prosumer, Station, or BookingSlot models.
 Pending -> Approved -> Completed
    |          |
    |          -> Cancelled
+   |          -> Expired (30 minutes after the scheduled time if not completed)
    -> Rejected
    -> Cancelled
+   -> Expired (at the scheduled time)
 ```
 
-Rescheduling is allowed only while `Pending` or `Approved`. Terminal states (`Rejected`, `Cancelled`, `Completed`) cannot be modified. Completion is a one-way operation.
+Rescheduling is allowed only while `Pending` or `Approved`. Terminal states (`Rejected`, `Cancelled`, `Completed`, `Expired`) cannot be modified. Completion is a one-way operation.
 
 ## Endpoints
 
@@ -65,6 +67,7 @@ The general list and dashboard pages support useful identifier search plus `pros
 | Ownership | Client-supplied prosumer identifiers are ignored for normal callers; ownership is derived from the JWT subject. |
 | Review | Only `Pending` reservations can be approved or rejected. Rejection requires a reason. |
 | Completion | Only a currently `Approved` reservation with a valid token can complete once. |
+| Automatic expiry | A hosted worker runs at startup and every five minutes. Pending reservations expire at `ScheduledAt`; uncompleted approved reservations expire 30 minutes after `ScheduledAt`. Expiry is an atomic MongoDB transition that releases the slot. |
 
 ## QR Flow
 

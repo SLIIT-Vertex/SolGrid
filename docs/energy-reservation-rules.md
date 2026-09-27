@@ -206,6 +206,7 @@ Raw QR tokens are not stored in MongoDB and no signing secrets are exposed to cl
 | `Rejected` | Reservation was rejected with reviewer metadata. |
 | `Cancelled` | Reservation was cancelled before completion. |
 | `Completed` | Energy transfer was finalized. |
+| `Expired` | The scheduled reservation was not fulfilled before its expiry cutoff. |
 
 ## Domain Transition Rules
 
@@ -214,9 +215,11 @@ Allowed transitions:
 - `Pending -> Approved`
 - `Pending -> Rejected`
 - `Pending -> Cancelled`
+- `Pending -> Expired`
 - `Pending -> Rescheduled`
 - `Approved -> Cancelled`
 - `Approved -> Completed`
+- `Approved -> Expired`
 - `Approved -> Rescheduled`
 - `Approved -> QR token registered`
 - `Approved -> QR verified`

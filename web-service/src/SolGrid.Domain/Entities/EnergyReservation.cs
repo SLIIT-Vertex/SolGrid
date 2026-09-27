@@ -28,6 +28,7 @@ public sealed class EnergyReservation
         string? rejectedBy,
         string? rejectionReason,
         DateTimeOffset? cancelledAt,
+        DateTimeOffset? expiredAt,
         DateTimeOffset? completedAt,
         string? completedBy,
         string? qrVerificationTokenHash,
@@ -52,6 +53,7 @@ public sealed class EnergyReservation
         RejectedBy = TrimOptional(rejectedBy);
         RejectionReason = TrimOptional(rejectionReason);
         CancelledAt = cancelledAt;
+        ExpiredAt = expiredAt;
         CompletedAt = completedAt;
         CompletedBy = TrimOptional(completedBy);
         QrVerificationTokenHash = TrimOptional(qrVerificationTokenHash);
@@ -94,6 +96,8 @@ public sealed class EnergyReservation
 
     public DateTimeOffset? CancelledAt { get; private set; }
 
+    public DateTimeOffset? ExpiredAt { get; private set; }
+
     public DateTimeOffset? CompletedAt { get; private set; }
 
     public string? CompletedBy { get; private set; }
@@ -135,6 +139,7 @@ public sealed class EnergyReservation
             rejectedBy: null,
             rejectionReason: null,
             cancelledAt: null,
+            expiredAt: null,
             completedAt: null,
             completedBy: null,
             qrVerificationTokenHash: null,
@@ -159,6 +164,7 @@ public sealed class EnergyReservation
         string? rejectedBy,
         string? rejectionReason,
         DateTimeOffset? cancelledAt,
+        DateTimeOffset? expiredAt,
         DateTimeOffset? completedAt,
         string? completedBy,
         string? qrVerificationTokenHash,
@@ -186,6 +192,7 @@ public sealed class EnergyReservation
             rejectedBy,
             rejectionReason,
             cancelledAt,
+            expiredAt,
             completedAt,
             completedBy,
             qrVerificationTokenHash,
@@ -245,6 +252,15 @@ public sealed class EnergyReservation
         Status = ReservationStatus.Cancelled;
         CancelledAt = cancelledAt;
         MarkUpdated(cancelledAt);
+    }
+
+    public void Expire(DateTimeOffset expiredAt)
+    {
+        // Mark an unfulfilled pending or approved reservation as expired exactly once.
+        EnsureStatus([ReservationStatus.Pending, ReservationStatus.Approved], "Only pending or approved reservations can expire.");
+        Status = ReservationStatus.Expired;
+        ExpiredAt = expiredAt;
+        MarkUpdated(expiredAt);
     }
 
     public void RegisterQrVerificationToken(
@@ -313,6 +329,11 @@ public sealed class EnergyReservation
         if (Status == ReservationStatus.Cancelled && CancelledAt is null)
         {
             throw new ArgumentException("Cancelled reservations require cancellation metadata.");
+        }
+
+        if (Status == ReservationStatus.Expired && ExpiredAt is null)
+        {
+            throw new ArgumentException("Expired reservations require an expiry timestamp.");
         }
 
         if (Status == ReservationStatus.Completed && (CompletedAt is null || string.IsNullOrWhiteSpace(CompletedBy)))
