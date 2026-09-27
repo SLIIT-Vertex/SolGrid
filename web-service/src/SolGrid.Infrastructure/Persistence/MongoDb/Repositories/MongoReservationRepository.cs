@@ -82,7 +82,11 @@ public sealed class MongoReservationRepository : IReservationRepository
         // Return a server-filtered and paged reservation dashboard view.
         var builder = Builders<ReservationDocument>.Filter;
         var filter = builder.And(BuildFilter(query), BuildDashboardFilter(view, nowUtc));
-        return await GetPagedForFilterAsync(filter, query, cancellationToken).ConfigureAwait(false);
+        return await GetPagedForFilterAsync(
+            filter,
+            query,
+            cancellationToken,
+            sortDescending: view == ReservationDashboardView.History).ConfigureAwait(false);
     }
 
     public async Task<ReservationDashboardCounts> GetDashboardCountsAsync(
@@ -282,7 +286,8 @@ public sealed class MongoReservationRepository : IReservationRepository
     private async Task<PagedResult<EnergyReservation>> GetPagedForFilterAsync(
         FilterDefinition<ReservationDocument> filter,
         ReservationQuery query,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool sortDescending = false)
     {
         // Execute a bounded page and total count against one MongoDB filter.
         var pageNumber = Math.Max(query.PageNumber, DefaultPageNumber);
@@ -290,9 +295,11 @@ public sealed class MongoReservationRepository : IReservationRepository
         var skip = (pageNumber - 1) * pageSize;
 
         var totalCountTask = reservationsCollection.CountDocumentsAsync(filter, cancellationToken: cancellationToken);
-        var documentsTask = reservationsCollection
-            .Find(filter)
-            .SortBy(reservation => reservation.ScheduledAtUtc)
+        var find = reservationsCollection.Find(filter);
+        var sortedFind = sortDescending
+            ? find.SortByDescending(reservation => reservation.ScheduledAtUtc)
+            : find.SortBy(reservation => reservation.ScheduledAtUtc);
+        var documentsTask = sortedFind
             .Skip(skip)
             .Limit(pageSize)
             .ToListAsync(cancellationToken);

@@ -71,6 +71,7 @@ export function ReservationFilters({
             <option value="Rejected">Rejected</option>
             <option value="Cancelled">Cancelled</option>
             <option value="Completed">Completed</option>
+            <option value="Expired">Expired</option>
           </SelectField>
         </div>
       ) : null}
