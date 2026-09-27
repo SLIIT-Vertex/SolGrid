@@ -2,7 +2,7 @@
 
 Install GNU Make, Node.js 22.12+ and npm, the .NET SDK required by the API project for backend tasks, and Docker with Compose for container tasks. Ensure these tools are available on PATH.
 
-Run from the repository root in Windows PowerShell or Command Prompt, macOS, or Linux:
+Run from the repository root in macOS, Linux, WSL, or Git Bash:
 
 ```text
 make help
