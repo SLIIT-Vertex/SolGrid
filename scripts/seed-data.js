@@ -1,8 +1,8 @@
 /*
  * Project: SolGrid
- * File: seed-data.js
+ * File: seed-sri-lanka.js
  * Description: Seeds a large, rerunnable Sri Lankan dataset into MongoDB.
- * Usage: mongosh "<connection-string>" --file scripts/seed-data.js
+ * Usage: mongosh "<connection-string>" --file scripts/seed-sri-lanka.js
  * Optional environment: MONGODB_DATABASE, SEED_PROSUMERS, SEED_HISTORY_PER_SLOT.
  */
 
@@ -24,7 +24,7 @@ const AccountStatus = { Active: 1, Inactive: 2 };
 const ProsumerStatus = { Pending: 1, Active: 2, DeactivationRequested: 3, Deactivated: 4 };
 const StationStatus = { Active: 1, Inactive: 2 };
 const SlotStatus = { Available: 1, Reserved: 2, Occupied: 3, OutOfService: 4 };
-const ReservationStatus = { Pending: 1, Approved: 2, Rejected: 3, Cancelled: 4, Completed: 5, Expired: 6 };
+const ReservationStatus = { Pending: 1, Approved: 2, Rejected: 3, Cancelled: 4, Completed: 5 };
 
 // Local seed credential shared by generated users and prosumers: SolGrid@2026!
 const seededPasswordHash = "$2y$11$kxLkGGiaKA4J8ShuPCXd0OPaPM7OnS1wQv6m7w55OUUkp.BjvvP2a";
@@ -36,8 +36,6 @@ const generatedIdPrefixes = {
     historicalReservation: "a1570001"
 };
 const now = new Date();
-const reservationsPerWeekday = 3;
-const reservationsPerWeekendDay = 6;
 
 const places = [
     { code: "KOT", city: "Kotikawatta", district: "Colombo", province: "Western", lat: 6.9260, lng: 79.9180 },
@@ -117,23 +115,6 @@ function readInteger(name, fallback, minimum, maximum) {
 // Return a new UTC timestamp offset from the seed run time.
 function addMinutes(date, minutes) {
     return new Date(date.getTime() + minutes * 60 * 1000);
-}
-
-// Return the first day of the next upcoming October in UTC for future booking seed data.
-function createUpcomingOctoberStart(referenceDate) {
-    const year = referenceDate.getUTCFullYear();
-    const octoberStart = new Date(Date.UTC(year, 9, 1, 0, 0, 0));
-    return octoberStart > referenceDate
-        ? octoberStart
-        : new Date(Date.UTC(year + 1, 9, 1, 0, 0, 0));
-}
-
-// Return the required reservation count for a UTC date, with higher weekend demand.
-function reservationCountForDate(date) {
-    const dayOfWeek = date.getUTCDay();
-    return dayOfWeek === 0 || dayOfWeek === 6
-        ? reservationsPerWeekendDay
-        : reservationsPerWeekday;
 }
 
 // Format a number with stable leading zeroes for readable deterministic IDs.
@@ -340,7 +321,6 @@ function createActiveReservation(sequence, station, slot, prosumer, kind, backof
         RejectedBy: null,
         RejectionReason: null,
         CancelledAtUtc: null,
-        ExpiredAtUtc: null,
         CompletedAtUtc: null,
         CompletedBy: null,
         QrVerificationTokenHash: issuedAt === null ? null : createTokenHash(sequence),
@@ -385,7 +365,6 @@ function createHistoricalReservation(sequence, station, slot, prosumer, status, 
             ? null
             : ["Requested capacity is unavailable.", "Station maintenance overlaps the requested time.", "Booking details require correction."][sequence % 3],
         CancelledAtUtc: cancelledAt,
-        ExpiredAtUtc: null,
         CompletedAtUtc: completedAt,
         CompletedBy: completedAt === null ? null : operatorId,
         QrVerificationTokenHash: issuedAt === null ? null : createTokenHash(sequence + 100000),
@@ -395,73 +374,40 @@ function createHistoricalReservation(sequence, station, slot, prosumer, status, 
     };
 }
 
-// Create a dated booking slot used by one future reservation while preserving station slot consistency.
-function createReservationSlot(station, stationIndex, stationSlots, slots, sequence, scheduledAt) {
-    const slotNumber = stationSlots.length + 1;
-    const createdAt = addMinutes(now, -(60 + sequence));
-    const slot = {
-        _id: createId(generatedIdPrefixes.slot, stationIndex * 100 + slotNumber),
-        StationId: station._id,
-        SlotNumber: slotNumber,
-        BatteryCapacityKwh: Decimal128(`${50 + (sequence % 7) * 10}.0`),
-        StartTimeUtc: scheduledAt,
-        EndTimeUtc: addMinutes(scheduledAt, 90),
-        Status: SlotStatus.Available,
-        CreatedAtUtc: createdAt,
-        UpdatedAtUtc: createdAt
-    };
-    stationSlots.push(slot);
-    slots.push(slot);
-    return slot;
-}
-
-// Generate future October reservations with three daily bookings and six bookings on weekend days.
-function createOctoberReservations(stations, slots, slotsByStation, prosumers, backofficeId) {
+// Generate all reservation states without double-booking an active slot.
+function createReservations(stations, slotsByStation, prosumers, backofficeId, operatorId) {
     const reservations = [];
-    const activeStations = stations.filter(station => station.Status === StationStatus.Active);
-    const activeProsumers = prosumers.filter(prosumer => prosumer.AccountStatus === ProsumerStatus.Active);
-    const octoberStart = createUpcomingOctoberStart(now);
-    const octoberYear = octoberStart.getUTCFullYear();
-    let sequence = 1;
-
-    for (let day = 1; day <= 31; day += 1) {
-        const reservationDate = new Date(Date.UTC(octoberYear, 9, day, 0, 0, 0));
-        const dailyReservationCount = reservationCountForDate(reservationDate);
-        const isWeekend = reservationDate.getUTCDay() === 0 || reservationDate.getUTCDay() === 6;
-
-        for (let dailyIndex = 0; dailyIndex < dailyReservationCount; dailyIndex += 1) {
-            const station = activeStations[(sequence * 7 + day) % activeStations.length];
-            const stationIndex = stations.indexOf(station);
-            const stationSlots = slotsByStation.get(station._id);
-            const minutesFromMidnight = isWeekend
-                ? 8 * 60 + dailyIndex * 90
-                : (9 + dailyIndex * 3) * 60;
-            const scheduledAt = new Date(Date.UTC(
-                octoberYear,
-                9,
-                day,
-                Math.floor(minutesFromMidnight / 60),
-                minutesFromMidnight % 60,
-                0));
-            const slot = createReservationSlot(station, stationIndex, stationSlots, slots, sequence, scheduledAt);
-            const prosumer = activeProsumers[(sequence * 11) % activeProsumers.length];
-            const kind = sequence % 3 === 0 ? "pending" : "approved";
-
-            reservations.push(createActiveReservation(sequence, station, slot, prosumer, kind, backofficeId));
-            sequence += 1;
-        }
-    }
-
-    return reservations;
-}
-
-// Generate October active reservations and terminal reservation history without double-booking a slot.
-function createReservations(stations, slots, slotsByStation, prosumers, backofficeId, operatorId) {
-    const reservations = createOctoberReservations(stations, slots, slotsByStation, prosumers, backofficeId);
+    const activeProsumers = prosumers.filter(item => item.AccountStatus === ProsumerStatus.Active);
+    let activeSequence = 1;
     let historySequence = 1;
 
-    stations.forEach(station => {
+    stations.forEach((station, stationIndex) => {
         const stationSlots = slotsByStation.get(station._id);
+        if (station.Status === StationStatus.Active) {
+            const scenarios = [
+                { slotIndex: 1, kind: "pending" },
+                { slotIndex: 2, kind: "approved" },
+                ...(stationIndex % 2 === 0 ? [{ slotIndex: 3, kind: "pending" }] : []),
+                ...(stationIndex % 3 === 0 ? [{ slotIndex: 4, kind: "liveQr" }] : []),
+                ...(stationIndex % 4 === 0 ? [{ slotIndex: 7, kind: "pending" }] : []),
+                ...(stationIndex % 5 === 0 ? [{ slotIndex: 8, kind: "expiredQr" }] : []),
+                ...(stationIndex % 6 === 0 ? [{ slotIndex: 0, kind: "verified" }] : []),
+                ...(stationIndex === 0 ? [{ slotIndex: 11, kind: "pending" }] : [])
+            ];
+
+            scenarios.forEach(scenario => {
+                const prosumer = activeProsumers[(activeSequence * 11) % activeProsumers.length];
+                reservations.push(createActiveReservation(
+                    activeSequence,
+                    station,
+                    stationSlots[scenario.slotIndex],
+                    prosumer,
+                    scenario.kind,
+                    backofficeId));
+                activeSequence += 1;
+            });
+        }
+
         stationSlots.forEach(slot => {
             for (let historyIndex = 0; historyIndex < historyPerSlot; historyIndex += 1) {
                 const status = [
@@ -582,31 +528,6 @@ function validateSeed(stations, slots, reservations) {
             throw new Error(`Station ${station._id} has inconsistent slot counts.`);
         }
     });
-
-    const octoberStart = createUpcomingOctoberStart(now);
-    const octoberEnd = new Date(Date.UTC(octoberStart.getUTCFullYear(), 10, 1, 0, 0, 0));
-    const plannedReservations = reservations.filter(reservation =>
-        reservation.IsActiveForBookingSlot
-        && reservation.ScheduledAtUtc >= octoberStart
-        && reservation.ScheduledAtUtc < octoberEnd);
-    const expectedReservationCount = Array.from({ length: 31 }, (_, index) =>
-        reservationCountForDate(new Date(Date.UTC(octoberStart.getUTCFullYear(), 9, index + 1, 0, 0, 0))))
-        .reduce((total, count) => total + count, 0);
-
-    if (plannedReservations.length !== expectedReservationCount) {
-        throw new Error(`Expected ${expectedReservationCount} October reservations but generated ${plannedReservations.length}.`);
-    }
-
-    for (let day = 1; day <= 31; day += 1) {
-        const date = new Date(Date.UTC(octoberStart.getUTCFullYear(), 9, day, 0, 0, 0));
-        const nextDate = addMinutes(date, 24 * 60);
-        const actualCount = plannedReservations.filter(reservation =>
-            reservation.ScheduledAtUtc >= date && reservation.ScheduledAtUtc < nextDate).length;
-        const expectedCount = reservationCountForDate(date);
-        if (actualCount !== expectedCount) {
-            throw new Error(`Expected ${expectedCount} reservations on ${date.toISOString().slice(0, 10)} but generated ${actualCount}.`);
-        }
-    }
 }
 
 // Run the complete idempotent seed operation.
@@ -628,7 +549,6 @@ function runSeed() {
     const { stations, slots, slotsByStation } = createStationsAndSlots();
     const reservations = createReservations(
         stations,
-        slots,
         slotsByStation,
         prosumers,
         backoffice._id,
@@ -657,7 +577,6 @@ function runSeed() {
     print(`Booking slots: ${slots.length}`);
     print(`Reservations: ${reservations.length}`);
     print(`Active reservations: ${reservations.filter(item => item.IsActiveForBookingSlot).length}`);
-    print(`Future October reservations: ${reservations.filter(item => item.IsActiveForBookingSlot).length} (3 per weekday, 6 per weekend day)`);
     print("Seeded account password: SolGrid@2026!");
     print("Backoffice login: amaya.perera@solgrid.lk");
     print("Grid Operator login: nimal.ratnayake@solgrid.lk");
