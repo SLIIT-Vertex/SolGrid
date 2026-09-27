@@ -3,10 +3,6 @@ import { StatCard } from '@/features/dashboard/components/StatCard'
 import { useMicrogridNodes } from '@/features/microgrid/hooks/useMicrogridNodes'
 import { defaultMicrogridNodeFilters } from '@/features/microgrid/types'
 
-/**
- * Totals come from the stations list endpoint, which both roles may call. Single-row pages are
- * requested because only `totalCount` is used — summing a page would undercount past page one.
- */
 export function MicrogridMetrics() {
   const allNodes = useMicrogridNodes({ ...defaultMicrogridNodeFilters, pageSize: 1 })
   const activeNodes = useMicrogridNodes({ ...defaultMicrogridNodeFilters, status: 'Active', pageSize: 1 })

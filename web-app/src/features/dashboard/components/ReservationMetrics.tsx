@@ -2,7 +2,6 @@ import { DashboardSection } from '@/features/dashboard/components/DashboardSecti
 import { StatCard } from '@/features/dashboard/components/StatCard'
 import { useReservationDashboardSummary } from '@/features/reservations/hooks/useReservationDashboardSummary'
 
-/** Both roles may review reservations, so this section is shown to everyone. */
 export function ReservationMetrics() {
   const { data, isLoading, isError } = useReservationDashboardSummary()
 

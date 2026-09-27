@@ -5,6 +5,7 @@ import { ConfirmDialog } from '@/components/common/ConfirmDialog'
 import { EmptyState, ErrorState, LoadingState } from '@/components/common/QueryStates'
 import { Pagination } from '@/components/common/Pagination'
 import { useToast } from '@/components/common/useToast'
+import { ResetPasswordDialog } from '@/features/users/components/ResetPasswordDialog'
 import { UserCreateDialog } from '@/features/users/components/UserCreateDialog'
 import { UserFilters } from '@/features/users/components/UserFilters'
 import { UserRoleTabs } from '@/features/users/components/UserRoleTabs'
@@ -24,9 +25,10 @@ export function UsersListPage() {
   const [pendingAction, setPendingAction] = useState<{ user: User; kind: 'deactivate' | 'reactivate' } | null>(
     null,
   )
+  const [resetPasswordUser, setResetPasswordUser] = useState<User | null>(null)
 
   const { data, isLoading, isError, refetch } = useUsers(filters)
-  const roleCounts = useUserRoleCounts(filters)
+  const roleCounts = useUserRoleCounts(filters, data ? { id: tabIdForRole(filters.role), count: data.totalCount } : undefined)
   const deactivateUser = useDeactivateUser()
   const reactivateUser = useReactivateUser()
   const { showToast } = useToast()
@@ -42,11 +44,6 @@ export function UsersListPage() {
 
   const handleConfirm = async () => {
     if (!pendingAction) return
-    const shouldMoveToPreviousPage =
-      filters.pageNumber > 1 &&
-      data?.items.length === 1 &&
-      ((pendingAction.kind === 'deactivate' && filters.status === 'Active') ||
-        (pendingAction.kind === 'reactivate' && filters.status === 'Inactive'))
 
     try {
       if (pendingAction.kind === 'deactivate') {
@@ -55,9 +52,6 @@ export function UsersListPage() {
       } else {
         await reactivateUser.mutateAsync(pendingAction.user.id)
         showToast(`${pendingAction.user.firstName} ${pendingAction.user.lastName} was reactivated.`)
-      }
-      if (shouldMoveToPreviousPage) {
-        setFilters((current) => ({ ...current, pageNumber: current.pageNumber - 1 }))
       }
       setPendingAction(null)
     } catch (error) {
@@ -96,7 +90,20 @@ export function UsersListPage() {
           ) : isError ? (
             <ErrorState message="Couldn't load users." onRetry={() => refetch()} />
           ) : !data || data.items.length === 0 ? (
-            <EmptyState title="No users found" description={activeTab.emptyDescription} />
+            <>
+              <EmptyState title="No users found" description={activeTab.emptyDescription} />
+              {data && data.totalCount > 0 ? (
+                // The current page came back empty (e.g. the last user on it was just
+                // deactivated) even though other pages still have matches — keep pagination
+                // visible so "Previous" gets the admin back to real results.
+                <Pagination
+                  pageNumber={data.pageNumber}
+                  pageSize={data.pageSize}
+                  totalCount={data.totalCount}
+                  onPageChange={(page) => setFilters((current) => ({ ...current, pageNumber: page }))}
+                />
+              ) : null}
+            </>
           ) : (
             <>
               <UserTable
@@ -104,6 +111,7 @@ export function UsersListPage() {
                 currentUserId={session?.userId}
                 onDeactivate={(user) => setPendingAction({ user, kind: 'deactivate' })}
                 onReactivate={(user) => setPendingAction({ user, kind: 'reactivate' })}
+                onResetPassword={setResetPasswordUser}
               />
               <Pagination
                 pageNumber={data.pageNumber}
@@ -134,6 +142,8 @@ export function UsersListPage() {
       />
 
       <UserCreateDialog open={isCreateOpen} onClose={() => setIsCreateOpen(false)} />
+
+      <ResetPasswordDialog user={resetPasswordUser} onClose={() => setResetPasswordUser(null)} />
     </div>
   )
 }
