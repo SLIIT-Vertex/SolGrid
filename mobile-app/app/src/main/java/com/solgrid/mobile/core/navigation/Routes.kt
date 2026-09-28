@@ -26,6 +26,7 @@ object Routes {
     fun reservationQr(reservationId: String) = "reservation_qr/$reservationId"
     const val PROSUMER_PROFILE = "prosumer_profile"
     const val EDIT_PROSUMER_PROFILE = "edit_prosumer_profile"
+    const val PROSUMER_ACTIVITY = "prosumer_activity"
     const val DEACTIVATION_REQUEST = "deactivation_request"
 
     // Grid Operator

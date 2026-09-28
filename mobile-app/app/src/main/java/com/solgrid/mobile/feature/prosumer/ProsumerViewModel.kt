@@ -37,6 +37,7 @@ private val statusByOrdinal: Map<Int, ProsumerAccountStatus> = mapOf(
 
 private fun ProsumerResponseDto.toProfile(): ProsumerProfile = ProsumerProfile(
     nic = nic,
+    version = version,
     firstName = firstName,
     lastName = lastName,
     email = email,
@@ -294,6 +295,7 @@ class ProsumerViewModel : ViewModel() {
     }
 
     fun updateProfile(
+        expectedVersion: Long,
         firstName: String,
         lastName: String,
         email: String,
@@ -304,6 +306,7 @@ class ProsumerViewModel : ViewModel() {
         viewModelScope.launch {
             when (
                 val outcome = prosumerRepository.updateMyProfile(
+                    expectedVersion = expectedVersion,
                     firstName = firstName,
                     lastName = lastName,
                     email = email,
@@ -319,12 +322,12 @@ class ProsumerViewModel : ViewModel() {
         }
     }
 
-    fun requestDeactivation(onError: (String) -> Unit, onDone: () -> Unit) {
+    fun requestDeactivation(expectedVersion: Long, reason: String, onError: (String) -> Unit, onDone: () -> Unit) {
         viewModelScope.launch {
-            when (val outcome = prosumerRepository.requestDeactivation()) {
+            when (val outcome = prosumerRepository.requestDeactivation(expectedVersion, reason)) {
                 is ProsumerActionOutcome.Success -> {
                     _uiState.update {
-                        it.copy(profile = it.profile.copy(status = ProsumerAccountStatus.DEACTIVATION_REQUESTED))
+                        it.copy(profile = it.profile.copy(status = ProsumerAccountStatus.DEACTIVATION_REQUESTED, version = expectedVersion + 1))
                     }
                     onDone()
                 }

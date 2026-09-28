@@ -114,7 +114,7 @@ class AuthViewModel : ViewModel() {
     /** Call after SessionExpiryNotifier fires (a 401 on an authenticated request) so Login
      * explains why the user was bounced back, rather than looking like an unprompted logout. */
     fun showSessionExpiredMessage() {
-        _login.update { it.copy(infoMessage = "Your session expired. Please sign in again.") }
+        _login.update { it.copy(infoMessage = "Your session ended or account access changed. Please sign in again.") }
     }
 
     /** Call when the Register screen is (re)entered so stale input from a previous visit doesn't linger. */
@@ -195,7 +195,7 @@ class AuthViewModel : ViewModel() {
                 // flatten it into "wrong password" and leave them retrying valid credentials.
                 val message = when (prosumerOutcome.statusCode) {
                     401 -> "Incorrect email or password."
-                    403 -> "Your account isn't active yet. A Backoffice officer must activate it before you can sign in."
+                    403 -> prosumerOutcome.message
                     else -> prosumerOutcome.message
                 }
                 _login.update { it.copy(requestState = AuthRequestState.Error(message)) }

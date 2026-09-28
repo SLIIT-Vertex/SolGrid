@@ -42,6 +42,7 @@ import com.solgrid.mobile.core.models.ProsumerAccountStatus
 fun ProsumerProfileScreen(
     viewModel: ProsumerViewModel,
     onEditProfile: () -> Unit,
+    onActivity: () -> Unit,
     onDeactivationRequest: () -> Unit,
     onSettings: () -> Unit,
     onHelp: () -> Unit,
@@ -73,8 +74,16 @@ fun ProsumerProfileScreen(
                 },
                 modifier = Modifier.padding(top = Spacing.sm)
             )
-            SecondaryButton(text = "Edit Profile", onClick = onEditProfile, modifier = Modifier.padding(top = Spacing.lg))
+            SecondaryButton(text = "Edit Profile", onClick = onEditProfile, enabled = !state.loading && state.profileError == null, modifier = Modifier.padding(top = Spacing.lg))
         }
+
+        if (state.profile.status == ProsumerAccountStatus.DEACTIVATION_REQUESTED) {
+            Text("Your deactivation request is awaiting Backoffice review. Your account remains usable until it is deactivated.",
+                style = AppType.supporting, color = colors.warning, modifier = Modifier.padding(top = Spacing.lg))
+        }
+        state.profileError?.let { Text(it, color = colors.error, modifier = Modifier.padding(top = Spacing.md)) }
+        SecondaryButton(text = if (state.loading) "Refreshing…" else "Refresh profile", onClick = { viewModel.loadProfile() },
+            enabled = !state.loading, modifier = Modifier.padding(top = Spacing.md))
 
         SectionHeader(title = "Contact Information", modifier = Modifier.padding(top = Spacing.xxl))
         ListRow(title = "Email", subtitle = state.profile.email, icon = Icons.Outlined.Email)
@@ -84,6 +93,8 @@ fun ProsumerProfileScreen(
         ListRow(title = "NIC", subtitle = state.profile.nic, icon = Icons.Outlined.Badge)
 
         SectionHeader(title = "Account", modifier = Modifier.padding(top = Spacing.xl))
+        ListRow(title = "Account History", icon = Icons.Outlined.Badge, showChevron = true, onClick = onActivity)
+        AppDivider()
         ListRow(title = "Settings", icon = Icons.Outlined.Settings, showChevron = true, onClick = onSettings)
         AppDivider()
         ListRow(title = "Help & Support", icon = Icons.AutoMirrored.Outlined.HelpOutline, showChevron = true, onClick = onHelp)

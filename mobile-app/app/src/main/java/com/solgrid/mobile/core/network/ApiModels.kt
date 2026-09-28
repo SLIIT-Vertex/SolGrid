@@ -127,6 +127,7 @@ data class RegisterProsumerRequestDto(
 /** PUT /api/v1/prosumers/me request body — NIC is immutable, not included. */
 @Serializable
 data class UpdateProsumerRequestDto(
+    val expectedVersion: Long,
     val firstName: String,
     val lastName: String,
     val email: String,
@@ -144,6 +145,7 @@ data class ProsumerLoginResponseDto(
  * Active=2, DeactivationRequested=3, Deactivated=4). */
 @Serializable
 data class ProsumerResponseDto(
+    val version: Long = 0,
     val nic: String,
     val firstName: String,
     val lastName: String,
@@ -156,3 +158,12 @@ data class ProsumerResponseDto(
 
 @Serializable
 data class ReservationDashboardSummaryDto(val pendingReservationsCount: Long, val approvedFutureReservationsCount: Long, val currentReservationsCount: Long, val bookingHistoryCount: Long)
+
+@Serializable
+data class ProsumerLifecycleRequestDto(val expectedVersion: Long, val reason: String)
+
+@Serializable
+data class ProsumerActivityDto(
+    val action: String, val actorRole: String, val reason: String? = null,
+    val status: Int, val occurredAt: String, val version: Long,
+)

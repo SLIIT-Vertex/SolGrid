@@ -16,12 +16,12 @@ sealed interface ProsumerLoginOutcome {
 
 sealed interface ProsumerProfileOutcome {
     data class Success(val response: ProsumerResponseDto) : ProsumerProfileOutcome
-    data class Failure(val message: String) : ProsumerProfileOutcome
+    data class Failure(val message: String, val statusCode: Int? = null) : ProsumerProfileOutcome
 }
 
 sealed interface ProsumerActionOutcome {
     data object Success : ProsumerActionOutcome
-    data class Failure(val message: String) : ProsumerActionOutcome
+    data class Failure(val message: String, val statusCode: Int? = null) : ProsumerActionOutcome
 }
 
 /** Wraps the Retrofit calls under api/v1/prosumers for the mobile Prosumer self-service flows. */
@@ -72,35 +72,46 @@ class ProsumerRepository(private val apiService: ApiService = NetworkModule.apiS
         if (response.isSuccessful && body != null) {
             ProsumerProfileOutcome.Success(body)
         } else {
-            ProsumerProfileOutcome.Failure(parseApiErrorMessage(response.errorBody()?.string(), response.code()))
+            ProsumerProfileOutcome.Failure(parseApiErrorMessage(response.errorBody()?.string(), response.code()), response.code())
         }
     }.getOrElse { error -> ProsumerProfileOutcome.Failure(error.toFriendlyMessage()) }
 
     suspend fun updateMyProfile(
+        expectedVersion: Long,
         firstName: String,
         lastName: String,
         email: String,
         phoneNumber: String?,
     ): ProsumerProfileOutcome = runCatching {
         val response = apiService.updateMyProsumerProfile(
-            UpdateProsumerRequestDto(firstName = firstName, lastName = lastName, email = email, phoneNumber = phoneNumber),
+            UpdateProsumerRequestDto(expectedVersion = expectedVersion, firstName = firstName, lastName = lastName, email = email, phoneNumber = phoneNumber),
         )
         val body = response.body()
         if (response.isSuccessful && body != null) {
             ProsumerProfileOutcome.Success(body)
         } else {
-            ProsumerProfileOutcome.Failure(parseApiErrorMessage(response.errorBody()?.string(), response.code()))
+            ProsumerProfileOutcome.Failure(parseApiErrorMessage(response.errorBody()?.string(), response.code()), response.code())
         }
     }.getOrElse { error -> ProsumerProfileOutcome.Failure(error.toFriendlyMessage()) }
 
-    suspend fun requestDeactivation(): ProsumerActionOutcome = runCatching {
-        val response = apiService.requestMyProsumerDeactivation()
+    suspend fun requestDeactivation(expectedVersion: Long, reason: String): ProsumerActionOutcome = runCatching {
+        val response = apiService.requestMyProsumerDeactivation(ProsumerLifecycleRequestDto(expectedVersion, reason))
         if (response.isSuccessful) {
             ProsumerActionOutcome.Success
         } else {
-            ProsumerActionOutcome.Failure(parseApiErrorMessage(response.errorBody()?.string(), response.code()))
+            ProsumerActionOutcome.Failure(parseApiErrorMessage(response.errorBody()?.string(), response.code()), response.code())
         }
     }.getOrElse { error -> ProsumerActionOutcome.Failure(error.toFriendlyMessage()) }
+
+    suspend fun getActivity(pageNumber: Int): Result<PagedResponseDto<ProsumerActivityDto>> = runCatching {
+        val response = try {
+            apiService.getMyProsumerActivity(pageNumber)
+        } catch (error: IOException) {
+            throw IOException(error.toFriendlyMessage())
+        }
+        if (!response.isSuccessful) throw IOException(parseApiErrorMessage(response.errorBody()?.string(), response.code()))
+        response.body() ?: throw IOException("No account history was returned.")
+    }
 
     private fun Throwable.toFriendlyMessage(): String = when (this) {
         is IOException -> "Couldn't reach the server. Check your connection and try again."
