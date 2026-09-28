@@ -7,6 +7,8 @@ import type {
   ProsumerDto,
   ProsumerFilters,
   ProsumerStatusCounts,
+  ProsumerActivity,
+  ProsumerLifecycleChange,
 } from '@/features/prosumers/types'
 
 export function toProsumer(dto: ProsumerDto): Prosumer {
@@ -19,6 +21,7 @@ export function toProsumer(dto: ProsumerDto): Prosumer {
     status: prosumerStatusFromValue(dto.status),
     createdAt: dto.createdAt,
     updatedAt: dto.updatedAt,
+    version: dto.version,
   }
 }
 
@@ -74,16 +77,16 @@ export async function getProsumerStatusCounts(): Promise<ProsumerStatusCounts> {
   }
 }
 
-export async function activateProsumer(nic: string): Promise<void> {
-  await apiClient.patch(`/api/v1/prosumers/${nic}/activate`)
+export async function activateProsumer({ nic, ...request }: ProsumerLifecycleChange): Promise<void> {
+  await apiClient.patch(`/api/v1/prosumers/${encodeURIComponent(nic)}/activate`, request)
 }
 
-export async function deactivateProsumer(nic: string): Promise<void> {
-  await apiClient.patch(`/api/v1/prosumers/${nic}/deactivate`)
+export async function deactivateProsumer({ nic, ...request }: ProsumerLifecycleChange): Promise<void> {
+  await apiClient.patch(`/api/v1/prosumers/${encodeURIComponent(nic)}/deactivate`, request)
 }
 
-export async function reactivateProsumer(nic: string): Promise<void> {
-  await apiClient.patch(`/api/v1/prosumers/${nic}/reactivate`)
+export async function reactivateProsumer({ nic, ...request }: ProsumerLifecycleChange): Promise<void> {
+  await apiClient.patch(`/api/v1/prosumers/${encodeURIComponent(nic)}/reactivate`, request)
 }
 
 export interface ProsumerProfileRequest {
@@ -98,8 +101,15 @@ export async function createProsumer(request: ProsumerProfileRequest & { nic: st
   return toProsumer(data)
 }
 
-export async function updateProsumer(nic: string, request: ProsumerProfileRequest): Promise<Prosumer> {
-  const { firstName, lastName, email, phoneNumber } = request
-  const { data } = await apiClient.put<ProsumerDto>(`/api/v1/prosumers/${encodeURIComponent(nic)}`, { firstName, lastName, email, phoneNumber })
+export async function updateProsumer(nic: string, request: ProsumerProfileRequest & { expectedVersion: number }): Promise<Prosumer> {
+  const { firstName, lastName, email, phoneNumber, expectedVersion } = request
+  const { data } = await apiClient.put<ProsumerDto>(`/api/v1/prosumers/${encodeURIComponent(nic)}`, { firstName, lastName, email, phoneNumber, expectedVersion })
   return toProsumer(data)
+}
+
+export async function getProsumerActivity(nic: string, pageNumber: number): Promise<PagedResultDto<ProsumerActivity>> {
+  const { data } = await apiClient.get<PagedResultDto<ProsumerActivity>>(`/api/v1/prosumers/${encodeURIComponent(nic)}/activity`, {
+    params: { pageNumber, pageSize: 10 },
+  })
+  return data
 }

@@ -27,10 +27,11 @@ import type {
   ProsumerFormField,
   ProsumerFormValues,
 } from '@/features/prosumers/validation'
-import { getErrorMessage } from '@/lib/problemDetails'
+import { getErrorMessage, isConflictError } from '@/lib/problemDetails'
 
 export function ProsumerDialog({ prosumer, onClose }: { prosumer?: Prosumer; onClose: () => void }) {
   const isCreate = !prosumer
+  const [conflicted, setConflicted] = useState(false)
   const [values, setValues] = useState<ProsumerFormValues>({
     nic: prosumer?.nic ?? '',
     firstName: prosumer?.firstName ?? '',
@@ -52,8 +53,14 @@ export function ProsumerDialog({ prosumer, onClose }: { prosumer?: Prosumer; onC
         phoneNumber: request.phoneNumber || null,
       }
       return prosumer
-        ? updateProsumer(prosumer.nic, profile)
+        ? updateProsumer(prosumer.nic, { ...profile, expectedVersion: prosumer.version })
         : createProsumer({ ...profile, nic: request.nic, password: request.password })
+    },
+    onError: (error) => {
+      if (isConflictError(error)) {
+        setConflicted(true)
+        void client.invalidateQueries({ queryKey: prosumersKeys.all })
+      }
     },
     onSuccess: async () => {
       await client.invalidateQueries({ queryKey: prosumersKeys.all })
@@ -66,7 +73,7 @@ export function ProsumerDialog({ prosumer, onClose }: { prosumer?: Prosumer; onC
     setValues((current) => ({ ...current, [field]: value }))
     // Clear the message while the user is correcting the field; re-check on blur.
     setErrors((current) => (current[field] ? { ...current, [field]: undefined } : current))
-    if (save.isError) save.reset()
+    if (save.isError && !conflicted) save.reset()
   }
 
   const validateField = (field: ProsumerFormField) => {
@@ -87,7 +94,7 @@ export function ProsumerDialog({ prosumer, onClose }: { prosumer?: Prosumer; onC
     const nextErrors = validateProsumerForm(normalized, isCreate)
     setValues(normalized)
     setErrors(nextErrors)
-    if (Object.keys(nextErrors).length > 0) return
+    if (Object.keys(nextErrors).length > 0 || conflicted) return
     save.mutate(normalized)
   }
 
@@ -175,9 +182,9 @@ export function ProsumerDialog({ prosumer, onClose }: { prosumer?: Prosumer; onC
         ) : null}
         <div className="flex justify-end gap-2">
           <Button type="button" variant="secondary" disabled={save.isPending} onClick={close}>
-            Cancel
+            {conflicted ? 'Close and review latest profile' : 'Cancel'}
           </Button>
-          <Button type="submit" isLoading={save.isPending}>
+          <Button type="submit" isLoading={save.isPending} disabled={conflicted}>
             Save
           </Button>
         </div>
