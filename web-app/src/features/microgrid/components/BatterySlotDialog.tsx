@@ -10,6 +10,7 @@ import { SlotDateCalendar } from '@/features/microgrid/components/SlotDateCalend
 import { useCreateMicrogridSlot, useUpdateMicrogridSlot } from '@/features/microgrid/hooks/useMicrogridSlotMutations'
 import type { BatterySlotFormValues, MicrogridBatterySlot, MicrogridNode } from '@/features/microgrid/types'
 import {
+  SAME_DAY_SLOT_MESSAGE,
   defaultBatterySlotFormValues,
   getDayOperatingRange,
   toCreateSlotRequest,
@@ -66,9 +67,11 @@ function BatterySlotDialogForm({
   const hasCompleteRange = Boolean(
     watchedSlot.startDate && watchedSlot.startTime && watchedSlot.endDate && watchedSlot.endTime,
   )
-  const scheduleError = hasCompleteRange
+  const rowError = hasCompleteRange
     ? validateSlotRow(watchedSlot as BatterySlotFormValues, schedule)
     : undefined
+  const sameDayError = rowError === SAME_DAY_SLOT_MESSAGE ? rowError : undefined
+  const scheduleError = sameDayError ? undefined : rowError
   const startDayRange = watchedSlot.startDate
     ? getDayOperatingRange(schedule, new Date(`${watchedSlot.startDate}T00:00:00`).getDay())
     : undefined
@@ -158,7 +161,7 @@ function BatterySlotDialogForm({
             value={watchedSlot.endDate ?? ''}
             schedule={schedule}
             minDate={watchedSlot.startDate}
-            error={errors.endDate?.message}
+            error={errors.endDate?.message ?? sameDayError}
             onSelect={(date) => setValue('endDate', date, { shouldValidate: true, shouldDirty: true })}
           />
           <TextField

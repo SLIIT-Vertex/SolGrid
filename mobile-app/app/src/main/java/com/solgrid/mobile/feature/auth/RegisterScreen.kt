@@ -61,13 +61,7 @@ import com.solgrid.mobile.core.design.Sizing
 import com.solgrid.mobile.core.design.SolGridTheme
 import com.solgrid.mobile.core.design.Spacing
 
-/**
- * Prosumer self-registration. Grid Operator accounts are created only by Backoffice (web).
- *
- * The form is asked one short section at a time (see [RegisterStep]) instead of as a single long
- * scroll: each section fits a screen, is validated before the next one opens, and the last one
- * lets the user review everything before committing.
- */
+/** Prosumer registration. Operator accounts are created on the web. */
 @Composable
 fun RegisterScreen(
     viewModel: AuthViewModel,
@@ -90,11 +84,10 @@ fun RegisterScreen(
         }
     }
 
-    // Every section starts at the top; carrying the previous section's scroll offset over would
-    // drop the user into the middle of the new one.
+    // Start each step at the top.
     LaunchedEffect(state.step) { scrollState.scrollTo(0) }
 
-    // System back walks the sections in reverse — only the first section leaves registration.
+    // Back walks the steps. The first step leaves registration.
     BackHandler(enabled = state.step != RegisterStep.IDENTITY) { viewModel.onRegisterStepBack() }
 
     Box(modifier = Modifier.fillMaxSize()) {
@@ -124,8 +117,7 @@ fun RegisterScreen(
                 AnimatedContent(
                     targetState = state.step,
                     transitionSpec = {
-                        // Going forward the new section arrives from the right, going back from
-                        // the left, so the motion matches the direction of travel.
+                        // Forward comes in from the right, back from the left.
                         val direction = if (targetState.ordinal > initialState.ordinal) 1 else -1
                         ContentTransform(
                             targetContentEnter = slideInHorizontally { width -> direction * width } + fadeIn(),
@@ -391,10 +383,7 @@ private fun ReviewRow(label: String, value: String) {
 
 private val StepCircleSize = 28.dp
 
-/**
- * Numbered progress header. Completed steps are tappable so the user can go back and change an
- * answer without stepping through every section in between.
- */
+/** Finished steps can be tapped to go back and edit. */
 @Composable
 private fun RegisterStepper(
     current: RegisterStep,
@@ -503,7 +492,6 @@ private fun RegisterErrorBanner(message: String) {
     }
 }
 
-/** Actions stay pinned below the section so "Continue" is reachable without scrolling. */
 @Composable
 private fun RegisterFooter(
     state: RegisterUiState,

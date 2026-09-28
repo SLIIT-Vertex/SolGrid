@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import {
   MAX_ADDRESS_LENGTH,
   MAX_CODE_LENGTH,
@@ -22,6 +22,7 @@ import {
   validateSlotAgainstSchedule,
   validateSlotInterval,
   validateSlotQueryRange,
+  validateSlotRow,
   validateUniqueSlotNumbers,
 } from '@/features/microgrid/validation'
 
@@ -170,6 +171,21 @@ describe('battery slot validation', () => {
         '2026-09-21T11:00:00+00:00',
       ),
     ).toBeUndefined()
+  })
+
+  it('calls out a slot that crosses a date boundary instead of blaming the operating hours', () => {
+    // Both fixture dates are Mondays inside the operating window, so only the date boundary is
+    // wrong. Time is pinned ahead of them so the "cannot start in the past" rule stays out of it.
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-09-14T00:00:00Z'))
+    try {
+      expect(validateSlotRow(slot({ endDate: '2026-09-28', endTime: '11:00' }), [mondayHours])).toBe(
+        'A booking slot must start and end on the same day.',
+      )
+      expect(validateSlotRow(slot(), [mondayHours])).toBeUndefined()
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('caps the number of battery slots declared with a station', () => {

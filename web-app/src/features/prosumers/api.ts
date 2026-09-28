@@ -1,4 +1,5 @@
 import { apiClient } from '@/lib/apiClient'
+import { isNotFoundError } from '@/lib/problemDetails'
 import { prosumerStatusFromValue, ProsumerAccountStatusValue } from '@/features/prosumers/types'
 import type {
   PagedResultDto,
@@ -51,8 +52,17 @@ export async function getProsumers(filters: ProsumerFilters): Promise<ProsumerPa
 }
 
 export async function getProsumer(nic: string): Promise<Prosumer> {
-  const { data } = await apiClient.get<ProsumerDto>(`/api/v1/prosumers/${nic}`)
+  const { data } = await apiClient.get<ProsumerDto>(`/api/v1/prosumers/${encodeURIComponent(nic)}`)
   return toProsumer(data)
+}
+
+export async function lookupProsumerByNic(nic: string): Promise<Prosumer | null> {
+  try {
+    return await getProsumer(nic)
+  } catch (error) {
+    if (isNotFoundError(error)) return null
+    throw error
+  }
 }
 
 const statusCountOrder: ProsumerAccountStatus[] = [

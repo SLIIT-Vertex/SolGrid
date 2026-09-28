@@ -27,8 +27,8 @@ import com.solgrid.mobile.core.components.PrimaryButton
 import com.solgrid.mobile.core.design.AppType
 import com.solgrid.mobile.core.design.SolGridTheme
 import com.solgrid.mobile.core.design.Spacing
+import com.solgrid.mobile.core.models.ProsumerAccountStatus
 
-/** Request account deactivation (MOB-04). Only a Backoffice officer can reactivate afterwards. */
 @Composable
 fun DeactivationRequestScreen(viewModel: ProsumerViewModel, onBack: () -> Unit, onDeactivated: () -> Unit) {
     val colors = SolGridTheme.colors
@@ -81,7 +81,7 @@ fun DeactivationRequestScreen(viewModel: ProsumerViewModel, onBack: () -> Unit, 
             PrimaryButton(
                 text = "Request Deactivation",
                 destructive = true,
-                enabled = confirmed && reason.isNotBlank() && state.profile.status == com.solgrid.mobile.core.models.ProsumerAccountStatus.ACTIVE,
+                enabled = confirmed && reason.isNotBlank() && state.profile.status == ProsumerAccountStatus.ACTIVE,
                 loading = submitting,
                 onClick = { showConfirm = true },
                 modifier = Modifier.fillMaxWidth().padding(top = Spacing.xxl)

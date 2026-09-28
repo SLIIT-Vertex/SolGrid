@@ -90,7 +90,6 @@ export function validateProsumerPassword(value: string): string | undefined {
   return undefined
 }
 
-/** Validate a single field so the dialog can report problems as the user leaves each input. */
 export function validateProsumerField(
   field: ProsumerFormField,
   values: ProsumerFormValues,

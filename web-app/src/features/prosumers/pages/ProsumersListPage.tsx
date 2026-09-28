@@ -118,7 +118,7 @@ export function ProsumersListPage() {
   }
 
   return (
-    <div className="mx-auto max-w-6xl">
+    <div className="mx-auto max-w-7xl">
       <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <p className="max-w-2xl text-sm text-ink-500">
           Review account requests, update contact details, and manage prosumer access.
@@ -198,22 +198,44 @@ export function ProsumersListPage() {
           ? `${pendingAction.prosumer.firstName} ${pendingAction.prosumer.lastName} · NIC ${pendingAction.prosumer.nic}`
           : undefined}
       >
-        <form onSubmit={(event) => { event.preventDefault(); void handleConfirm() }}>
+        <form
+          onSubmit={(event) => {
+            event.preventDefault()
+            void handleConfirm()
+          }}
+        >
           <p className="mb-3 text-sm text-ink-600">{pendingCopy?.effect}</p>
-          {pendingCopy?.needsReason && <>
-            <label htmlFor="account-action-reason" className="text-sm font-medium text-ink-700">Reason</label>
-            <textarea id="account-action-reason" required maxLength={500} value={reason}
-              onChange={(event) => setReason(event.target.value)} disabled={isMutating || actionConflicted}
-              className="mt-2 w-full rounded-lg border border-ink-200 p-3 text-sm" rows={3} />
-            <p className="mt-1 text-xs text-ink-500">Recorded in account history and visible to the prosumer.</p>
-          </>}
-          {actionError && <p role="alert" className="mt-3 text-sm text-red-600">{actionError}</p>}
+          {pendingCopy?.needsReason ? (
+            <>
+              <label htmlFor="account-action-reason" className="text-sm font-medium text-ink-700">
+                Reason
+              </label>
+              <textarea
+                id="account-action-reason"
+                required
+                maxLength={500}
+                value={reason}
+                onChange={(event) => setReason(event.target.value)}
+                disabled={isMutating || actionConflicted}
+                className="mt-2 w-full rounded-lg border border-ink-200 p-3 text-sm"
+                rows={3}
+              />
+              <p className="mt-1 text-xs text-ink-500">Recorded in account history and visible to the prosumer.</p>
+            </>
+          ) : null}
+          {actionError ? <p role="alert" className="mt-3 text-sm text-red-600">{actionError}</p> : null}
           <div className="mt-5 flex justify-end gap-2">
             <Button type="button" variant="secondary" disabled={isMutating} onClick={() => setPendingAction(null)}>
               {actionConflicted ? 'Close and review latest account' : 'Cancel'}
             </Button>
-            <Button type="submit" variant={pendingAction?.action === 'deactivate' || pendingAction?.action === 'reject' ? 'danger' : 'primary'}
-              isLoading={isMutating} disabled={reasonMissing || actionConflicted}>{pendingCopy?.confirmLabel}</Button>
+            <Button
+              type="submit"
+              variant={pendingAction?.action === 'deactivate' || pendingAction?.action === 'reject' ? 'danger' : 'primary'}
+              isLoading={isMutating}
+              disabled={reasonMissing || actionConflicted}
+            >
+              {pendingCopy?.confirmLabel}
+            </Button>
           </div>
         </form>
       </Dialog>

@@ -20,7 +20,6 @@ import java.time.OffsetDateTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
-/** Server-scoped, read-only history; no staff identifiers or credential snapshots are displayed. */
 @Composable
 fun ProsumerActivityScreen(onBack: () -> Unit) {
     val colors = SolGridTheme.colors
@@ -58,8 +57,11 @@ fun ProsumerActivityScreen(onBack: () -> Unit) {
                             else -> event.action
                         }
                         Text(title, style = AppType.bodyStrong, color = colors.textPrimary, modifier = Modifier.padding(top = Spacing.md))
-                        val date = runCatching { OffsetDateTime.parse(event.occurredAt).atZoneSameInstant(ZoneId.systemDefault())
-                            .format(DateTimeFormatter.ofPattern("dd MMM yyyy, HH:mm")) }.getOrDefault(event.occurredAt)
+                        val date = runCatching {
+                            OffsetDateTime.parse(event.occurredAt)
+                                .atZoneSameInstant(ZoneId.systemDefault())
+                                .format(DateTimeFormatter.ofPattern("dd MMM yyyy, HH:mm"))
+                        }.getOrDefault(event.occurredAt)
                         Text("$date · ${event.actorRole}", style = AppType.supporting, color = colors.textSecondary)
                         event.reason?.let { Text(it, style = AppType.body, color = colors.textPrimary, modifier = Modifier.padding(vertical = Spacing.sm)) }
                         AppDivider()
