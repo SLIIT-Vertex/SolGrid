@@ -102,8 +102,7 @@ private fun slotStatusTone(status: Int, available: Boolean) = when (status) {
     else -> com.solgrid.mobile.core.components.BadgeTone.NEUTRAL
 }
 
-/** The inline "tap a marker or result to peek its slots" panel shown in place of the results list.
- * Tapping an available slot goes straight to reservation creation for this node. */
+/** The inline "tap a marker or result to peek its slots" panel shown in place of the results list. */
 @Composable
 private fun SelectedNodePanel(
     loading: Boolean,
@@ -150,6 +149,13 @@ private fun SelectedNodePanel(
             return@Column
         }
 
+        com.solgrid.mobile.core.components.PrimaryButton(
+            text = "Book a Slot",
+            enabled = node.status == 1 && node.availableSlotCount > 0,
+            onClick = onBookSlot,
+            modifier = Modifier.fillMaxWidth().padding(horizontal = Spacing.lg, vertical = Spacing.sm),
+        )
+
         LazyColumn(
             modifier = Modifier.fillMaxWidth().padding(horizontal = Spacing.lg),
             contentPadding = PaddingValues(bottom = Spacing.sm),
@@ -165,12 +171,8 @@ private fun SelectedNodePanel(
                 }
             }
             items(slots, key = { it.id }) { slot ->
-                val isBookable = slot.isActive && slot.isAvailable
                 Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .then(if (isBookable) Modifier.clickableNoRipple(onBookSlot) else Modifier)
-                        .padding(vertical = Spacing.lg),
+                    modifier = Modifier.fillMaxWidth().padding(vertical = Spacing.lg),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween,
                 ) {
