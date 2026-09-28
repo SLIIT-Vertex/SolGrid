@@ -53,7 +53,14 @@ public sealed class Prosumer
 
     public DateTimeOffset UpdatedAt { get; private set; }
 
-    public bool IsActive => Status == ProsumerAccountStatus.Active;
+    public long Version { get; private set; }
+
+    private readonly List<ProsumerActivity> activity = [];
+
+    public IReadOnlyList<ProsumerActivity> Activity => activity.AsReadOnly();
+
+    // A request awaits review; access ends only when Backoffice deactivates the account.
+    public bool IsActive => Status is ProsumerAccountStatus.Active or ProsumerAccountStatus.DeactivationRequested;
 
     public static Prosumer Create(
         string nic,
@@ -86,10 +93,21 @@ public sealed class Prosumer
         string passwordHash,
         ProsumerAccountStatus status,
         DateTimeOffset createdAt,
-        DateTimeOffset updatedAt)
+        DateTimeOffset updatedAt,
+        long version = 0,
+        IEnumerable<ProsumerActivity>? activity = null)
     {
         // Rehydrate a prosumer without exposing persistence-specific types to Domain.
-        return new Prosumer(nic, firstName, lastName, email, phoneNumber, passwordHash, status, createdAt, updatedAt);
+        var prosumer = new Prosumer(nic, firstName, lastName, email, phoneNumber, passwordHash, status, createdAt, updatedAt);
+        prosumer.Version = version;
+        prosumer.activity.AddRange(activity ?? []);
+        return prosumer;
+    }
+
+    public void RecordActivity(string action, string actorId, string actorRole, string? reason, DateTimeOffset occurredAt)
+    {
+        // Keep server-authored account events with the profile for one atomic persistence operation.
+        activity.Add(new ProsumerActivity(action, actorId, actorRole, reason, Status, occurredAt, Version));
     }
 
     public void UpdateProfile(
@@ -205,5 +223,6 @@ public sealed class Prosumer
     {
         // Capture the latest prosumer profile or lifecycle mutation timestamp.
         UpdatedAt = updatedAt;
+        Version++;
     }
 }
