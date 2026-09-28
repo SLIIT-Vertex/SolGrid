@@ -37,12 +37,25 @@ import com.solgrid.mobile.core.design.SolGridTheme
 import com.solgrid.mobile.core.design.Spacing
 import com.solgrid.mobile.core.models.EnergyReservation
 import com.solgrid.mobile.core.network.BookingSlotDto
+import java.time.Instant
 import java.time.OffsetDateTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import java.time.temporal.ChronoUnit
 
 private val slotDayFormatter = DateTimeFormatter.ofPattern("EEE, MMM d")
 private val slotTimeFormatter = DateTimeFormatter.ofPattern("hh:mm a")
+
+internal fun bookingSlotsWithinNextSevenDays(
+    slots: List<BookingSlotDto>,
+    now: Instant = Instant.now(),
+): List<BookingSlotDto> {
+    val latestStart = now.plus(7, ChronoUnit.DAYS)
+    return slots.filter { slot ->
+        val start = runCatching { OffsetDateTime.parse(slot.startTime).toInstant() }.getOrNull()
+        slot.isActive && start != null && !start.isBefore(now) && !start.isAfter(latestStart)
+    }
+}
 
 /** Human-friendly two-line label for a booking slot, e.g. "Wed, Sep 24" / "09:00 AM – 11:00 AM". */
 fun slotDayLabel(slot: BookingSlotDto): String = runCatching {

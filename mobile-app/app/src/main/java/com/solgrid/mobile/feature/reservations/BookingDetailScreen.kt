@@ -186,6 +186,13 @@ fun BookingDetailScreen(
                     color = colors.textTertiary
                 )
             }
+            if (reservation.status == ReservationStatus.APPROVED) {
+                NoteCard(
+                    text = approvedReservationExpiryMessage(reservation.scheduledAt),
+                    tone = colors.warning,
+                    surface = colors.warningSurface
+                )
+            }
             Box(modifier = Modifier.padding(bottom = Spacing.sm))
         }
 
@@ -218,6 +225,22 @@ fun BookingDetailScreen(
             },
             onDismiss = { showCancelConfirm = false }
         )
+    }
+}
+
+private fun approvedReservationExpiryMessage(scheduledAt: String?): String {
+    val expiry = scheduledAt?.let { value ->
+        runCatching {
+            OffsetDateTime.parse(value)
+                .plusMinutes(30)
+                .atZoneSameInstant(ZoneId.systemDefault())
+                .format(DateTimeFormatter.ofPattern("MMM d, yyyy 'at' hh:mm a"))
+        }.getOrNull()
+    }
+    return if (expiry == null) {
+        "If the energy transfer is not completed, this reservation expires 30 minutes after the reserved start time."
+    } else {
+        "If the energy transfer is not completed, this reservation expires 30 minutes after the reserved start time ($expiry)."
     }
 }
 
