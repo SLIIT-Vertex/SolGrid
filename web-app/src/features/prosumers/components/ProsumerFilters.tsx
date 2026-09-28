@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Button } from '@/components/common/Button'
 import { TextField } from '@/components/common/TextField'
 import { SelectField } from '@/components/common/SelectField'
 import type { ProsumerFilters as ProsumerFiltersState } from '@/features/prosumers/types'
@@ -6,10 +7,18 @@ import type { ProsumerFilters as ProsumerFiltersState } from '@/features/prosume
 interface ProsumerFiltersProps {
   filters: ProsumerFiltersState
   onChange: (updater: (current: ProsumerFiltersState) => ProsumerFiltersState) => void
+  onClear: () => void
+  hasActiveFilters: boolean
   showStatusFilter?: boolean
 }
 
-export function ProsumerFilters({ filters, onChange, showStatusFilter = true }: ProsumerFiltersProps) {
+export function ProsumerFilters({
+  filters,
+  onChange,
+  onClear,
+  hasActiveFilters,
+  showStatusFilter = true,
+}: ProsumerFiltersProps) {
   const [searchDraft, setSearchDraft] = useState(filters.searchText)
 
   useEffect(() => {
@@ -26,8 +35,10 @@ export function ProsumerFilters({ filters, onChange, showStatusFilter = true }: 
     <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
       <div className="flex-1">
         <TextField
+          name="prosumer-search"
+          type="search"
           label="Search"
-          placeholder="Search by name, email, or NIC"
+          placeholder="Name, email, or NIC"
           value={searchDraft}
           onChange={(event) => setSearchDraft(event.target.value)}
         />
@@ -35,6 +46,7 @@ export function ProsumerFilters({ filters, onChange, showStatusFilter = true }: 
       {showStatusFilter ? (
         <div className="w-full sm:w-52">
           <SelectField
+            name="prosumer-status"
             label="Status"
             value={filters.status}
             onChange={(event) =>
@@ -52,6 +64,11 @@ export function ProsumerFilters({ filters, onChange, showStatusFilter = true }: 
             <option value="Deactivated">Deactivated</option>
           </SelectField>
         </div>
+      ) : null}
+      {hasActiveFilters ? (
+        <Button type="button" variant="ghost" onClick={onClear}>
+          Clear filters
+        </Button>
       ) : null}
     </div>
   )
