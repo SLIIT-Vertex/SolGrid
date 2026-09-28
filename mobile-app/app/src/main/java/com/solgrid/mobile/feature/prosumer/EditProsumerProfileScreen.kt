@@ -37,6 +37,7 @@ fun EditProsumerProfileScreen(
 ) {
     val colors = SolGridTheme.colors
     val state by viewModel.uiState.collectAsState()
+    val expectedVersion = remember { state.profile.version }
     var fullName by remember { mutableStateOf(state.profile.fullName) }
     var email by remember { mutableStateOf(state.profile.email) }
     var phone by remember { mutableStateOf(state.profile.phone) }
@@ -92,6 +93,11 @@ fun EditProsumerProfileScreen(
                 )
                 submitError?.let {
                     androidx.compose.material3.Text(it, color = colors.error, modifier = Modifier.padding(bottom = Spacing.md))
+                    com.solgrid.mobile.core.components.SecondaryButton(
+                        text = "Close and reload profile",
+                        onClick = { viewModel.loadProfile(); onBack() },
+                        modifier = Modifier.padding(bottom = Spacing.md),
+                    )
                 }
 
                 PrimaryButton(
@@ -113,6 +119,7 @@ fun EditProsumerProfileScreen(
                         val firstName = if (spaceIndex == -1) fullName.trim() else fullName.trim().substring(0, spaceIndex)
                         val lastName = if (spaceIndex == -1) fullName.trim() else fullName.trim().substring(spaceIndex + 1).trim()
                         viewModel.updateProfile(
+                            expectedVersion = expectedVersion,
                             firstName = firstName,
                             lastName = lastName,
                             email = email,

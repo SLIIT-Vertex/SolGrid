@@ -12,6 +12,8 @@ namespace SolGrid.Application.Prosumers.Responses;
 
 public sealed class ProsumerResponse
 {
+    public long Version { get; init; }
+
     public string Nic { get; init; } = string.Empty;
 
     public string FirstName { get; init; } = string.Empty;

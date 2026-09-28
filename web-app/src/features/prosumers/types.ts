@@ -27,6 +27,7 @@ export interface Prosumer {
   status: ProsumerAccountStatus
   createdAt: string
   updatedAt: string
+  version: number
 }
 
 /** Raw shape returned by the API (status as a number). */
@@ -39,6 +40,7 @@ export interface ProsumerDto {
   status: number
   createdAt: string
   updatedAt: string
+  version: number
 }
 
 export interface PagedResultDto<T> {
@@ -74,4 +76,20 @@ export const defaultPendingProsumerFilters: ProsumerFilters = {
   status: 'Pending',
   pageNumber: 1,
   pageSize: 5,
+}
+
+export interface ProsumerActivity {
+  action: string
+  actorId: string | null
+  actorRole: string
+  reason: string | null
+  status: number
+  occurredAt: string
+  version: number
+}
+
+export interface ProsumerLifecycleChange {
+  nic: string
+  expectedVersion: number
+  reason: string
 }

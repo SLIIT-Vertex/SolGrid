@@ -26,7 +26,10 @@ interface ApiService {
     suspend fun updateMyProsumerProfile(@Body request: UpdateProsumerRequestDto): Response<ProsumerResponseDto>
 
     @PATCH("api/v1/prosumers/me/request-deactivation")
-    suspend fun requestMyProsumerDeactivation(): Response<Unit>
+    suspend fun requestMyProsumerDeactivation(@Body request: ProsumerLifecycleRequestDto): Response<Unit>
+
+    @GET("api/v1/prosumers/me/activity")
+    suspend fun getMyProsumerActivity(@Query("pageNumber") pageNumber: Int, @Query("pageSize") pageSize: Int = 10): Response<PagedResponseDto<ProsumerActivityDto>>
 
     @GET("api/v1/stations")
     suspend fun getStations(

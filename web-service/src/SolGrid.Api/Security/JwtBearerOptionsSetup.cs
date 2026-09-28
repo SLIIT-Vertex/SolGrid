@@ -11,6 +11,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using SolGrid.Infrastructure.Security;
+using SolGrid.Application.Prosumers.Interfaces;
 using System.Security.Claims;
 using System.Text;
 
@@ -57,9 +58,21 @@ public sealed class JwtBearerOptionsSetup : IConfigureNamedOptions<JwtBearerOpti
         };
         options.Events = new JwtBearerEvents
         {
+            OnTokenValidated = ValidateProsumerStatusAsync,
             OnChallenge = HandleChallengeAsync,
             OnForbidden = HandleForbiddenAsync
         };
+    }
+
+    private static async Task ValidateProsumerStatusAsync(TokenValidatedContext context)
+    {
+        // Reject old prosumer tokens on every protected route after Backoffice deactivation.
+        if (context.Principal?.FindFirst(ClaimTypes.Role) is not null) return;
+        var nic = context.Principal?.FindFirstValue(ClaimTypes.NameIdentifier);
+        var repository = context.HttpContext.RequestServices.GetRequiredService<IProsumerRepository>();
+        var prosumer = string.IsNullOrWhiteSpace(nic) ? null
+            : await repository.GetByNicAsync(nic, context.HttpContext.RequestAborted).ConfigureAwait(false);
+        if (prosumer?.IsActive != true) context.Fail("Prosumer account is no longer active.");
     }
 
     private static void ValidateOptions(JwtOptions options)

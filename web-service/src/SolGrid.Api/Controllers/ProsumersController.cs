@@ -113,10 +113,10 @@ public sealed class ProsumersController : ControllerBase
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
-    public async Task<IActionResult> RequestDeactivation(CancellationToken cancellationToken)
+    public async Task<IActionResult> RequestDeactivation([FromBody] ProsumerLifecycleRequest request, CancellationToken cancellationToken)
     {
         // Record an authenticated prosumer's deactivation request without deleting history.
-        await prosumerService.RequestMyDeactivationAsync(cancellationToken).ConfigureAwait(false);
+        await prosumerService.RequestMyDeactivationAsync(request, cancellationToken).ConfigureAwait(false);
         return NoContent();
     }
 
@@ -132,6 +132,24 @@ public sealed class ProsumersController : ControllerBase
     {
         // Return a filtered Backoffice prosumer management page.
         return Ok(await prosumerService.GetProsumersAsync(new ProsumerQuery { SearchText = searchText, Status = status, PageNumber = pageNumber, PageSize = pageSize }, cancellationToken).ConfigureAwait(false));
+    }
+
+    [HttpGet("me/activity")]
+    [Authorize]
+    public async Task<ActionResult<PagedResult<ProsumerActivityResponse>>> GetMyActivity(
+        [FromQuery] int pageNumber = 1, [FromQuery] int pageSize = 20, CancellationToken cancellationToken = default)
+    {
+        // Return only the authenticated prosumer's history, without internal staff identifiers.
+        return Ok(await prosumerService.GetActivityAsync(null, pageNumber, pageSize, cancellationToken).ConfigureAwait(false));
+    }
+
+    [HttpGet("{nic}/activity")]
+    [Authorize(Policy = AuthorizationPolicies.Backoffice)]
+    public async Task<ActionResult<PagedResult<ProsumerActivityResponse>>> GetActivity(string nic,
+        [FromQuery] int pageNumber = 1, [FromQuery] int pageSize = 20, CancellationToken cancellationToken = default)
+    {
+        // Allow Backoffice to review the immutable account timeline and actor attribution.
+        return Ok(await prosumerService.GetActivityAsync(nic, pageNumber, pageSize, cancellationToken).ConfigureAwait(false));
     }
 
     [HttpGet("pending")]
@@ -164,10 +182,10 @@ public sealed class ProsumersController : ControllerBase
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
-    public async Task<IActionResult> Activate(string nic, CancellationToken cancellationToken)
+    public async Task<IActionResult> Activate(string nic, [FromBody] ProsumerLifecycleRequest request, CancellationToken cancellationToken)
     {
         // Activate a pending prosumer through Backoffice management.
-        await prosumerService.ActivateProsumerAsync(nic, cancellationToken).ConfigureAwait(false);
+        await prosumerService.ActivateProsumerAsync(nic, request, cancellationToken).ConfigureAwait(false);
         return NoContent();
     }
 
@@ -178,10 +196,10 @@ public sealed class ProsumersController : ControllerBase
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
-    public async Task<IActionResult> Deactivate(string nic, CancellationToken cancellationToken)
+    public async Task<IActionResult> Deactivate(string nic, [FromBody] ProsumerLifecycleRequest request, CancellationToken cancellationToken)
     {
         // Deactivate a prosumer through Backoffice management.
-        await prosumerService.DeactivateProsumerAsync(nic, cancellationToken).ConfigureAwait(false);
+        await prosumerService.DeactivateProsumerAsync(nic, request, cancellationToken).ConfigureAwait(false);
         return NoContent();
     }
 
@@ -192,10 +210,10 @@ public sealed class ProsumersController : ControllerBase
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
-    public async Task<IActionResult> Reactivate(string nic, CancellationToken cancellationToken)
+    public async Task<IActionResult> Reactivate(string nic, [FromBody] ProsumerLifecycleRequest request, CancellationToken cancellationToken)
     {
         // Reactivate a deactivated prosumer through Backoffice management.
-        await prosumerService.ReactivateProsumerAsync(nic, cancellationToken).ConfigureAwait(false);
+        await prosumerService.ReactivateProsumerAsync(nic, request, cancellationToken).ConfigureAwait(false);
         return NoContent();
     }
 }

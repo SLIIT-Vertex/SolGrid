@@ -151,6 +151,7 @@ public sealed class ProsumerServiceTests
 
         var response = await service.UpdateMyProsumerAsync(new UpdateProsumerRequest
         {
+            ExpectedVersion = prosumer.Version,
             FirstName = "Updated",
             LastName = "Prosumer",
             Email = "updated@example.com",
@@ -173,6 +174,7 @@ public sealed class ProsumerServiceTests
 
         await Assert.ThrowsAsync<ConflictException>(() => service.UpdateMyProsumerAsync(new UpdateProsumerRequest
         {
+            ExpectedVersion = second.Version,
             FirstName = "Second",
             LastName = "Prosumer",
             Email = "first@example.com"
@@ -187,10 +189,10 @@ public sealed class ProsumerServiceTests
         prosumer.Activate(CurrentTime);
         var service = CreateService(new InMemoryProsumerRepository(prosumer), new FakeCurrentUserContext(prosumer.Nic));
 
-        await service.RequestMyDeactivationAsync();
+        await service.RequestMyDeactivationAsync(new ProsumerLifecycleRequest { ExpectedVersion = prosumer.Version, Reason = "Moving home" });
 
         Assert.Equal(ProsumerAccountStatus.DeactivationRequested, prosumer.Status);
-        await Assert.ThrowsAsync<ConflictException>(() => service.RequestMyDeactivationAsync());
+        await Assert.ThrowsAsync<ConflictException>(() => service.RequestMyDeactivationAsync(new ProsumerLifecycleRequest { ExpectedVersion = prosumer.Version, Reason = "Moving home" }));
     }
 
     [Fact]
@@ -204,6 +206,7 @@ public sealed class ProsumerServiceTests
 
         await Assert.ThrowsAsync<AccountInactiveException>(() => service.UpdateMyProsumerAsync(new UpdateProsumerRequest
         {
+            ExpectedVersion = prosumer.Version,
             FirstName = "Updated",
             LastName = "Prosumer",
             Email = "updated@example.com"
@@ -239,9 +242,9 @@ public sealed class ProsumerServiceTests
         var prosumer = CreateProsumer("199012345678", "nimal@example.com");
         var service = CreateService(new InMemoryProsumerRepository(prosumer), new FakeCurrentUserContext("backoffice-id", UserRole.Backoffice));
 
-        await service.ActivateProsumerAsync(prosumer.Nic);
-        await service.DeactivateProsumerAsync(prosumer.Nic);
-        await service.ReactivateProsumerAsync(prosumer.Nic);
+        await service.ActivateProsumerAsync(prosumer.Nic, new ProsumerLifecycleRequest { ExpectedVersion = prosumer.Version, Reason = "Reviewed account" });
+        await service.DeactivateProsumerAsync(prosumer.Nic, new ProsumerLifecycleRequest { ExpectedVersion = prosumer.Version, Reason = "Reviewed account" });
+        await service.ReactivateProsumerAsync(prosumer.Nic, new ProsumerLifecycleRequest { ExpectedVersion = prosumer.Version, Reason = "Reviewed account" });
 
         Assert.Equal(ProsumerAccountStatus.Active, prosumer.Status);
     }
@@ -255,9 +258,9 @@ public sealed class ProsumerServiceTests
         var repository = new InMemoryProsumerRepository(prosumer);
 
         await Assert.ThrowsAsync<ForbiddenException>(() =>
-            CreateService(repository, new FakeCurrentUserContext(prosumer.Nic)).ReactivateProsumerAsync(prosumer.Nic));
+            CreateService(repository, new FakeCurrentUserContext(prosumer.Nic)).ReactivateProsumerAsync(prosumer.Nic, new ProsumerLifecycleRequest { ExpectedVersion = prosumer.Version, Reason = "Reviewed account" }));
         await Assert.ThrowsAsync<ForbiddenException>(() =>
-            CreateService(repository, new FakeCurrentUserContext("operator-id", UserRole.GridOperator)).ReactivateProsumerAsync(prosumer.Nic));
+            CreateService(repository, new FakeCurrentUserContext("operator-id", UserRole.GridOperator)).ReactivateProsumerAsync(prosumer.Nic, new ProsumerLifecycleRequest { ExpectedVersion = prosumer.Version, Reason = "Reviewed account" }));
     }
 
     [Fact]
@@ -304,7 +307,7 @@ public sealed class ProsumerServiceTests
         var repository = new InMemoryProsumerRepository();
         var service = CreateService(repository, new FakeCurrentUserContext("backoffice", UserRole.Backoffice));
         var created = await service.CreateProsumerAsync(CreateRequest());
-        var updated = await service.UpdateProsumerAsync(created.Nic, new UpdateProsumerRequest { FirstName = "Updated", LastName = "Name", Email = "updated@example.com", PhoneNumber = "0712345678" });
+        var updated = await service.UpdateProsumerAsync(created.Nic, new UpdateProsumerRequest { ExpectedVersion = created.Version, FirstName = "Updated", LastName = "Name", Email = "updated@example.com", PhoneNumber = "0712345678" });
         Assert.Equal(created.Nic, updated.Nic);
         Assert.Equal(ProsumerAccountStatus.Pending, updated.Status);
         Assert.Equal("Updated", updated.FirstName);
@@ -337,8 +340,84 @@ public sealed class ProsumerServiceTests
         var first = CreateProsumer("199012345678", "first@example.com");
         var second = CreateProsumer("199012345679", "second@example.com");
         var service = CreateService(new InMemoryProsumerRepository(first, second), new FakeCurrentUserContext("backoffice", UserRole.Backoffice));
-        await Assert.ThrowsAsync<ConflictException>(() => service.UpdateProsumerAsync(first.Nic, new UpdateProsumerRequest { FirstName = "First", LastName = "Name", Email = second.Email, PhoneNumber = "0712345678" }));
+        await Assert.ThrowsAsync<ConflictException>(() => service.UpdateProsumerAsync(first.Nic, new UpdateProsumerRequest { ExpectedVersion = first.Version, FirstName = "First", LastName = "Name", Email = second.Email, PhoneNumber = "0712345678" }));
         Assert.Equal("first@example.com", first.Email);
+    }
+
+    [Fact]
+    public async Task RequestedDeactivation_KeepsLoginProfileAndReservationEligibilityUntilReview()
+    {
+        // A request is not a final deactivation: all account checks must agree while awaiting review.
+        var prosumer = CreateProsumer("199012345678", "nimal@example.com");
+        prosumer.Activate(CurrentTime);
+        var repository = new InMemoryProsumerRepository(prosumer);
+        var service = CreateService(repository, new FakeCurrentUserContext(prosumer.Nic));
+        await service.RequestMyDeactivationAsync(new() { ExpectedVersion = prosumer.Version, Reason = " Moving home " });
+        Assert.True(prosumer.IsActive);
+        Assert.Equal(ProsumerAccountStatus.DeactivationRequested, (await service.GetMyProsumerAsync()).Status);
+        var auth = new AuthService(new EmptyUserRepository(), repository, new FakePasswordHasher(), new FakeTokenService());
+        Assert.NotEmpty((await auth.LoginProsumerAsync(new() { Email = prosumer.Email, Password = "password" })).AccessToken);
+        Assert.True((await new ReservationProsumerReadService(repository).GetByIdAsync(prosumer.Nic))!.IsActive);
+        var ownHistory = await service.GetActivityAsync(null);
+        var item = Assert.Single(ownHistory.Items);
+        Assert.Equal("Moving home", item.Reason);
+        Assert.Null(item.ActorId);
+        Assert.Equal("Prosumer", item.ActorRole);
+    }
+
+    [Fact]
+    public async Task StaleProfileAndLifecycleChanges_DoNotOverwriteStatusOrAppendHistory()
+    {
+        // An old client form must not reverse a newer administrative decision.
+        var prosumer = CreateProsumer("199012345678", "nimal@example.com");
+        var repository = new InMemoryProsumerRepository(prosumer);
+        var service = CreateService(repository, new FakeCurrentUserContext("reviewer", UserRole.Backoffice));
+        var staleVersion = prosumer.Version;
+        await service.DeactivateProsumerAsync(prosumer.Nic, new() { ExpectedVersion = staleVersion, Reason = "Account closed" });
+        await Assert.ThrowsAsync<ConflictException>(() => service.UpdateProsumerAsync(prosumer.Nic,
+            new() { ExpectedVersion = staleVersion, FirstName = "Stale", LastName = "Name", Email = prosumer.Email }));
+        await Assert.ThrowsAsync<ConflictException>(() => service.ReactivateProsumerAsync(prosumer.Nic,
+            new() { ExpectedVersion = staleVersion, Reason = "Stale approval" }));
+        Assert.Equal(ProsumerAccountStatus.Deactivated, prosumer.Status);
+        Assert.Single(prosumer.Activity);
+        Assert.NotEqual("Stale", prosumer.FirstName);
+    }
+
+    [Theory]
+    [InlineData(null, "Reviewed")]
+    [InlineData(-1L, "Reviewed")]
+    [InlineData(0L, " ")]
+    public async Task Lifecycle_RequiresVersionAndReason(long? version, string reason)
+    {
+        // Reject invalid commands without mutating the account or adding an event.
+        var prosumer = CreateProsumer("199012345678", "nimal@example.com");
+        var service = CreateService(new InMemoryProsumerRepository(prosumer), new FakeCurrentUserContext("reviewer", UserRole.Backoffice));
+        await Assert.ThrowsAsync<ValidationException>(() => service.ActivateProsumerAsync(prosumer.Nic,
+            new() { ExpectedVersion = version, Reason = reason }));
+        Assert.Equal(0, prosumer.Version);
+        Assert.Empty(prosumer.Activity);
+    }
+
+    [Fact]
+    public async Task History_IsOrderedPagedAndRestrictedToOwnerOrBackoffice()
+    {
+        // Audit attribution comes from trusted identity, and owners cannot choose another account.
+        var repository = new InMemoryProsumerRepository();
+        var admin = CreateService(repository, new FakeCurrentUserContext("reviewer", UserRole.Backoffice));
+        var created = await admin.CreateProsumerAsync(CreateRequest());
+        await admin.ActivateProsumerAsync(created.Nic, new() { ExpectedVersion = created.Version, Reason = "Verified registration" });
+        var page = await admin.GetActivityAsync(created.Nic, 1, 1);
+        Assert.Equal(2, page.TotalCount);
+        Assert.Equal("Activated", Assert.Single(page.Items).Action);
+        Assert.Equal("reviewer", page.Items[0].ActorId);
+        Assert.Equal("Registered", Assert.Single((await admin.GetActivityAsync(created.Nic, 2, 1)).Items).Action);
+        var owner = CreateService(repository, new FakeCurrentUserContext(created.Nic));
+        Assert.All((await owner.GetActivityAsync(null)).Items, item => Assert.Null(item.ActorId));
+        await Assert.ThrowsAsync<ForbiddenException>(() => owner.GetActivityAsync(created.Nic));
+        var gridOperator = CreateService(repository, new FakeCurrentUserContext("operator", UserRole.GridOperator));
+        await Assert.ThrowsAsync<ForbiddenException>(() => gridOperator.GetActivityAsync(created.Nic));
+        await Assert.ThrowsAsync<ForbiddenException>(() => gridOperator.GetActivityAsync(null));
+        await Assert.ThrowsAsync<ValidationException>(() => admin.GetActivityAsync(created.Nic, 0));
     }
 
     private static ProsumerService CreateService(InMemoryProsumerRepository? repository = null, FakeCurrentUserContext? currentUserContext = null)

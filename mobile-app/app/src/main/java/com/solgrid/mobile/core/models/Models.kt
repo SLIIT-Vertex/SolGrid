@@ -26,6 +26,7 @@ data class ProsumerProfile(
     val lastName: String,
     val email: String,
     val phone: String,
+    val version: Long = 0,
     val status: ProsumerAccountStatus = ProsumerAccountStatus.PENDING
 ) {
     val fullName: String get() = "$firstName $lastName"

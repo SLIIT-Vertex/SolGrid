@@ -1,16 +1,16 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import * as prosumersApi from '@/features/prosumers/api'
+import type { ProsumerLifecycleChange } from '@/features/prosumers/types'
 import { prosumersKeys } from '@/features/prosumers/queryKeys'
 
-function useProsumerStatusMutation(mutationFn: (nic: string) => Promise<void>) {
+function useProsumerStatusMutation(mutationFn: (request: ProsumerLifecycleChange) => Promise<void>) {
   const queryClient = useQueryClient()
 
   return useMutation({
     mutationFn,
-    onSuccess: (_, nic) => {
-      queryClient.invalidateQueries({ queryKey: prosumersKeys.lists() })
-      queryClient.invalidateQueries({ queryKey: prosumersKeys.summary() })
-      queryClient.invalidateQueries({ queryKey: prosumersKeys.detail(nic) })
+    onSettled: () => {
+      // Refresh stale rows and open history after successes and rejected conflicts alike.
+      queryClient.invalidateQueries({ queryKey: prosumersKeys.all })
     },
   })
 }

@@ -58,7 +58,7 @@ public sealed class ProsumerTests
         prosumer.RequestDeactivation(createdAt.AddMinutes(2));
 
         Assert.Equal(ProsumerAccountStatus.DeactivationRequested, prosumer.Status);
-        Assert.False(prosumer.IsActive);
+        Assert.True(prosumer.IsActive);
     }
 
     [Fact]

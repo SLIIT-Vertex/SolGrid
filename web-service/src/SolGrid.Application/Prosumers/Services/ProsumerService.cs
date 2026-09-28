@@ -89,6 +89,7 @@ public sealed class ProsumerService : IProsumerService
             passwordHasher.HashPassword(request.Password),
             createdAt);
 
+        RecordActivity(prosumer, "Registered");
         await prosumerRepository.AddAsync(prosumer, cancellationToken).ConfigureAwait(false);
         return ProsumerResponseMapper.ToResponse(prosumer);
     }
@@ -129,6 +130,7 @@ public sealed class ProsumerService : IProsumerService
     private async Task<ProsumerResponse> UpdateProfileAsync(Prosumer prosumer, UpdateProsumerRequest request, CancellationToken cancellationToken)
     {
         // Share cross-account email uniqueness and persistence between self-service and administration.
+        EnsureVersion(prosumer, request.ExpectedVersion);
         var email = NormalizeEmail(request.Email);
 
         if (!string.Equals(prosumer.Email, email, StringComparison.OrdinalIgnoreCase))
@@ -145,15 +147,18 @@ public sealed class ProsumerService : IProsumerService
         }
 
         prosumer.UpdateProfile(request.FirstName, request.LastName, email, request.PhoneNumber, timeProvider.GetUtcNow());
+        RecordActivity(prosumer, "ProfileUpdated");
         await prosumerRepository.UpdateAsync(prosumer, cancellationToken).ConfigureAwait(false);
         return ProsumerResponseMapper.ToResponse(prosumer);
     }
 
-    public async Task RequestMyDeactivationAsync(CancellationToken cancellationToken = default)
+    public async Task RequestMyDeactivationAsync(ProsumerLifecycleRequest request, CancellationToken cancellationToken = default)
     {
         // Record an authenticated active prosumer's account-deactivation request.
         var prosumer = await GetCurrentProsumerAsync(cancellationToken).ConfigureAwait(false);
+        ValidateLifecycleRequest(prosumer, request);
         ApplyLifecycleTransition(() => prosumer.RequestDeactivation(timeProvider.GetUtcNow()));
+        RecordActivity(prosumer, "DeactivationRequested", request.Reason.Trim());
         await prosumerRepository.UpdateAsync(prosumer, cancellationToken).ConfigureAwait(false);
     }
 
@@ -180,31 +185,89 @@ public sealed class ProsumerService : IProsumerService
         return ProsumerResponseMapper.ToResponse(prosumer);
     }
 
-    public async Task ActivateProsumerAsync(string nic, CancellationToken cancellationToken = default)
+    public async Task ActivateProsumerAsync(string nic, ProsumerLifecycleRequest request, CancellationToken cancellationToken = default)
     {
         // Activate a pending prosumer through a Backoffice-only lifecycle transition.
         EnsureBackoffice();
         var prosumer = await GetRequiredProsumerAsync(nic, cancellationToken).ConfigureAwait(false);
+        ValidateLifecycleRequest(prosumer, request);
         ApplyLifecycleTransition(() => prosumer.Activate(timeProvider.GetUtcNow()));
+        RecordActivity(prosumer, "Activated", request.Reason.Trim());
         await prosumerRepository.UpdateAsync(prosumer, cancellationToken).ConfigureAwait(false);
     }
 
-    public async Task DeactivateProsumerAsync(string nic, CancellationToken cancellationToken = default)
+    public async Task DeactivateProsumerAsync(string nic, ProsumerLifecycleRequest request, CancellationToken cancellationToken = default)
     {
         // Deactivate a prosumer through a Backoffice-only lifecycle transition.
         EnsureBackoffice();
         var prosumer = await GetRequiredProsumerAsync(nic, cancellationToken).ConfigureAwait(false);
+        ValidateLifecycleRequest(prosumer, request);
         ApplyLifecycleTransition(() => prosumer.Deactivate(timeProvider.GetUtcNow()));
+        RecordActivity(prosumer, "Deactivated", request.Reason.Trim());
         await prosumerRepository.UpdateAsync(prosumer, cancellationToken).ConfigureAwait(false);
     }
 
-    public async Task ReactivateProsumerAsync(string nic, CancellationToken cancellationToken = default)
+    public async Task ReactivateProsumerAsync(string nic, ProsumerLifecycleRequest request, CancellationToken cancellationToken = default)
     {
         // Reactivate a deactivated prosumer through a Backoffice-only lifecycle transition.
         EnsureBackoffice();
         var prosumer = await GetRequiredProsumerAsync(nic, cancellationToken).ConfigureAwait(false);
+        ValidateLifecycleRequest(prosumer, request);
         ApplyLifecycleTransition(() => prosumer.Reactivate(timeProvider.GetUtcNow()));
+        RecordActivity(prosumer, "Reactivated", request.Reason.Trim());
         await prosumerRepository.UpdateAsync(prosumer, cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task<PagedResult<ProsumerActivityResponse>> GetActivityAsync(string? nic, int pageNumber = 1, int pageSize = 20, CancellationToken cancellationToken = default)
+    {
+        // Scope history to the authenticated owner or an explicitly authorized Backoffice lookup.
+        Prosumer prosumer;
+        if (nic is null)
+        {
+            prosumer = await GetCurrentProsumerAsync(cancellationToken).ConfigureAwait(false);
+            EnsureSelfServiceEligible(prosumer);
+        }
+        else
+        {
+            EnsureBackoffice();
+            prosumer = await GetRequiredProsumerAsync(nic, cancellationToken).ConfigureAwait(false);
+        }
+        if (pageNumber < 1 || pageSize is < 1 or > 100)
+            throw new ValidationException(["Use a positive page number and a page size between 1 and 100."]);
+        var offset = (long)(pageNumber - 1) * pageSize;
+        var events = offset >= prosumer.Activity.Count ? [] : prosumer.Activity.Reverse().Skip((int)offset).Take(pageSize);
+        return new PagedResult<ProsumerActivityResponse>
+        {
+            Items = events.Select(item => new ProsumerActivityResponse(item.Action,
+                nic is null ? null : item.ActorId, item.ActorRole, item.Reason,
+                item.Status, item.OccurredAt, item.Version)).ToArray(),
+            TotalCount = prosumer.Activity.Count, PageNumber = pageNumber, PageSize = pageSize
+        };
+    }
+
+    private static void EnsureVersion(Prosumer prosumer, long? expectedVersion)
+    {
+        // Reject omitted versions and stale client forms before changing the domain object.
+        if (expectedVersion is null or < 0)
+            throw new ValidationException(["ExpectedVersion is required and must be non-negative. Refresh the profile and try again."]);
+        if (prosumer.Version != expectedVersion)
+            throw new ConflictException("This account changed since you opened it. Refresh and review the latest details before trying again.");
+    }
+
+    private static void ValidateLifecycleRequest(Prosumer prosumer, ProsumerLifecycleRequest request)
+    {
+        // Require an explanation for every reviewed account action and protect stale confirmations.
+        EnsureVersion(prosumer, request.ExpectedVersion);
+        if (string.IsNullOrWhiteSpace(request.Reason) || request.Reason.Trim().Length > 500)
+            throw new ValidationException(["A reason between 1 and 500 characters is required."]);
+    }
+
+    private void RecordActivity(Prosumer prosumer, string action, string? reason = null)
+    {
+        // Derive actor and time on the server; clients cannot forge audit attribution.
+        var backoffice = currentUserContext?.Role == UserRole.Backoffice;
+        prosumer.RecordActivity(action, backoffice ? currentUserContext!.UserId! : prosumer.Nic,
+            backoffice ? "Backoffice" : "Prosumer", reason, timeProvider.GetUtcNow());
     }
 
     private static void ValidateRegistrationRequest(RegisterProsumerRequest request)

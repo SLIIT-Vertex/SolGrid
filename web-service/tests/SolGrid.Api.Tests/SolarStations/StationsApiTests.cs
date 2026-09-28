@@ -17,6 +17,7 @@ using SolGrid.Application.Reservations.Interfaces;
 using SolGrid.Application.SolarStations.Interfaces;
 using SolGrid.Application.SolarStations.Services;
 using SolGrid.Domain.Entities;
+using SolGrid.Application.Prosumers.Interfaces;
 using SolGrid.Domain.Enums;
 using SolGrid.Domain.ValueObjects;
 using System.IdentityModel.Tokens.Jwt;
@@ -263,6 +264,8 @@ public sealed class StationsApiTests
                 });
                 builder.ConfigureServices(services =>
                 {
+                    services.RemoveAll<IProsumerRepository>();
+                    services.AddSingleton<IProsumerRepository>(new ActiveProsumerRepository());
                     services.RemoveAll<IReservationService>();
                     services.RemoveAll<ISolarStationRepository>();
                     services.AddSingleton<ISolarStationRepository>(new TestSolarStationRepository());

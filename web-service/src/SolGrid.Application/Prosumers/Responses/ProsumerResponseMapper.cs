@@ -17,6 +17,7 @@ public static class ProsumerResponseMapper
         // Map a prosumer profile without exposing persistence or future credential fields.
         return new ProsumerResponse
         {
+            Version = prosumer.Version,
             Nic = prosumer.Nic,
             FirstName = prosumer.FirstName,
             LastName = prosumer.LastName,

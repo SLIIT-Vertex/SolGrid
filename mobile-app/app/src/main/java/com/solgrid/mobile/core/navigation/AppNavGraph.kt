@@ -45,6 +45,7 @@ import com.solgrid.mobile.feature.prosumer.EditProsumerProfileScreen
 import com.solgrid.mobile.feature.reservations.EditReservationScreen
 import com.solgrid.mobile.feature.prosumer.NodeDetailScreen
 import com.solgrid.mobile.feature.prosumer.NodesMapScreen
+import com.solgrid.mobile.feature.prosumer.ProsumerActivityScreen
 import com.solgrid.mobile.feature.prosumer.ProsumerProfileScreen
 import com.solgrid.mobile.feature.prosumer.ProsumerViewModel
 import com.solgrid.mobile.feature.reservations.ReservationQrScreen
@@ -291,6 +292,7 @@ fun AppNavGraph(onThemeModeChange: (AppThemeMode) -> Unit) {
                     ProsumerProfileScreen(
                         viewModel = prosumerViewModel,
                         onEditProfile = { navController.navigate(Routes.EDIT_PROSUMER_PROFILE) },
+                        onActivity = { navController.navigate(Routes.PROSUMER_ACTIVITY) },
                         onDeactivationRequest = { navController.navigate(Routes.DEACTIVATION_REQUEST) },
                         onSettings = { navController.navigate(Routes.SETTINGS) },
                         onHelp = { navController.navigate(Routes.HELP) },
@@ -314,11 +316,14 @@ fun AppNavGraph(onThemeModeChange: (AppThemeMode) -> Unit) {
                         },
                     )
                 }
+                composable(Routes.PROSUMER_ACTIVITY) {
+                    ProsumerActivityScreen(onBack = { navController.popBackStack() })
+                }
                 composable(Routes.DEACTIVATION_REQUEST) {
                     DeactivationRequestScreen(
                         viewModel = prosumerViewModel,
                         onBack = { navController.popBackStack() },
-                        onDeactivated = { navController.popBackStack() }
+                        onDeactivated = { prosumerViewModel.loadProfile(); navController.popBackStack() }
                     )
                 }
 

@@ -7,7 +7,7 @@ SolGrid is an enterprise energy-management platform for managing solar prosumers
 | Component | Purpose |
 | --- | --- |
 | User Management | Backoffice and GridOperator user accounts, authentication, JWT-based authorization, and account administration. |
-| Prosumer Management | Prosumer registration, profile management, account activation, deactivation, and reactivation workflows. |
+| Prosumer Management | Registration, profiles, reviewed deactivation/reactivation, account history, and protection against conflicting updates. |
 | Microgrid Node Management | Solar station and booking-slot administration, schedules, availability, and nearby-node queries. |
 | Energy Slot Reservation Management | Reservation creation, update, cancellation, approval, rejection, QR verification, transaction completion, history, and dashboard summaries. |
 
@@ -194,7 +194,7 @@ The current API contract is available from the OpenAPI document at `/openapi/v1.
 - A reservation must be scheduled within seven days and cannot be scheduled in the past.
 - Reservation updates and cancellations require at least twelve hours' notice.
 - A booking slot cannot have more than one active reservation at a time.
-- Only active prosumers can make reservations.
+- Prosumers can make reservations while active or awaiting deactivation review. Backoffice deactivation ends account access.
 - Stations and slots must be active and available before they can be reserved.
 - Reservation ownership is derived from authenticated server-side claims; the client cannot choose another prosumer's reservation.
 - Backoffice users manage user, prosumer, station, and reservation administration.
