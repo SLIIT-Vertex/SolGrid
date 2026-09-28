@@ -59,8 +59,8 @@ fun CreateReservationScreen(
     LaunchedEffect(nodeId) { nodeViewModel.loadDetail(nodeId) }
 
     val node = nodeState.selected
-    // Show every real slot so reserved/occupied ones are visible but locked; only available ones book.
-    val slots = remember(nodeState.slots) { nodeState.slots.filter { it.isActive } }
+    // Keep reserved/occupied slots visible but locked, while matching the API's 7-day booking window.
+    val slots = remember(nodeState.slots) { bookingSlotsWithinNextSevenDays(nodeState.slots) }
     var selectedSlotId by rememberSaveable(nodeId) { mutableStateOf<String?>(null) }
     val selectedSlot = slots.find { it.id == selectedSlotId && it.isAvailable }
     var errorText by remember { mutableStateOf<String?>(null) }
@@ -143,7 +143,7 @@ fun CreateReservationScreen(
                     horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
                 ) {
                     Icon(Icons.Outlined.EventBusy, contentDescription = null, tint = colors.textSecondary)
-                    Text("No slots are configured for this station yet.", style = AppType.body, color = colors.textSecondary)
+                    Text("No slots are available within the next 7 days.", style = AppType.body, color = colors.textSecondary)
                 }
             } else {
                 slots.forEach { slot ->
