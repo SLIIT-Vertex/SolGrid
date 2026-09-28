@@ -10,8 +10,8 @@ namespace SolGrid.Application.Common.Exceptions;
 
 public sealed class AccountInactiveException : ApplicationExceptionBase
 {
-    public AccountInactiveException()
-        : base("User account is inactive.")
+    public AccountInactiveException(string message = "User account is inactive.")
+        : base(message)
     {
         // Create a consistent inactive account authentication failure.
     }

@@ -89,7 +89,9 @@ public sealed class AuthService : IAuthService
 
         if (!prosumer.IsActive)
         {
-            throw new AccountInactiveException();
+            throw new AccountInactiveException(prosumer.Status == SolGrid.Domain.Enums.ProsumerAccountStatus.Pending
+                ? "Your account is awaiting Backoffice activation."
+                : "Your account has been deactivated. Contact Backoffice to request reactivation.");
         }
 
         var token = tokenService.CreateProsumerToken(prosumer.Nic);
