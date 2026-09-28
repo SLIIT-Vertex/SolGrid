@@ -14,6 +14,10 @@ namespace SolGrid.Infrastructure.Persistence.MongoDb.Documents;
 
 internal sealed class ProsumerDocument
 {
+    public long Version { get; init; }
+
+    public List<ProsumerActivityDocument> Activity { get; init; } = [];
+
     [BsonId]
     public string Nic { get; init; } = string.Empty;
 
@@ -38,6 +42,8 @@ internal sealed class ProsumerDocument
         // Convert a domain prosumer into the MongoDB document shape.
         return new ProsumerDocument
         {
+            Version = prosumer.Version,
+            Activity = prosumer.Activity.Select(ProsumerActivityDocument.FromDomain).ToList(),
             Nic = prosumer.Nic,
             FirstName = prosumer.FirstName,
             LastName = prosumer.LastName,
@@ -62,7 +68,7 @@ internal sealed class ProsumerDocument
             PasswordHash,
             AccountStatus,
             ToUtcOffset(CreatedAtUtc),
-            ToUtcOffset(UpdatedAtUtc));
+            ToUtcOffset(UpdatedAtUtc), Version, Activity.Select(item => item.ToDomain()));
     }
 
     private static DateTimeOffset ToUtcOffset(DateTime value)

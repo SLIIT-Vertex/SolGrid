@@ -127,18 +127,24 @@ public sealed class MongoProsumerRepository : IProsumerRepository
     public async Task UpdateAsync(Prosumer prosumer, CancellationToken cancellationToken = default)
     {
         // Replace an existing prosumer document while preserving its immutable NIC identifier.
+        var filter = Builders<ProsumerDocument>.Filter;
+        var expectedVersion = prosumer.Version - 1;
+        // Existing documents without Version are version zero until their first guarded update.
+        var versionFilter = expectedVersion == 0
+            ? filter.Or(filter.Eq(item => item.Version, 0), filter.Exists(item => item.Version, false))
+            : filter.Eq(item => item.Version, expectedVersion);
         try
         {
             var result = await prosumersCollection
                 .ReplaceOneAsync(
-                    existingProsumer => existingProsumer.Nic == prosumer.Nic,
+                    filter.And(filter.Eq(item => item.Nic, prosumer.Nic), versionFilter),
                     ProsumerDocument.FromDomain(prosumer),
                     cancellationToken: cancellationToken)
                 .ConfigureAwait(false);
 
             if (result.MatchedCount == 0)
             {
-                throw new InvalidOperationException("Prosumer could not be found for update.");
+                throw new ConflictException("This account changed while saving. Refresh and review the latest details before trying again.");
             }
         }
         catch (MongoWriteException exception) when (exception.WriteError.Category == ServerErrorCategory.DuplicateKey)

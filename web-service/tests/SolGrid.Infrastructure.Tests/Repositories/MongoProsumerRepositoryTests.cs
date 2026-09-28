@@ -8,6 +8,8 @@
 
 using Microsoft.Extensions.Options;
 using MongoDB.Driver;
+using MongoDB.Bson;
+using SolGrid.Domain.Enums;
 using SolGrid.Application.Common.Exceptions;
 using SolGrid.Domain.Entities;
 using SolGrid.Infrastructure.Persistence.MongoDb;
@@ -85,6 +87,49 @@ public sealed class MongoProsumerRepositoryTests : IAsyncLifetime
 
         await Assert.ThrowsAsync<ConflictException>(() => repository.AddAsync(CreateProsumer("199012345678", "second@example.com")));
         await Assert.ThrowsAsync<ConflictException>(() => repository.AddAsync(CreateProsumer("199012345679", "first@example.com")));
+    }
+
+    [Fact]
+    public async Task ConcurrentUpdates_KeepWinningStatusAndHistoryTogether()
+    {
+        // Both writers load the same version; only one status/profile replacement can succeed.
+        if (ShouldSkipWithoutMongo()) return;
+        var initial = CreateProsumer("199012345678", "prosumer@example.com");
+        await repository!.AddAsync(initial);
+        var first = (await repository.GetByNicAsync(initial.Nic))!;
+        var stale = (await repository.GetByNicAsync(initial.Nic))!;
+        first.Deactivate(DateTimeOffset.UtcNow);
+        first.RecordActivity("Deactivated", "reviewer", "Backoffice", "Reviewed", DateTimeOffset.UtcNow);
+        stale.UpdateProfile("Stale", "Writer", initial.Email, null, DateTimeOffset.UtcNow);
+        stale.RecordActivity("ProfileUpdated", initial.Nic, "Prosumer", null, DateTimeOffset.UtcNow);
+        await repository.UpdateAsync(first);
+        await Assert.ThrowsAsync<ConflictException>(() => repository.UpdateAsync(stale));
+        var persisted = (await repository.GetByNicAsync(initial.Nic))!;
+        Assert.Equal(ProsumerAccountStatus.Deactivated, persisted.Status);
+        Assert.Equal(1, persisted.Version);
+        Assert.Equal("Deactivated", Assert.Single(persisted.Activity).Action);
+        Assert.Equal(initial.FirstName, persisted.FirstName);
+    }
+
+    [Fact]
+    public async Task LegacyDocumentWithoutVersionOrHistory_UpgradesOnFirstWrite()
+    {
+        // Existing production documents need no destructive migration or fabricated audit history.
+        if (ShouldSkipWithoutMongo()) return;
+        var initial = CreateProsumer("199012345678", "prosumer@example.com");
+        await repository!.AddAsync(initial);
+        var collection = mongoClient!.GetDatabase(databaseName).GetCollection<BsonDocument>("Prosumers");
+        await collection.UpdateOneAsync(new BsonDocument("_id", initial.Nic),
+            Builders<BsonDocument>.Update.Unset("Version").Unset("Activity"));
+        var loaded = (await repository.GetByNicAsync(initial.Nic))!;
+        Assert.Equal(0, loaded.Version);
+        Assert.Empty(loaded.Activity);
+        loaded.Activate(DateTimeOffset.UtcNow);
+        loaded.RecordActivity("Activated", "reviewer", "Backoffice", "Reviewed", DateTimeOffset.UtcNow);
+        await repository.UpdateAsync(loaded);
+        var persisted = (await repository.GetByNicAsync(initial.Nic))!;
+        Assert.Equal(1, persisted.Version);
+        Assert.Single(persisted.Activity);
     }
 
     private static Prosumer CreateProsumer(string nic, string email)
