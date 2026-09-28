@@ -15,6 +15,8 @@ namespace SolGrid.Application.Prosumers.Interfaces;
 
 public interface IProsumerService
 {
+    Task<PagedResult<ProsumerActivityResponse>> GetActivityAsync(string? nic, int pageNumber = 1, int pageSize = 20, CancellationToken cancellationToken = default);
+
     Task<ProsumerResponse> RegisterProsumerAsync(RegisterProsumerRequest request, CancellationToken cancellationToken = default);
 
     Task<ProsumerResponse> CreateProsumerAsync(RegisterProsumerRequest request, CancellationToken cancellationToken = default);
@@ -25,15 +27,15 @@ public interface IProsumerService
 
     Task<ProsumerResponse> UpdateMyProsumerAsync(UpdateProsumerRequest request, CancellationToken cancellationToken = default);
 
-    Task RequestMyDeactivationAsync(CancellationToken cancellationToken = default);
+    Task RequestMyDeactivationAsync(ProsumerLifecycleRequest request, CancellationToken cancellationToken = default);
 
     Task<PagedResult<ProsumerResponse>> GetProsumersAsync(ProsumerQuery query, CancellationToken cancellationToken = default);
 
     Task<ProsumerResponse> GetProsumerByNicAsync(string nic, CancellationToken cancellationToken = default);
 
-    Task ActivateProsumerAsync(string nic, CancellationToken cancellationToken = default);
+    Task ActivateProsumerAsync(string nic, ProsumerLifecycleRequest request, CancellationToken cancellationToken = default);
 
-    Task DeactivateProsumerAsync(string nic, CancellationToken cancellationToken = default);
+    Task DeactivateProsumerAsync(string nic, ProsumerLifecycleRequest request, CancellationToken cancellationToken = default);
 
-    Task ReactivateProsumerAsync(string nic, CancellationToken cancellationToken = default);
+    Task ReactivateProsumerAsync(string nic, ProsumerLifecycleRequest request, CancellationToken cancellationToken = default);
 }

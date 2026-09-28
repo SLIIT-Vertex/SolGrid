@@ -116,6 +116,8 @@ public sealed class ProsumerApiTests
     [InlineData("/api/v1/prosumers/pending")]
     [InlineData("/api/v1/prosumers/199012345678")]
     [InlineData("/api/v1/prosumers/me")]
+    [InlineData("/api/v1/prosumers/me/activity")]
+    [InlineData("/api/v1/prosumers/199012345678/activity")]
     public async Task GridOperator_CannotReadStandaloneProsumerRoutes(string path)
     {
         await using var factory = CreateFactory();
@@ -136,7 +138,7 @@ public sealed class ProsumerApiTests
         client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", CreateWebUserJwt(UserRole.Backoffice));
         var created = await client.PostAsJsonAsync("/api/v1/prosumers", new { Nic = "199012345678", FirstName = "First", LastName = "Name", Email = "created@example.com", Password = "password123" });
         Assert.Equal(HttpStatusCode.Created, created.StatusCode);
-        var updated = await client.PutAsJsonAsync("/api/v1/prosumers/199012345678", new { FirstName = "Updated", LastName = "Name", Email = "updated@example.com" });
+        var updated = await client.PutAsJsonAsync("/api/v1/prosumers/199012345678", new { ExpectedVersion = 0, FirstName = "Updated", LastName = "Name", Email = "updated@example.com" });
         Assert.Equal(HttpStatusCode.OK, updated.StatusCode);
         var body = await updated.Content.ReadAsStringAsync();
         Assert.Contains("updated@example.com", body);
@@ -152,6 +154,46 @@ public sealed class ProsumerApiTests
         client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", CreateWebUserJwt(UserRole.GridOperator));
         Assert.Equal(HttpStatusCode.Forbidden, (await client.PostAsJsonAsync("/api/v1/prosumers", new { Nic = "199012345678" })).StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, (await client.PutAsJsonAsync("/api/v1/prosumers/199012345678", new { FirstName = "Updated" })).StatusCode);
+    }
+
+    [Fact]
+    public async Task LifecycleApi_RecordsHistoryRejectsStaleWritesAndRevokesExistingToken()
+    {
+        // Exercise registration, review, authenticated self-service, and token rejection through HTTP.
+        await using var factory = CreateFactory();
+        var admin = factory.CreateClient();
+        admin.DefaultRequestHeaders.Authorization = new("Bearer", CreateWebUserJwt(UserRole.Backoffice));
+        var registered = await admin.PostAsJsonAsync("/api/v1/prosumers", new {
+            Nic = "199012345678", FirstName = "Nimal", LastName = "Perera", Email = "nimal@example.com", Password = "password123" });
+        Assert.Equal(HttpStatusCode.Created, registered.StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await admin.PatchAsJsonAsync("/api/v1/prosumers/199012345678/activate",
+            new { ExpectedVersion = 0, Reason = "Registration reviewed" })).StatusCode);
+        var mobile = factory.CreateClient();
+        var login = await mobile.PostAsJsonAsync("/api/v1/prosumers/login", new { Email = "nimal@example.com", Password = "password123" });
+        Assert.Equal(HttpStatusCode.OK, login.StatusCode);
+        var token = (await login.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("accessToken").GetString();
+        mobile.DefaultRequestHeaders.Authorization = new("Bearer", token);
+        Assert.Equal(HttpStatusCode.NoContent, (await mobile.PatchAsJsonAsync("/api/v1/prosumers/me/request-deactivation",
+            new { ExpectedVersion = 1, Reason = "Moving home" })).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await mobile.GetAsync("/api/v1/prosumers/me")).StatusCode);
+        var ownHistory = await mobile.GetFromJsonAsync<JsonElement>("/api/v1/prosumers/me/activity");
+        Assert.Equal(3, ownHistory.GetProperty("totalCount").GetInt32());
+        Assert.DoesNotContain("test-web-user", ownHistory.ToString());
+        Assert.Equal(HttpStatusCode.Conflict, (await admin.PatchAsJsonAsync("/api/v1/prosumers/199012345678/deactivate",
+            new { ExpectedVersion = 1, Reason = "Outdated review" })).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await admin.PatchAsJsonAsync("/api/v1/prosumers/199012345678/deactivate",
+            new { Reason = "Missing version" })).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await admin.PatchAsJsonAsync("/api/v1/prosumers/199012345678/deactivate",
+            new { ExpectedVersion = 2, Reason = "Request approved" })).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await mobile.GetAsync("/api/v1/prosumers/me/activity")).StatusCode);
+        // Token rejection is global, including reservation routes outside the prosumer controller.
+        Assert.Equal(HttpStatusCode.Unauthorized, (await mobile.GetAsync("/api/v1/reservations/me")).StatusCode);
+        var anonymous = factory.CreateClient();
+        Assert.Equal(HttpStatusCode.Forbidden, (await anonymous.PostAsJsonAsync("/api/v1/prosumers/login",
+            new { Email = "nimal@example.com", Password = "password123" })).StatusCode);
+        var history = await admin.GetFromJsonAsync<JsonElement>("/api/v1/prosumers/199012345678/activity");
+        Assert.Equal(4, history.GetProperty("totalCount").GetInt32());
+        Assert.Equal("Request approved", history.GetProperty("items")[0].GetProperty("reason").GetString());
     }
 
     private static WebApplicationFactory<Program> CreateFactory()
