@@ -332,6 +332,14 @@ export function validateSlotAgainstSchedule(
   return undefined
 }
 
+/**
+ * An operating window is a clock range that can close no later than 23:59:59, so no weekly
+ * schedule can ever cover midnight and a slot crossing a date boundary is unsatisfiable however
+ * the station is configured. Reported separately from the generic schedule message so the form can
+ * point at the end date rather than leaving the user hunting for an hour that would work.
+ */
+export const SAME_DAY_SLOT_MESSAGE = 'A booking slot must start and end on the same day.'
+
 export function validateSlotRow(
   slot: BatterySlotFormValues,
   schedule: ScheduleWindowFormValues[],
@@ -358,6 +366,10 @@ export function validateSlotRow(
 
   if (Date.parse(startTime) < Date.now()) {
     return 'A booking slot cannot start in the past.'
+  }
+
+  if (slot.startDate.trim() !== slot.endDate.trim()) {
+    return SAME_DAY_SLOT_MESSAGE
   }
 
   return validateSlotAgainstSchedule(schedule, startTime, endTime)

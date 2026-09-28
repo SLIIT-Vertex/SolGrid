@@ -113,9 +113,7 @@ class ProsumerViewModel : ViewModel() {
     private val nodeRepository = NodeRepository()
     private val stationNameCache = mutableMapOf<String, String>()
 
-    /** Call after sign-in/registration navigates into the Prosumer flow — there is no session yet
-     * when this ViewModel is first constructed (see AppNavGraph), so profile loading is explicit
-     * rather than happening in init. */
+    /** Called after sign-in. The ViewModel is created before a session exists. */
     fun loadProfile() {
         viewModelScope.launch {
             _uiState.update { it.copy(loading = true, profileError = null) }

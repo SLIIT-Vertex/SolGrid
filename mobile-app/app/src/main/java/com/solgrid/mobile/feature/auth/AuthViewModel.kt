@@ -30,11 +30,7 @@ data class LoginUiState(
     val requestState: AuthRequestState = AuthRequestState.Idle
 )
 
-/**
- * Registration is asked for one short section at a time rather than as a single long form, so the
- * user answers a few related questions per screen and each section is validated before the next
- * one opens. [fields] is the slice of [RegisterUiState.fieldErrors] a section owns.
- */
+/** One step of registration. [fields] are the errors this step owns. */
 enum class RegisterStep(
     val label: String,
     val title: String,
@@ -220,7 +216,7 @@ class AuthViewModel : ViewModel() {
 
     fun onToggleTerms() = _register.update { it.copy(agreedToTerms = !it.agreedToTerms, fieldErrors = it.fieldErrors - "terms") }
 
-    /** Validate only the section on screen and open the next one when it is clean. */
+    /** Check this step, then open the next one. */
     fun onRegisterContinue() {
         val state = _register.value
         val errors = registerErrors(state).filterKeys { it in state.step.fields }
@@ -232,18 +228,14 @@ class AuthViewModel : ViewModel() {
         goToRegisterStep(next)
     }
 
-    /**
-     * Step back one section. Returns false on the first section, where "back" means leaving
-     * registration altogether — the caller decides what that does.
-     */
+    /** Step back. Returns false on the first step, where back leaves registration. */
     fun onRegisterStepBack(): Boolean {
         val previous = RegisterStep.entries.getOrNull(_register.value.step.ordinal - 1) ?: return false
         goToRegisterStep(previous)
         return true
     }
 
-    /** Jump to an already-completed section (stepper header, Review's Edit links). Moving forward
-     *  this way is ignored so a section can never be skipped past its validation. */
+    /** Open an earlier step. Later steps stay locked until they pass validation. */
     fun onRegisterStepSelected(step: RegisterStep) {
         if (step.ordinal < _register.value.step.ordinal) goToRegisterStep(step)
     }
@@ -253,8 +245,7 @@ class AuthViewModel : ViewModel() {
             it.copy(
                 step = step,
                 fieldErrors = emptyMap(),
-                // A failed submit's banner belongs to that attempt, not to the section the user
-                // moves to next.
+                // Clear a failed submit when the user leaves that step.
                 requestState = if (it.requestState is AuthRequestState.Error) AuthRequestState.Idle else it.requestState
             )
         }
@@ -264,8 +255,7 @@ class AuthViewModel : ViewModel() {
         val state = _register.value
         val errors = registerErrors(state)
         if (errors.isNotEmpty()) {
-            // Each section is gated, so this is a backstop: send the user to the earliest section
-            // that still has a problem rather than failing silently on Review.
+            // Jump back to the first step that still has an error.
             val firstUnfinished = RegisterStep.entries.first { step -> step.fields.any { it in errors } }
             _register.update {
                 it.copy(step = firstUnfinished, fieldErrors = errors.filterKeys { key -> key in firstUnfinished.fields })
@@ -286,9 +276,7 @@ class AuthViewModel : ViewModel() {
                 )
             ) {
                 is ProsumerRegisterOutcome.Success -> {
-                    // New prosumer accounts start Pending until a Backoffice officer activates
-                    // them (see docs/prosumer-management.md) — registration succeeding here does
-                    // not mean the account can sign in yet, so surface that on the Login screen.
+                    // New accounts stay Pending until Backoffice activates them.
                     _register.update { it.copy(requestState = AuthRequestState.Success) }
                     _login.update {
                         it.copy(
@@ -307,11 +295,7 @@ class AuthViewModel : ViewModel() {
     }
 }
 
-/**
- * One source of truth for registration validation. Step gating filters it down to the fields the
- * section on screen owns, and the final submit runs it whole, so advancing a section can never let
- * through input the submit would reject.
- */
+/** Shared by each step and by the final submit. */
 private fun registerErrors(state: RegisterUiState): Map<String, String> {
     val errors = mutableMapOf<String, String>()
     if (!hasSupportedNicFormat(state.nic)) {
@@ -326,7 +310,7 @@ private fun registerErrors(state: RegisterUiState): Map<String, String> {
     return errors
 }
 
-/** Mirrors SolGrid.Application.Prosumers.Validation.ProsumerRequestValidationRules.HasSupportedSriLankanNicFormat. */
+/** Same NIC check as ProsumerRequestValidationRules.HasSupportedSriLankanNicFormat. */
 fun hasSupportedNicFormat(nic: String): Boolean {
     val trimmed = nic.trim()
     val isLegacy = trimmed.length == 10 &&
@@ -345,7 +329,7 @@ fun sanitizeNicInput(value: String): String {
     return if (digits.length == 9) digits + allowed[letterIndex] else digits
 }
 
-/** Mirrors SolGrid.Application.Users.Validation.UserRequestValidationRules.HasEmailShape (minimal shape check). */
+/** Same email check as UserRequestValidationRules.HasEmailShape. */
 fun hasEmailShape(email: String): Boolean {
     val trimmed = email.trim()
     val atIndex = trimmed.indexOf('@')
@@ -353,7 +337,7 @@ fun hasEmailShape(email: String): Boolean {
         atIndex > 0 && trimmed.indexOf('.', atIndex) > atIndex + 1 && trimmed.last() != '.'
 }
 
-/** Mirrors SolGrid.Application.Prosumers.Validation.ProsumerRequestValidationRules.HasPhoneNumberShape. */
+/** Same phone check as ProsumerRequestValidationRules.HasPhoneNumberShape. */
 fun hasPhoneShape(phone: String): Boolean {
     if (phone.isBlank()) return false
     val trimmed = phone.trim()

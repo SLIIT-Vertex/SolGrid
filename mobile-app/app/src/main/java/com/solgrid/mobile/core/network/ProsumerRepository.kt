@@ -9,8 +9,7 @@ sealed interface ProsumerRegisterOutcome {
 
 sealed interface ProsumerLoginOutcome {
     data class Success(val response: ProsumerLoginResponseDto) : ProsumerLoginOutcome
-    /** [statusCode] lets callers tell a credential mismatch (401) apart from an account the
-     *  backend recognizes but won't sign in yet (403), which need different wording. */
+    /** 401 is a bad password. 403 means the account exists but can't sign in yet. */
     data class Failure(val message: String, val statusCode: Int? = null) : ProsumerLoginOutcome
 }
 
@@ -24,7 +23,6 @@ sealed interface ProsumerActionOutcome {
     data class Failure(val message: String, val statusCode: Int? = null) : ProsumerActionOutcome
 }
 
-/** Wraps the Retrofit calls under api/v1/prosumers for the mobile Prosumer self-service flows. */
 class ProsumerRepository(private val apiService: ApiService = NetworkModule.apiService) {
 
     suspend fun register(

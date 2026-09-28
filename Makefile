@@ -32,6 +32,8 @@ WEB_APP_DOCKER_ORIGIN ?= http://localhost:8080
 VITE_API_BASE_URL ?= http://localhost:5080
 VITE_API_PROXY_TARGET ?= http://localhost:5080
 MOBILE_API_BASE_URL ?= http://10.0.2.2:5080/
+# Android reads this at build time. Reuse the web Maps key when a separate Android key is not set.
+MOBILE_MAPS_API_KEY ?= $(VITE_GOOGLE_MAPS_API_KEY)
 SEED_DEVELOPMENT_USERS ?= false
 
 MONGO_CONNECTION_STRING ?= mongodb://$(MONGO_ROOT_USERNAME):$(MONGO_ROOT_PASSWORD)@localhost:$(MONGO_PORT)/$(MONGO_DATABASE)?authSource=admin

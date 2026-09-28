@@ -113,7 +113,6 @@ data class VerifyReservationQrResponseDto(val isValid: Boolean, val reservationI
 @Serializable
 data class CompleteReservationRequestDto(val verificationToken: String)
 
-/** POST /api/v1/prosumers/register request body. */
 @Serializable
 data class RegisterProsumerRequestDto(
     val nic: String,
@@ -124,7 +123,7 @@ data class RegisterProsumerRequestDto(
     val password: String
 )
 
-/** PUT /api/v1/prosumers/me request body — NIC is immutable, not included. */
+/** NIC is left off. It can't be changed after registration. */
 @Serializable
 data class UpdateProsumerRequestDto(
     val expectedVersion: Long,

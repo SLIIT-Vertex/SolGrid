@@ -15,11 +15,7 @@ enum class AppRole { PROSUMER, GRID_OPERATOR }
 
 enum class ProsumerAccountStatus { PENDING, ACTIVE, DEACTIVATION_REQUESTED, DEACTIVATED }
 
-/**
- * A registered Solar Prosumer. NIC is the primary/unique identity, per the assignment rule.
- * Mirrors SolGrid.Application.Prosumers.Responses.ProsumerResponse — the backend has no address
- * field, so none is modeled here.
- */
+/** Matches ProsumerResponse. NIC is the account id, and the API has no address. */
 data class ProsumerProfile(
     val nic: String,
     val firstName: String,
