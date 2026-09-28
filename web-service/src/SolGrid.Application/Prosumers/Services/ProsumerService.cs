@@ -190,9 +190,9 @@ public sealed class ProsumerService : IProsumerService
         // Activate a pending prosumer through a Backoffice-only lifecycle transition.
         EnsureBackoffice();
         var prosumer = await GetRequiredProsumerAsync(nic, cancellationToken).ConfigureAwait(false);
-        ValidateLifecycleRequest(prosumer, request);
+        ValidateLifecycleRequest(prosumer, request, requireReason: false);
         ApplyLifecycleTransition(() => prosumer.Activate(timeProvider.GetUtcNow()));
-        RecordActivity(prosumer, "Activated", request.Reason.Trim());
+        RecordActivity(prosumer, "Activated", string.IsNullOrWhiteSpace(request.Reason) ? null : request.Reason.Trim());
         await prosumerRepository.UpdateAsync(prosumer, cancellationToken).ConfigureAwait(false);
     }
 
@@ -254,11 +254,12 @@ public sealed class ProsumerService : IProsumerService
             throw new ConflictException("This account changed since you opened it. Refresh and review the latest details before trying again.");
     }
 
-    private static void ValidateLifecycleRequest(Prosumer prosumer, ProsumerLifecycleRequest request)
+    private static void ValidateLifecycleRequest(Prosumer prosumer, ProsumerLifecycleRequest request, bool requireReason = true)
     {
-        // Require an explanation for every reviewed account action and protect stale confirmations.
+        // Require an explanation for access-limiting actions and protect stale confirmations.
         EnsureVersion(prosumer, request.ExpectedVersion);
-        if (string.IsNullOrWhiteSpace(request.Reason) || request.Reason.Trim().Length > 500)
+        var reason = request.Reason?.Trim() ?? string.Empty;
+        if (reason.Length > 500 || (requireReason && reason.Length == 0))
             throw new ValidationException(["A reason between 1 and 500 characters is required."]);
     }
 

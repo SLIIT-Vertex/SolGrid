@@ -25,11 +25,36 @@ import { getErrorMessage } from '@/lib/problemDetails'
 
 const actionCopy: Record<
   ProsumerAction,
-  { title: string; verb: string; isDestructive?: boolean }
+  { title: string; confirmLabel: string; verb: string; effect: string; needsReason: boolean }
 > = {
-  activate: { title: 'Activate prosumer', verb: 'activated' },
-  deactivate: { title: 'Deactivate prosumer', verb: 'deactivated', isDestructive: true },
-  reactivate: { title: 'Reactivate prosumer', verb: 'reactivated' },
+  activate: {
+    title: 'Activate account',
+    confirmLabel: 'Activate',
+    verb: 'activated',
+    effect: 'They will be able to sign in to the mobile app and book battery slots.',
+    needsReason: false,
+  },
+  reject: {
+    title: 'Reject registration',
+    confirmLabel: 'Reject',
+    verb: 'rejected',
+    effect: 'The registration will not be approved and they will not be able to sign in. You can reactivate the account later if needed.',
+    needsReason: true,
+  },
+  deactivate: {
+    title: 'Deactivate account',
+    confirmLabel: 'Deactivate',
+    verb: 'deactivated',
+    effect: 'They will lose access to the mobile app. Existing bookings stay on record and are not cancelled.',
+    needsReason: true,
+  },
+  reactivate: {
+    title: 'Reactivate account',
+    confirmLabel: 'Reactivate',
+    verb: 'reactivated',
+    effect: 'They will regain access to the mobile app.',
+    needsReason: true,
+  },
 }
 
 function statusFromQuery(value: string | null): ProsumerAccountStatus | '' {
@@ -45,6 +70,7 @@ export function ProsumersListPage() {
   const [actionError, setActionError] = useState<string | null>(null)
   const [actionConflicted, setActionConflicted] = useState(false)
   const [editor, setEditor] = useState<{ prosumer?: Prosumer } | null>(null)
+  const [filterResetKey, setFilterResetKey] = useState(0)
   const [filters, setFilters] = useState(() => ({
     ...defaultProsumerFilters,
     status: statusFromQuery(searchParams.get('status')),
@@ -62,15 +88,24 @@ export function ProsumersListPage() {
 
   const isMutating =
     activateProsumer.isPending || deactivateProsumer.isPending || reactivateProsumer.isPending
+  const hasActiveFilters = Boolean(filters.searchText.trim() || filters.status)
+  const pendingCopy = pendingAction ? actionCopy[pendingAction.action] : null
+  const reasonMissing = Boolean(pendingCopy?.needsReason && !reason.trim())
+
+  const clearFilters = () => {
+    setFilters(defaultProsumerFilters)
+    setFilterResetKey((current) => current + 1)
+  }
 
   const mutationByAction: Record<ProsumerAction, typeof activateProsumer> = {
     activate: activateProsumer,
+    reject: deactivateProsumer,
     deactivate: deactivateProsumer,
     reactivate: reactivateProsumer,
   }
 
   const handleConfirm = async () => {
-    if (!pendingAction || !reason.trim() || actionConflicted) return
+    if (!pendingAction || reasonMissing || actionConflicted) return
     const { prosumer, action } = pendingAction
     try {
       await mutationByAction[action].mutateAsync({ nic: prosumer.nic, expectedVersion: prosumer.version, reason: reason.trim() })
@@ -84,9 +119,12 @@ export function ProsumersListPage() {
 
   return (
     <div className="mx-auto max-w-6xl">
-      <div className="mb-4 flex justify-end">
-        <Button type="button" onClick={() => setEditor({})}>
-          Create prosumer
+      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <p className="max-w-2xl text-sm text-ink-500">
+          Review account requests, update contact details, and manage prosumer access.
+        </p>
+        <Button type="button" className="w-full sm:w-auto" onClick={() => setEditor({})}>
+          Add prosumer
         </Button>
       </div>
       {history && <ProsumerHistoryDialog prosumer={history} onClose={() => setHistory(null)} />}
@@ -98,11 +136,19 @@ export function ProsumersListPage() {
         onSelect={(status) => setFilters((current) => ({ ...current, status, pageNumber: 1 }))}
       />
       {filters.status === 'DeactivationRequested' && (
-        <p className="mt-4 text-sm text-ink-600">Review each request in History. Accounts remain usable until Backoffice confirms deactivation. Existing bookings are not automatically cancelled.</p>
+        <p className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          Review each request in History. Accounts remain usable until Backoffice confirms deactivation. Existing bookings are not automatically cancelled.
+        </p>
       )}
       <div className="mt-6 rounded-2xl border border-ink-100 bg-white">
         <div className="border-b border-ink-100 p-4">
-          <ProsumerFilters filters={filters} onChange={setFilters} />
+          <ProsumerFilters
+            key={filterResetKey}
+            filters={filters}
+            onChange={setFilters}
+            onClear={clearFilters}
+            hasActiveFilters={hasActiveFilters}
+          />
         </div>
 
         {isLoading ? (
@@ -112,7 +158,14 @@ export function ProsumersListPage() {
         ) : !data || data.items.length === 0 ? (
           <EmptyState
             title="No prosumers found"
-            description="Try adjusting your filters, or create a profile if needed."
+            description={hasActiveFilters
+              ? 'No accounts match the current filters.'
+              : 'Add a prosumer profile to get started.'}
+            action={hasActiveFilters ? (
+              <Button type="button" variant="secondary" onClick={clearFilters}>
+                Clear filters
+              </Button>
+            ) : undefined}
           />
         ) : (
           <>
@@ -139,26 +192,28 @@ export function ProsumersListPage() {
 
       <Dialog
         open={pendingAction !== null}
-        title={pendingAction ? actionCopy[pendingAction.action].title : ''}
+        title={pendingCopy?.title ?? ''}
         onClose={() => { if (!isMutating) setPendingAction(null) }}
-        description={pendingAction
-          ? `${pendingAction.prosumer.firstName} ${pendingAction.prosumer.lastName} (${pendingAction.prosumer.nic}) will be ${actionCopy[pendingAction.action].verb}.`
+        description={pendingAction && pendingCopy
+          ? `${pendingAction.prosumer.firstName} ${pendingAction.prosumer.lastName} · NIC ${pendingAction.prosumer.nic}`
           : undefined}
       >
         <form onSubmit={(event) => { event.preventDefault(); void handleConfirm() }}>
-          {pendingAction?.action === 'deactivate' && <p className="mb-3 text-sm text-ink-600">This ends account access. Existing bookings remain on record and are not automatically cancelled.</p>}
-          <label htmlFor="account-action-reason" className="text-sm font-medium text-ink-700">Reason</label>
-          <textarea id="account-action-reason" required maxLength={500} value={reason}
-            onChange={(event) => setReason(event.target.value)} disabled={isMutating || actionConflicted}
-            className="mt-2 w-full rounded-lg border border-ink-200 p-3 text-sm" rows={3} />
-          <p className="mt-1 text-xs text-ink-500">Recorded in account history and visible to the prosumer when they have account access.</p>
+          <p className="mb-3 text-sm text-ink-600">{pendingCopy?.effect}</p>
+          {pendingCopy?.needsReason && <>
+            <label htmlFor="account-action-reason" className="text-sm font-medium text-ink-700">Reason</label>
+            <textarea id="account-action-reason" required maxLength={500} value={reason}
+              onChange={(event) => setReason(event.target.value)} disabled={isMutating || actionConflicted}
+              className="mt-2 w-full rounded-lg border border-ink-200 p-3 text-sm" rows={3} />
+            <p className="mt-1 text-xs text-ink-500">Recorded in account history and visible to the prosumer.</p>
+          </>}
           {actionError && <p role="alert" className="mt-3 text-sm text-red-600">{actionError}</p>}
           <div className="mt-5 flex justify-end gap-2">
             <Button type="button" variant="secondary" disabled={isMutating} onClick={() => setPendingAction(null)}>
               {actionConflicted ? 'Close and review latest account' : 'Cancel'}
             </Button>
-            <Button type="submit" variant={pendingAction?.action === 'deactivate' ? 'danger' : 'primary'}
-              isLoading={isMutating} disabled={!reason.trim() || actionConflicted}>Confirm</Button>
+            <Button type="submit" variant={pendingAction?.action === 'deactivate' || pendingAction?.action === 'reject' ? 'danger' : 'primary'}
+              isLoading={isMutating} disabled={reasonMissing || actionConflicted}>{pendingCopy?.confirmLabel}</Button>
           </div>
         </form>
       </Dialog>
