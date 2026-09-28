@@ -1,11 +1,3 @@
-/*
- * Project: SolGrid
- * Module: SE4040 Enterprise Application Development
- * File: Program.cs
- * Description: Configures the SolGrid Web API host, authentication, authorization, and dependency injection.
- * Contributor: Dilshan Yapa
- */
-
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Extensions.Options;
 using SolGrid.Api.BackgroundServices;
