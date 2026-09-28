@@ -117,7 +117,7 @@ public sealed class MongoUserRepository : IUserRepository
         string? excludingUserId = null,
         CancellationToken cancellationToken = default)
     {
-        // Preserve the Phase 1 contract name while routing to the clearer exists method.
+        // Preserve the existing contract name while delegating to the email lookup.
         return ExistsByEmailAsync(email, excludingUserId, cancellationToken);
     }
 

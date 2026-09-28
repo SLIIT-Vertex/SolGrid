@@ -114,9 +114,8 @@ Render the returned QR payload only after the reservation is approved. Scan and 
 
 User Management supplies JWT user id and role claims. Prosumer Management must provide active-prosumer lookup. Microgrid Node Management must provide active station and active/available booking-slot lookup, including station ownership of the slot.
 
-## Known Limitations And Viva Notes
+## Known Limitations
 
 - Concrete adapters for the Prosumer, Station, and BookingSlot read contracts must be supplied by their owning components before a complete deployed workflow is possible.
 - Identifier search is server-side and paged; it is intentionally not a full-text search engine. Add a dedicated search design only if actual UI requirements demand it.
 - The unique active-slot index may surface legacy duplicate data at startup. That is deliberate: resolve duplicate active records before enabling the invariant.
-- The concise viva explanation is: Domain protects legal state transitions; Application validates cross-component business rules; MongoDB has the final duplicate-booking guarantee; JWT claims provide identity/role; QR tokens are random, hashed, short-lived, and revalidated at completion.
