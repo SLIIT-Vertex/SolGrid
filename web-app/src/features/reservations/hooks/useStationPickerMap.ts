@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react'
 import type { MicrogridNode } from '@/features/microgrid/types'
 import { useGoogleMapsScript } from '@/lib/useGoogleMapsScript'
 
+const selectedStationZoom = 15
+
 export function useStationPickerMap(
   nodes: MicrogridNode[],
   selected: MicrogridNode | undefined,
@@ -69,6 +71,7 @@ export function useStationPickerMap(
   useEffect(() => {
     if (!selected || !mapRef.current) return
     mapRef.current.panTo({ lat: selected.latitude, lng: selected.longitude })
+    mapRef.current.setZoom(selectedStationZoom)
     markersRef.current.forEach(({ id, marker }) => {
       const zIndex = id === selected.id ? 100 : 1
       if ('setZIndex' in marker) marker.setZIndex(zIndex)
