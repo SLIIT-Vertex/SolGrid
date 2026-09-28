@@ -247,7 +247,3 @@ Projects target .NET 10. Mongo repository tests bypass live Mongo work when the 
 - Operating-schedule checks use the weekday/time of the supplied offset-aware instant. A dedicated station timezone policy is not specified by the assignment.
 - Identifier search is paged regex matching, not a full-text search engine.
 - Concrete Mongo nearby tests require `SOLGRID_MONGO_TEST_CONNECTION_STRING`.
-
-## Viva Explanation Notes
-
-Domain protects entity invariants and legal state transitions. Application validates cross-component rules: unique codes, GPS ranges, nearby search bounds, schedule coverage, and deactivation against live reservations. MongoDB enforces unique station codes, unique per-station slot numbers, and a 2dsphere index for Maps. Android never owns node data; it reads coordinates from `GET /api/v1/stations/nearby`. Reservation Management asks this component whether a station exists and is active and whether a slot exists, belongs to that station, and is active/available. JWT claims provide identity and role; request bodies cannot change station status.

@@ -2,14 +2,14 @@
 
 ## Current Scope
 
-Phase 1 added the Energy Slot Reservation Management backend foundation:
+The Energy Slot Reservation Management backend includes:
 
 - Domain reservation entity and status enum
 - Application DTOs and contracts
-- Repository abstraction for future persistence
+- Repository abstraction for persistence
 - Domain tests for entity-local lifecycle rules
 
-Phase 2 adds backend persistence and create reservation behavior:
+Persistence and reservation creation include:
 
 - MongoDB `EnergyReservations` collection document mapping
 - Reservation repository implementation
@@ -18,7 +18,7 @@ Phase 2 adds backend persistence and create reservation behavior:
 - `POST /api/v1/reservations`
 - Focused application, API, and repository tests
 
-Phase 3 adds backend update, cancellation, querying, and ownership behavior:
+Reservation updates, cancellation, querying, and ownership include:
 
 - reservation update use case
 - reservation cancellation use case
@@ -30,7 +30,7 @@ Phase 3 adds backend update, cancellation, querying, and ownership behavior:
 - `PATCH /api/v1/reservations/{id}/cancel`
 - tests for notice-period boundaries, ownership, terminal states, and query filtering
 
-Phase 4 adds backend approval, rejection, secure QR transaction verification, and completion:
+Approval, rejection, secure QR verification, and completion include:
 
 - `ApproveReservationAsync`
 - `RejectReservationAsync`
@@ -39,21 +39,21 @@ Phase 4 adds backend approval, rejection, secure QR transaction verification, an
 - server-side energy transfer completion
 - tests for review authorization, QR validity, invalid states, and duplicate completion
 
-It does not add React or Android behavior.
+This document covers backend behavior; React and Android clients use the API.
 
-## Required Business Rules For Later Phases
+## Required Business Rules
 
 The API must enforce these rules authoritatively:
 
 | Rule | Enforcement Layer |
 | --- | --- |
-| Reservation cannot be scheduled in the past. | Application service, implemented in Phase 2 |
-| Reservation must be scheduled within 7 days. | Application service, implemented in Phase 2 |
-| Reservation updates require at least 12 hours notice. | Application service, implemented in Phase 3 |
-| Reservation cancellations require at least 12 hours notice. | Application service, implemented in Phase 3 |
-| Inactive or unavailable station cannot be reserved. | Application service using station abstraction, implemented in Phase 2 |
-| Inactive or unavailable booking slot cannot be reserved. | Application service using booking-slot abstraction, implemented in Phase 2 |
-| Duplicate active booking for the same slot must be prevented. | Repository query, implemented in Phase 2 |
+| Reservation cannot be scheduled in the past. | Application service |
+| Reservation must be scheduled within 7 days. | Application service |
+| Reservation updates require at least 12 hours notice. | Application service |
+| Reservation cancellations require at least 12 hours notice. | Application service |
+| Inactive or unavailable station cannot be reserved. | Application service using station abstraction |
+| Inactive or unavailable booking slot cannot be reserved. | Application service using booking-slot abstraction |
+| Duplicate active booking for the same slot must be prevented. | Repository query |
 | Ownership checks are required for prosumer actions. | Application service using current-user/prosumer abstractions |
 | Invalid status transitions must be rejected. | Domain entity and Application service |
 | Completed transactions cannot be completed again. | Domain entity and Application service |
