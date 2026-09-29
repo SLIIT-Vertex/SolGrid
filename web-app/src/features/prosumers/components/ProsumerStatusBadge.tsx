@@ -15,6 +15,10 @@ const labelByStatus: Record<ProsumerAccountStatus, string> = {
   Deactivated: 'Deactivated',
 }
 
+export function prosumerStatusLabel(status: ProsumerAccountStatus): string {
+  return labelByStatus[status]
+}
+
 export function ProsumerStatusBadge({ status }: { status: ProsumerAccountStatus }) {
-  return <StatusBadge label={labelByStatus[status]} tone={toneByStatus[status]} />
+  return <StatusBadge label={prosumerStatusLabel(status)} tone={toneByStatus[status]} />
 }

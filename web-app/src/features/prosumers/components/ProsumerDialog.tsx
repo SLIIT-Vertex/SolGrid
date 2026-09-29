@@ -1,11 +1,12 @@
 import { useState } from 'react'
 import type { ChangeEvent, FormEvent } from 'react'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Button } from '@/components/common/Button'
 import { Dialog } from '@/components/common/Dialog'
 import { TextField } from '@/components/common/TextField'
 import { useToast } from '@/components/common/useToast'
-import { createProsumer, updateProsumer } from '@/features/prosumers/api'
+import { createProsumer, lookupProsumerByNic, updateProsumer } from '@/features/prosumers/api'
+import { prosumerStatusLabel } from '@/features/prosumers/components/ProsumerStatusBadge'
 import { prosumersKeys } from '@/features/prosumers/queryKeys'
 import type { Prosumer } from '@/features/prosumers/types'
 import {
@@ -21,6 +22,7 @@ import {
   sanitizePhoneInput,
   validateProsumerField,
   validateProsumerForm,
+  validateSriLankanNic,
 } from '@/features/prosumers/validation'
 import type {
   ProsumerFormErrors,
@@ -28,6 +30,16 @@ import type {
   ProsumerFormValues,
 } from '@/features/prosumers/validation'
 import { getErrorMessage, isConflictError } from '@/lib/problemDetails'
+
+const dateFormatter = new Intl.DateTimeFormat('en-GB', {
+  day: '2-digit',
+  month: 'short',
+  year: 'numeric',
+})
+
+function nicLookupKey(nic: string) {
+  return [...prosumersKeys.all, 'nic-lookup', nic] as const
+}
 
 export function ProsumerDialog({ prosumer, onClose }: { prosumer?: Prosumer; onClose: () => void }) {
   const isCreate = !prosumer
@@ -43,14 +55,22 @@ export function ProsumerDialog({ prosumer, onClose }: { prosumer?: Prosumer; onC
   const [errors, setErrors] = useState<ProsumerFormErrors>({})
   const client = useQueryClient()
   const { showToast } = useToast()
+  const normalizedNic = values.nic.trim().toUpperCase()
+  const nicToCheck = isCreate && validateSriLankanNic(normalizedNic) === undefined ? normalizedNic : ''
+  const nicLookup = useQuery({
+    queryKey: nicLookupKey(nicToCheck),
+    queryFn: () => lookupProsumerByNic(nicToCheck),
+    enabled: nicToCheck.length > 0,
+    retry: false,
+  })
+  const existingProsumer = nicToCheck ? nicLookup.data ?? null : null
   const save = useMutation({
     mutationFn: (request: ProsumerFormValues) => {
       const profile = {
         firstName: request.firstName,
         lastName: request.lastName,
         email: request.email,
-        // The API models an omitted phone number as null, not an empty string.
-        phoneNumber: request.phoneNumber || null,
+        phoneNumber: request.phoneNumber || null, // blank phone is stored as null
       }
       return prosumer
         ? updateProsumer(prosumer.nic, { ...profile, expectedVersion: prosumer.version })
@@ -71,7 +91,6 @@ export function ProsumerDialog({ prosumer, onClose }: { prosumer?: Prosumer; onC
 
   const setField = (field: ProsumerFormField, value: string) => {
     setValues((current) => ({ ...current, [field]: value }))
-    // Clear the message while the user is correcting the field; re-check on blur.
     setErrors((current) => (current[field] ? { ...current, [field]: undefined } : current))
     if (save.isError && !conflicted) save.reset()
   }
@@ -80,21 +99,39 @@ export function ProsumerDialog({ prosumer, onClose }: { prosumer?: Prosumer; onC
     setErrors((current) => ({ ...current, [field]: validateProsumerField(field, values, isCreate) }))
   }
 
+  const nicError = errors.nic ?? (existingProsumer ? 'This NIC is already registered.' : undefined)
+
   const fieldProps = (field: ProsumerFormField) => ({
     name: field,
     value: values[field],
-    error: errors[field],
+    error: field === 'nic' ? nicError : errors[field],
     onChange: (event: ChangeEvent<HTMLInputElement>) => setField(field, event.target.value),
     onBlur: () => validateField(field),
   })
 
-  const submit = (event: FormEvent) => {
+  const submit = async (event: FormEvent) => {
     event.preventDefault()
     const normalized = normalizeProsumerForm(values)
     const nextErrors = validateProsumerForm(normalized, isCreate)
     setValues(normalized)
     setErrors(nextErrors)
     if (Object.keys(nextErrors).length > 0 || conflicted) return
+    if (isCreate) {
+      try {
+        const existing = await client.fetchQuery({
+          queryKey: nicLookupKey(normalized.nic),
+          queryFn: () => lookupProsumerByNic(normalized.nic),
+          retry: false,
+        })
+        if (existing) return
+      } catch {
+        setErrors((current) => ({
+          ...current,
+          nic: "Couldn't check this NIC. Try again.",
+        }))
+        return
+      }
+    }
     save.mutate(normalized)
   }
 
@@ -124,9 +161,18 @@ export function ProsumerDialog({ prosumer, onClose }: { prosumer?: Prosumer; onC
           autoCapitalize="characters"
           autoComplete="off"
           maxLength={PROSUMER_NIC_MAX_LENGTH}
-          hint="12 digits, or 9 digits followed by V or X."
+          hint={nicLookup.isFetching ? 'Checking this NIC…' : '12 digits, or 9 digits followed by V or X.'}
           sanitizeValue={sanitizeNicInput}
         />
+        {existingProsumer && !errors.nic ? (
+          <div role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
+            <p className="font-medium">{existingProsumer.firstName} {existingProsumer.lastName}</p>
+            <p className="mt-1">{existingProsumer.email}</p>
+            {existingProsumer.phoneNumber ? <p>{existingProsumer.phoneNumber}</p> : null}
+            <p>Status: {prosumerStatusLabel(existingProsumer.status)}</p>
+            <p>Registered {dateFormatter.format(new Date(existingProsumer.createdAt))}</p>
+          </div>
+        ) : null}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <TextField
             {...fieldProps('firstName')}
@@ -184,7 +230,7 @@ export function ProsumerDialog({ prosumer, onClose }: { prosumer?: Prosumer; onC
           <Button type="button" variant="secondary" disabled={save.isPending} onClick={close}>
             {conflicted ? 'Close and review latest profile' : 'Cancel'}
           </Button>
-          <Button type="submit" isLoading={save.isPending} disabled={conflicted}>
+          <Button type="submit" isLoading={save.isPending} disabled={conflicted || nicLookup.isFetching || Boolean(existingProsumer)}>
             Save
           </Button>
         </div>

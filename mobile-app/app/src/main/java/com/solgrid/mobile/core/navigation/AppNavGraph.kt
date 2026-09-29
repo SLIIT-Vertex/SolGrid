@@ -159,8 +159,7 @@ fun AppNavGraph(onThemeModeChange: (AppThemeMode) -> Unit) {
                     RegisterScreen(
                         viewModel = authViewModel,
                         onRegisterSuccess = {
-                            // New accounts start Pending until Backoffice activates them, so
-                            // route back to Login rather than straight into the dashboard.
+                            // Account stays Pending until Backoffice activates it.
                             navController.navigate(Routes.LOGIN) { popUpTo(Routes.LOGIN) { inclusive = true } }
                         },
                         onNavigateToLogin = { navController.popBackStack() }

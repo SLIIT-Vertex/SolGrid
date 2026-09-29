@@ -9,7 +9,7 @@ function useProsumerStatusMutation(mutationFn: (request: ProsumerLifecycleChange
   return useMutation({
     mutationFn,
     onSettled: () => {
-      // Refresh stale rows and open history after successes and rejected conflicts alike.
+      // a rejected conflict still leaves the list stale
       queryClient.invalidateQueries({ queryKey: prosumersKeys.all })
     },
   })

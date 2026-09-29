@@ -4,7 +4,7 @@ import { TextField } from '@/components/common/TextField'
 import { digitsOnly, unsignedDecimal } from '@/lib/inputConstraints'
 import { FormError } from '@/features/microgrid/components/FormError'
 import { SlotDateCalendar } from '@/features/microgrid/components/SlotDateCalendar'
-import { getDayOperatingRange, validateSlotRow } from '@/features/microgrid/validation'
+import { SAME_DAY_SLOT_MESSAGE, getDayOperatingRange, validateSlotRow } from '@/features/microgrid/validation'
 import type { MicrogridNodeFormValues } from '@/features/microgrid/types'
 
 export function BatterySlotForm() {
@@ -30,7 +30,9 @@ export function BatterySlotForm() {
           {fields.map((field, index) => {
             const slot = slotValues?.[index]
             const hasCompleteRange = Boolean(slot?.startDate && slot.startTime && slot.endDate && slot.endTime)
-            const scheduleError = hasCompleteRange ? validateSlotRow(slot, schedule ?? []) : undefined
+            const rowError = hasCompleteRange ? validateSlotRow(slot, schedule ?? []) : undefined
+            const sameDayError = rowError === SAME_DAY_SLOT_MESSAGE ? rowError : undefined
+            const scheduleError = sameDayError ? undefined : rowError
             const startDayRange = slot?.startDate
               ? getDayOperatingRange(schedule ?? [], new Date(`${slot.startDate}T00:00:00`).getDay())
               : undefined
@@ -86,7 +88,7 @@ export function BatterySlotForm() {
                     value={slot?.endDate ?? ''}
                     schedule={schedule ?? []}
                     minDate={slot?.startDate}
-                    error={errors.slots?.[index]?.endDate?.message}
+                    error={errors.slots?.[index]?.endDate?.message ?? sameDayError}
                     onSelect={(date) => setValue(`slots.${index}.endDate`, date, { shouldValidate: true, shouldDirty: true })}
                   />
                   <TextField

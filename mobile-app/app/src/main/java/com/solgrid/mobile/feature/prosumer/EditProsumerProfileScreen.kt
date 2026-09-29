@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -19,6 +20,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import com.solgrid.mobile.core.components.AppTextField
 import com.solgrid.mobile.core.components.AppTopBar
 import com.solgrid.mobile.core.components.PrimaryButton
+import com.solgrid.mobile.core.components.SecondaryButton
 import com.solgrid.mobile.core.design.SolGridTheme
 import com.solgrid.mobile.core.design.Spacing
 import com.solgrid.mobile.feature.auth.PROSUMER_EMAIL_MAX_LENGTH
@@ -28,7 +30,6 @@ import com.solgrid.mobile.feature.auth.hasPhoneShape
 import com.solgrid.mobile.feature.auth.sanitizePhoneInput
 import com.solgrid.mobile.feature.auth.validateFullName
 
-/** Edit own profile (MOB-04). NIC itself is not editable — it is the fixed account identity. */
 @Composable
 fun EditProsumerProfileScreen(
     viewModel: ProsumerViewModel,
@@ -92,8 +93,8 @@ fun EditProsumerProfileScreen(
                     modifier = Modifier.padding(top = Spacing.md, bottom = Spacing.huge)
                 )
                 submitError?.let {
-                    androidx.compose.material3.Text(it, color = colors.error, modifier = Modifier.padding(bottom = Spacing.md))
-                    com.solgrid.mobile.core.components.SecondaryButton(
+                    Text(it, color = colors.error, modifier = Modifier.padding(bottom = Spacing.md))
+                    SecondaryButton(
                         text = "Close and reload profile",
                         onClick = { viewModel.loadProfile(); onBack() },
                         modifier = Modifier.padding(bottom = Spacing.md),
