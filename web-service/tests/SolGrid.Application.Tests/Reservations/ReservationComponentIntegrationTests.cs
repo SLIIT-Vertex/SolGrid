@@ -113,6 +113,55 @@ public sealed class ReservationComponentIntegrationTests
         await Assert.ThrowsAsync<ForbiddenException>(() => fixture.ReservationService.GetMyReservationsAsync(new ReservationQuery()));
     }
 
+    [Fact]
+    public async Task ExpireDueReservationsAsync_ReopensOccupiedBookingSlot()
+    {
+        // Verify expiry updates both sides of the reservation-slot lifecycle.
+        var scheduledAt = CurrentTime.AddMinutes(-31);
+        var slot = EnergyBookingSlot.Create(
+            "slot-expired", "station-1", 1, 12m, scheduledAt, scheduledAt.AddHours(2), CurrentTime.AddHours(-2));
+        slot.Reserve(CurrentTime.AddHours(-1));
+        slot.MarkOccupied(CurrentTime.AddMinutes(-45));
+        var reservation = EnergyReservation.Create(
+            "reservation-expired", "prosumer-1", "station-1", slot.Id, scheduledAt, CurrentTime.AddHours(-2));
+        reservation.Approve("backoffice-1", CurrentTime.AddHours(-1));
+        var reservations = new TestReservationRepository();
+        await reservations.AddAsync(reservation);
+        var expiryService = new ReservationExpiryService(
+            reservations,
+            new ReservationBookingSlotReadService(new TestSlotRepository(slot), new FixedTimeProvider(CurrentTime)),
+            new FixedTimeProvider(CurrentTime));
+
+        var expiredCount = await expiryService.ExpireDueReservationsAsync();
+
+        Assert.Equal(1, expiredCount);
+        Assert.Equal(ReservationStatus.Expired, reservation.Status);
+        Assert.Equal(SlotStatus.Available, slot.Status);
+    }
+
+    [Fact]
+    public async Task ReopenExpiredBookingSlotsAsync_RepairsPreviouslyExpiredBookingSlot()
+    {
+        var slot = EnergyBookingSlot.Create(
+            "slot-stuck", "station-1", 1, 12m, CurrentTime.AddHours(-1), CurrentTime.AddHours(1), CurrentTime.AddHours(-2));
+        slot.Reserve(CurrentTime.AddHours(-1));
+        var reservation = EnergyReservation.Create(
+            "reservation-stuck", "prosumer-1", "station-1", slot.Id, CurrentTime.AddHours(-1), CurrentTime.AddHours(-2));
+        reservation.Approve("backoffice-1", CurrentTime.AddHours(-1));
+        reservation.Expire(CurrentTime.AddMinutes(-30));
+        var reservations = new TestReservationRepository();
+        await reservations.AddAsync(reservation);
+        var expiryService = new ReservationExpiryService(
+            reservations,
+            new ReservationBookingSlotReadService(new TestSlotRepository(slot), new FixedTimeProvider(CurrentTime)),
+            new FixedTimeProvider(CurrentTime));
+
+        var reopenedCount = await expiryService.ReopenExpiredBookingSlotsAsync();
+
+        Assert.Equal(1, reopenedCount);
+        Assert.Equal(SlotStatus.Available, slot.Status);
+    }
+
     private static Fixture CreateFixture(
         bool activeProsumer = true,
         bool activeStation = true,
@@ -314,7 +363,26 @@ public sealed class ReservationComponentIntegrationTests
         public Task<PagedResult<EnergyReservation>> GetPagedAsync(ReservationQuery query, CancellationToken cancellationToken = default) { /* Not used by this fixture. */ return Task.FromResult(new PagedResult<EnergyReservation>()); }
         public Task<PagedResult<EnergyReservation>> GetDashboardReservationsAsync(ReservationDashboardView view, ReservationQuery query, DateTimeOffset nowUtc, CancellationToken cancellationToken = default) { /* Not used by this fixture. */ return Task.FromResult(new PagedResult<EnergyReservation>()); }
         public Task<ReservationDashboardCounts> GetDashboardCountsAsync(DateTimeOffset nowUtc, CancellationToken cancellationToken = default) { /* Not used by this fixture. */ return Task.FromResult(new ReservationDashboardCounts()); }
-        public Task<long> ExpireDueReservationsAsync(DateTimeOffset pendingExpiryCutoffUtc, DateTimeOffset approvedExpiryCutoffUtc, DateTimeOffset expiredAtUtc, CancellationToken cancellationToken = default) { /* Not used by this fixture. */ return Task.FromResult(0L); }
+        public Task<IReadOnlyList<string>> GetExpiredBookingSlotIdsAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<string>>(reservations
+                .Where(reservation => reservation.Status == ReservationStatus.Expired)
+                .Select(reservation => reservation.BookingSlotId)
+                .Distinct(StringComparer.Ordinal)
+                .ToArray());
+        public Task<IReadOnlyList<string>> ExpireDueReservationsAsync(DateTimeOffset pendingExpiryCutoffUtc, DateTimeOffset approvedExpiryCutoffUtc, DateTimeOffset expiredAtUtc, CancellationToken cancellationToken = default)
+        {
+            var dueReservations = reservations.Where(reservation =>
+                (reservation.Status == ReservationStatus.Pending && reservation.ScheduledAt <= pendingExpiryCutoffUtc)
+                || (reservation.Status == ReservationStatus.Approved && reservation.ScheduledAt <= approvedExpiryCutoffUtc))
+                .ToArray();
+            foreach (var reservation in dueReservations)
+            {
+                reservation.Expire(expiredAtUtc);
+            }
+
+            return Task.FromResult<IReadOnlyList<string>>(
+                dueReservations.Select(reservation => reservation.BookingSlotId).ToArray());
+        }
         public Task<bool> HasActiveReservationForBookingSlotAsync(string bookingSlotId, string? excludingReservationId = null, CancellationToken cancellationToken = default) { /* Detect active slot occupancy in fixture data. */ return Task.FromResult(reservations.Any(reservation => reservation.BookingSlotId == bookingSlotId && reservation.IsActive && reservation.Id != excludingReservationId)); }
         public Task<bool> HasActiveReservationsForStationAsync(string stationId, CancellationToken cancellationToken = default) { /* Detect active station reservations in fixture data. */ return Task.FromResult(reservations.Any(reservation => reservation.StationId == stationId && reservation.IsActive)); }
         public Task AddAsync(EnergyReservation reservation, CancellationToken cancellationToken = default) { /* Persist the fixture reservation for later station checks. */ reservations.Add(reservation); return Task.CompletedTask; }

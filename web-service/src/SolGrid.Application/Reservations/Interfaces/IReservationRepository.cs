@@ -29,7 +29,9 @@ public interface IReservationRepository
 
     Task<ReservationDashboardCounts> GetDashboardCountsAsync(DateTimeOffset nowUtc, CancellationToken cancellationToken = default);
 
-    Task<long> ExpireDueReservationsAsync(
+    Task<IReadOnlyList<string>> GetExpiredBookingSlotIdsAsync(CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<string>> ExpireDueReservationsAsync(
         DateTimeOffset pendingExpiryCutoffUtc,
         DateTimeOffset approvedExpiryCutoffUtc,
         DateTimeOffset expiredAtUtc,

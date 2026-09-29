@@ -180,7 +180,9 @@ public sealed class MongoReservationRepositoryTests : IAsyncLifetime
         var expiredPending = await repository.GetByIdAsync(pending.Id);
         var expiredApproved = await repository.GetByIdAsync(approved.Id);
 
-        Assert.Equal(2, affected);
+        Assert.Equal(2, affected.Count);
+        Assert.Contains("slot-pending", affected);
+        Assert.Contains("slot-approved", affected);
         Assert.Equal(ReservationStatus.Expired, expiredPending!.Status);
         Assert.Equal(ReservationStatus.Expired, expiredApproved!.Status);
         Assert.Equal(now, expiredPending.ExpiredAt);

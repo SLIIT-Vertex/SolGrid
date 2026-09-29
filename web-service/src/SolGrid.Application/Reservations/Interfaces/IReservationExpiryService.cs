@@ -10,5 +10,7 @@ namespace SolGrid.Application.Reservations.Interfaces;
 
 public interface IReservationExpiryService
 {
+    Task<long> ReopenExpiredBookingSlotsAsync(CancellationToken cancellationToken = default);
+
     Task<long> ExpireDueReservationsAsync(CancellationToken cancellationToken = default);
 }

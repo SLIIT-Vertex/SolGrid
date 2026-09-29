@@ -13,23 +13,51 @@ namespace SolGrid.Application.Reservations.Services;
 public sealed class ReservationExpiryService : IReservationExpiryService
 {
     private readonly IReservationRepository reservationRepository;
+    private readonly IReservationBookingSlotReadService bookingSlotReadService;
     private readonly TimeProvider timeProvider;
 
-    public ReservationExpiryService(IReservationRepository reservationRepository, TimeProvider timeProvider)
+    public ReservationExpiryService(
+        IReservationRepository reservationRepository,
+        IReservationBookingSlotReadService bookingSlotReadService,
+        TimeProvider timeProvider)
     {
         // Capture persistence and UTC clock abstractions for deterministic expiry processing.
         this.reservationRepository = reservationRepository;
+        this.bookingSlotReadService = bookingSlotReadService;
         this.timeProvider = timeProvider;
     }
 
-    public Task<long> ExpireDueReservationsAsync(CancellationToken cancellationToken = default)
+    public async Task<long> ExpireDueReservationsAsync(CancellationToken cancellationToken = default)
     {
-        // Expire pending reservations at their schedule and approved reservations after the completion grace period.
+        // Expire due reservations, then return their committed slots to the bookable pool.
         var nowUtc = timeProvider.GetUtcNow();
-        return reservationRepository.ExpireDueReservationsAsync(
+        var expiredBookingSlotIds = await reservationRepository.ExpireDueReservationsAsync(
             nowUtc,
             nowUtc - ReservationExpiryPolicy.ApprovedCompletionGracePeriod,
             nowUtc,
-            cancellationToken);
+            cancellationToken).ConfigureAwait(false);
+
+        await ReleaseBookingSlotsAsync(expiredBookingSlotIds, cancellationToken).ConfigureAwait(false);
+        return expiredBookingSlotIds.Count;
+    }
+
+    public async Task<long> ReopenExpiredBookingSlotsAsync(CancellationToken cancellationToken = default)
+    {
+        // Repair slots left committed by reservations that expired before slot release was introduced.
+        var bookingSlotIds = await reservationRepository
+            .GetExpiredBookingSlotIdsAsync(cancellationToken)
+            .ConfigureAwait(false);
+        await ReleaseBookingSlotsAsync(bookingSlotIds, cancellationToken).ConfigureAwait(false);
+        return bookingSlotIds.Count;
+    }
+
+    private async Task ReleaseBookingSlotsAsync(
+        IReadOnlyList<string> bookingSlotIds,
+        CancellationToken cancellationToken)
+    {
+        foreach (var bookingSlotId in bookingSlotIds)
+        {
+            await bookingSlotReadService.ReleaseAsync(bookingSlotId, cancellationToken).ConfigureAwait(false);
+        }
     }
 }
