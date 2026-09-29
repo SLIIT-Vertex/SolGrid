@@ -170,8 +170,6 @@ public sealed class AuthApiAuthorizationTests
     [InlineData("PATCH", "/api/v1/reservations/reservation-1/approve")]
     [InlineData("PATCH", "/api/v1/reservations/reservation-1/reject")]
     [InlineData("POST", "/api/v1/reservations/reservation-1/qr")]
-    [InlineData("POST", "/api/v1/reservations/verify-qr")]
-    [InlineData("POST", "/api/v1/reservations/reservation-1/complete")]
     public async Task ReservationMutation_WithGridOperatorJwt_ReturnsForbidden(string method, string path)
     {
         await using var factory = CreateFactory();
@@ -193,6 +191,32 @@ public sealed class AuthApiAuthorizationTests
         };
 
         Assert.Equal(HttpStatusCode.Forbidden, (await client.SendAsync(request)).StatusCode);
+    }
+
+    [Fact]
+    public async Task ReservationQrOperations_WithGridOperatorJwt_PassAuthorization()
+    {
+        var now = DateTimeOffset.UtcNow;
+        var reservation = EnergyReservation.Create(
+            "reservation-1", "prosumer-1", "station-1", "slot-1", now.AddMinutes(5), now);
+        reservation.Approve("backoffice-id", now);
+        await using var factory = CreateFactory(new TestReservationReadRepository(reservation));
+        var client = factory.CreateClient();
+        var token = await LoginAsync(client, "operator@example.com", "operator-password");
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        var verification = await client.PostAsJsonAsync("/api/v1/reservations/verify-qr", new
+        {
+            ReservationId = reservation.Id,
+            VerificationToken = "invalid-token"
+        });
+        var completion = await client.PostAsJsonAsync($"/api/v1/reservations/{reservation.Id}/complete", new
+        {
+            VerificationToken = "invalid-token"
+        });
+
+        Assert.Equal(HttpStatusCode.OK, verification.StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict, completion.StatusCode);
     }
 
     [Fact]

@@ -38,9 +38,6 @@ public sealed class ReservationServiceTests
         await Assert.ThrowsAsync<ForbiddenException>(() => service.ApproveReservationAsync(reservation.Id, new ApproveReservationRequest()));
         await Assert.ThrowsAsync<ForbiddenException>(() => service.RejectReservationAsync(reservation.Id, new RejectReservationRequest { RejectionReason = "Maintenance" }));
         await Assert.ThrowsAsync<ForbiddenException>(() => service.IssueReservationQrAsync(reservation.Id));
-        await Assert.ThrowsAsync<ForbiddenException>(() => service.VerifyReservationQrAsync(new VerifyReservationQrRequest { ReservationId = reservation.Id, VerificationToken = "valid-token" }));
-        await Assert.ThrowsAsync<ForbiddenException>(() => service.CompleteReservationAsync(reservation.Id, new CompleteReservationRequest { VerificationToken = "valid-token" }));
-
         Assert.Equal(ReservationStatus.Pending, reservation.Status);
         Assert.Equal(CurrentTime.AddHours(13), reservation.ScheduledAt);
         Assert.Null(reservation.QrVerificationTokenHash);
@@ -563,16 +560,16 @@ public sealed class ReservationServiceTests
     }
 
     [Fact]
-    public async Task VerifyReservationQrAsync_WithValidToken_ReturnsValid()
+    public async Task VerifyReservationQrAsync_WithGridOperatorAndValidToken_ReturnsValid()
     {
         // Verify approved reservation QR tokens can be validated server-side.
         var reservation = CreateApprovedReservation();
         var repository = new InMemoryReservationRepository(reservation);
         var ownerService = CreateService(repository);
         var qr = await ownerService.IssueReservationQrAsync("reservation-1");
-        var backofficeService = CreateService(repository, currentUserContext: new FakeCurrentUserContext("backoffice-1", UserRole.Backoffice));
+        var operatorService = CreateService(repository, currentUserContext: new FakeCurrentUserContext("operator-1", UserRole.GridOperator));
 
-        var response = await backofficeService.VerifyReservationQrAsync(new VerifyReservationQrRequest
+        var response = await operatorService.VerifyReservationQrAsync(new VerifyReservationQrRequest
         {
             ReservationId = "reservation-1",
             VerificationToken = qr.VerificationToken
@@ -657,21 +654,21 @@ public sealed class ReservationServiceTests
     }
 
     [Fact]
-    public async Task CompleteReservationAsync_WithValidToken_CompletesReservation()
+    public async Task CompleteReservationAsync_WithGridOperatorAndValidToken_CompletesReservation()
     {
-        // Verify Backoffice users can complete approved reservations with a valid QR token.
+        // Verify mobile Grid Operators can complete approved reservations with a valid QR token.
         var reservation = CreateApprovedReservation();
         var repository = new InMemoryReservationRepository(reservation);
         var qr = await CreateService(repository).IssueReservationQrAsync("reservation-1");
-        var backofficeService = CreateService(repository, currentUserContext: new FakeCurrentUserContext("backoffice-1", UserRole.Backoffice));
+        var operatorService = CreateService(repository, currentUserContext: new FakeCurrentUserContext("operator-1", UserRole.GridOperator));
 
-        var response = await backofficeService.CompleteReservationAsync("reservation-1", new CompleteReservationRequest
+        var response = await operatorService.CompleteReservationAsync("reservation-1", new CompleteReservationRequest
         {
             VerificationToken = qr.VerificationToken
         });
 
         Assert.Equal(ReservationStatus.Completed, response.Status);
-        Assert.Equal("backoffice-1", response.CompletedBy);
+        Assert.Equal("operator-1", response.CompletedBy);
         Assert.Equal(CurrentTime, response.CompletedAt);
     }
 

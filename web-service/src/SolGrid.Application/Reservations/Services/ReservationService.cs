@@ -341,7 +341,7 @@ public sealed class ReservationService : IReservationService
     {
         // Verify a QR token against the server-side reservation token hash.
         ValidateVerifyQrRequest(request);
-        EnsureBackofficeReservationAction();
+        EnsureTransactionOperatorAction();
 
         var reservationId = NormalizeIdentifier(request.ReservationId);
         var reservation = await GetRequiredReservationAsync(reservationId, cancellationToken).ConfigureAwait(false);
@@ -376,7 +376,7 @@ public sealed class ReservationService : IReservationService
         // Complete an approved reservation after revalidating the QR token server-side.
         ValidateId(id, "Reservation id is required.");
         ValidateCompleteRequest(request);
-        EnsureBackofficeReservationAction();
+        EnsureTransactionOperatorAction();
 
         var reservation = await GetRequiredReservationAsync(id, cancellationToken).ConfigureAwait(false);
         var nowUtc = timeProvider.GetUtcNow();
@@ -615,6 +615,14 @@ public sealed class ReservationService : IReservationService
         if (!currentUserContext.IsAuthenticated || currentUserContext.Role != UserRole.Backoffice)
         {
             throw new ForbiddenException("Backoffice authorization is required for reservation operations.");
+        }
+    }
+
+    private void EnsureTransactionOperatorAction()
+    {
+        if (!currentUserContext.IsAuthenticated || !IsOperationalRole())
+        {
+            throw new ForbiddenException("Backoffice or Grid Operator authorization is required for transaction operations.");
         }
     }
 
