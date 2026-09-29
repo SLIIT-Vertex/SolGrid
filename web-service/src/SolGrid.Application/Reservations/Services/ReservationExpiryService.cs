@@ -37,11 +37,27 @@ public sealed class ReservationExpiryService : IReservationExpiryService
             nowUtc,
             cancellationToken).ConfigureAwait(false);
 
-        foreach (var bookingSlotId in expiredBookingSlotIds)
+        await ReleaseBookingSlotsAsync(expiredBookingSlotIds, cancellationToken).ConfigureAwait(false);
+        return expiredBookingSlotIds.Count;
+    }
+
+    public async Task<long> ReopenExpiredBookingSlotsAsync(CancellationToken cancellationToken = default)
+    {
+        // Repair slots left committed by reservations that expired before slot release was introduced.
+        var bookingSlotIds = await reservationRepository
+            .GetExpiredBookingSlotIdsAsync(cancellationToken)
+            .ConfigureAwait(false);
+        await ReleaseBookingSlotsAsync(bookingSlotIds, cancellationToken).ConfigureAwait(false);
+        return bookingSlotIds.Count;
+    }
+
+    private async Task ReleaseBookingSlotsAsync(
+        IReadOnlyList<string> bookingSlotIds,
+        CancellationToken cancellationToken)
+    {
+        foreach (var bookingSlotId in bookingSlotIds)
         {
             await bookingSlotReadService.ReleaseAsync(bookingSlotId, cancellationToken).ConfigureAwait(false);
         }
-
-        return expiredBookingSlotIds.Count;
     }
 }

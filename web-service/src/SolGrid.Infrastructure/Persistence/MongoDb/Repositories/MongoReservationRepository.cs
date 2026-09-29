@@ -150,6 +150,18 @@ public sealed class MongoReservationRepository : IReservationRepository
             .ConfigureAwait(false);
     }
 
+    public async Task<IReadOnlyList<string>> GetExpiredBookingSlotIdsAsync(
+        CancellationToken cancellationToken = default)
+    {
+        // Support one-time startup repair of slots left committed by older expiry processing.
+        var bookingSlotIds = await reservationsCollection
+            .Find(reservation => reservation.Status == ReservationStatus.Expired)
+            .Project(reservation => reservation.BookingSlotId)
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+        return bookingSlotIds.Distinct(StringComparer.Ordinal).ToArray();
+    }
+
     public async Task<IReadOnlyList<string>> ExpireDueReservationsAsync(
         DateTimeOffset pendingExpiryCutoffUtc,
         DateTimeOffset approvedExpiryCutoffUtc,

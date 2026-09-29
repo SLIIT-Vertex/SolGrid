@@ -479,6 +479,7 @@ public sealed class AuthApiAuthorizationTests
         public Task<PagedResult<EnergyReservation>> GetPagedAsync(ReservationQuery query, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<PagedResult<EnergyReservation>> GetDashboardReservationsAsync(ReservationDashboardView view, ReservationQuery query, DateTimeOffset nowUtc, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<ReservationDashboardCounts> GetDashboardCountsAsync(DateTimeOffset nowUtc, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<IReadOnlyList<string>> GetExpiredBookingSlotIdsAsync(CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<IReadOnlyList<string>> ExpireDueReservationsAsync(DateTimeOffset pendingExpiryCutoffUtc, DateTimeOffset approvedExpiryCutoffUtc, DateTimeOffset expiredAtUtc, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<bool> HasActiveReservationForBookingSlotAsync(string bookingSlotId, string? excludingReservationId = null, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<bool> HasActiveReservationsForStationAsync(string stationId, CancellationToken cancellationToken = default) => throw new NotSupportedException();

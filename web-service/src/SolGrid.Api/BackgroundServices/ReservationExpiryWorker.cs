@@ -25,12 +25,35 @@ public sealed class ReservationExpiryWorker : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        // Process immediately on startup, then repeat at the configured bounded interval.
+        // Repair legacy committed slots once, process expiry immediately, then repeat at the configured interval.
+        await ReopenExpiredBookingSlotsAsync(stoppingToken).ConfigureAwait(false);
         await ExpireDueReservationsAsync(stoppingToken).ConfigureAwait(false);
         using var timer = new PeriodicTimer(ReservationExpiryPolicy.WorkerInterval);
         while (await timer.WaitForNextTickAsync(stoppingToken).ConfigureAwait(false))
         {
             await ExpireDueReservationsAsync(stoppingToken).ConfigureAwait(false);
+        }
+    }
+
+    private async Task ReopenExpiredBookingSlotsAsync(CancellationToken stoppingToken)
+    {
+        try
+        {
+            using var scope = serviceScopeFactory.CreateScope();
+            var expiryService = scope.ServiceProvider.GetRequiredService<IReservationExpiryService>();
+            var slotCount = await expiryService.ReopenExpiredBookingSlotsAsync(stoppingToken).ConfigureAwait(false);
+            if (slotCount > 0)
+            {
+                logger.LogInformation("Reconciled {BookingSlotCount} slots linked to expired reservations.", slotCount);
+            }
+        }
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+        {
+            // Allow normal host shutdown without reporting a false worker failure.
+        }
+        catch (Exception exception)
+        {
+            logger.LogError(exception, "Expired reservation slot reconciliation failed.");
         }
     }
 

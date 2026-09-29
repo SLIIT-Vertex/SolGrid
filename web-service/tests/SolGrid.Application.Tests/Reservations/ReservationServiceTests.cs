@@ -1063,6 +1063,16 @@ public sealed class ReservationServiceTests
             });
         }
 
+        public Task<IReadOnlyList<string>> GetExpiredBookingSlotIdsAsync(
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult<IReadOnlyList<string>>(reservations
+                .Where(reservation => reservation.Status == ReservationStatus.Expired)
+                .Select(reservation => reservation.BookingSlotId)
+                .Distinct(StringComparer.Ordinal)
+                .ToArray());
+        }
+
         public Task<IReadOnlyList<string>> ExpireDueReservationsAsync(
             DateTimeOffset pendingExpiryCutoffUtc,
             DateTimeOffset approvedExpiryCutoffUtc,
