@@ -150,13 +150,13 @@ public sealed class MongoReservationRepository : IReservationRepository
             .ConfigureAwait(false);
     }
 
-    public async Task<long> ExpireDueReservationsAsync(
+    public async Task<IReadOnlyList<string>> ExpireDueReservationsAsync(
         DateTimeOffset pendingExpiryCutoffUtc,
         DateTimeOffset approvedExpiryCutoffUtc,
         DateTimeOffset expiredAtUtc,
         CancellationToken cancellationToken = default)
     {
-        // Atomically expire due active reservations so duplicate workers remain safe and idempotent.
+        // Atomically expire each due reservation and return only slots whose transition succeeded.
         var builder = Builders<ReservationDocument>.Filter;
         var update = Builders<ReservationDocument>.Update
             .Set(reservation => reservation.Status, ReservationStatus.Expired)
@@ -170,12 +170,30 @@ public sealed class MongoReservationRepository : IReservationRepository
         var approvedFilter = builder.And(
             builder.Eq(reservation => reservation.Status, ReservationStatus.Approved),
             builder.Lte(reservation => reservation.ScheduledAtUtc, approvedExpiryCutoffUtc.UtcDateTime));
+        var dueFilter = builder.Or(pendingFilter, approvedFilter);
+        var dueReservationIds = await reservationsCollection
+            .Find(dueFilter)
+            .Project(reservation => reservation.Id)
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+        var expiredBookingSlotIds = new List<string>(dueReservationIds.Count);
 
-        var pendingResult = await reservationsCollection.UpdateManyAsync(pendingFilter, update, cancellationToken: cancellationToken)
-            .ConfigureAwait(false);
-        var approvedResult = await reservationsCollection.UpdateManyAsync(approvedFilter, update, cancellationToken: cancellationToken)
-            .ConfigureAwait(false);
-        return pendingResult.ModifiedCount + approvedResult.ModifiedCount;
+        foreach (var reservationId in dueReservationIds)
+        {
+            var expired = await reservationsCollection.FindOneAndUpdateAsync(
+                    builder.And(builder.Eq(reservation => reservation.Id, reservationId), dueFilter),
+                    update,
+                    new FindOneAndUpdateOptions<ReservationDocument> { ReturnDocument = ReturnDocument.After },
+                    cancellationToken)
+                .ConfigureAwait(false);
+
+            if (expired is not null)
+            {
+                expiredBookingSlotIds.Add(expired.BookingSlotId);
+            }
+        }
+
+        return expiredBookingSlotIds;
     }
 
     public async Task<bool> HasActiveReservationsForStationAsync(

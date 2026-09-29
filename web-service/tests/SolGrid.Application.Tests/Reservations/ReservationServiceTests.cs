@@ -1063,7 +1063,7 @@ public sealed class ReservationServiceTests
             });
         }
 
-        public Task<long> ExpireDueReservationsAsync(
+        public Task<IReadOnlyList<string>> ExpireDueReservationsAsync(
             DateTimeOffset pendingExpiryCutoffUtc,
             DateTimeOffset approvedExpiryCutoffUtc,
             DateTimeOffset expiredAtUtc,
@@ -1079,7 +1079,8 @@ public sealed class ReservationServiceTests
                 reservation.Expire(expiredAtUtc);
             }
 
-            return Task.FromResult((long)dueReservations.Length);
+            return Task.FromResult<IReadOnlyList<string>>(
+                dueReservations.Select(reservation => reservation.BookingSlotId).ToArray());
         }
 
         private static PagedResult<EnergyReservation> CreatePage(
