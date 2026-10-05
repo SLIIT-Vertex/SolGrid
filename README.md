@@ -249,5 +249,5 @@ Update this table with student registration numbers and any agreed shared contri
 
 ## Submission Links
 
-- Git repository: `TODO: add the repository URL`
-- Demonstration video: `TODO: add the demonstration video URL`
+- Git repository: `https://github.com/SLIIT-Vertex/SolGrid`
+- Demonstration video: `https://www.youtube.com/watch?v=k1SSL1AM_38`
